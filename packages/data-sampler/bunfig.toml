@@ -1,0 +1,11 @@
+[test]
+coverage = true
+coverageThreshold = { line = 0.8, function = 0.6, statement = 0.8 }
+coveragePathIgnorePatterns = [
+  "**/*.system.ts",  # System wrappers, no business logic
+  "**/index.ts",     # Barrel re-exports, no business logic
+  "src/cli.ts",      # CLI entrypoint, wiring only
+  "examples/**",
+  "tests/**",
+  "**/*.test.ts",
+]

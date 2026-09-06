@@ -1,0 +1,58 @@
+{
+  "name": "@lekman/data-sampler",
+  "version": "0.1.0",
+  "description": "Classification-first JSON test data: define grades, choose a spread, generate records that satisfy each grade.",
+  "license": "MIT",
+  "author": "Tobias Lekman",
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/data-sampler",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekman/qa-toolkit.git",
+    "directory": "packages/data-sampler"
+  },
+  "keywords": [
+    "faker",
+    "test-data",
+    "fixtures",
+    "ndjson",
+    "sampling"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "data-sampler": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run check"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.2.0",
+    "typescript": "^5.7.0"
+  }
+}
