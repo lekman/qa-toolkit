@@ -1,6 +1,6 @@
 # qat-002: data-sampler Package
 
-> **Status:** Dispatched | **Date:** 2026-09-06 | **Author:** planning session (Claude chat) | **Keys:** qat-002
+> **Status:** Consumed | **Date:** 2026-09-06 | **Author:** planning session (Claude chat) | **Keys:** qat-002
 
 ## Context
 
@@ -513,7 +513,72 @@ sampling with exact spread allocation`. Fill Outcome. The operator merges;
 
 ## Outcome
 
-_Empty at dispatch. The implementation session fills in: date, pull request
-URL, final coverage numbers, the pasted first-record snapshot's seed and
-faker version, any deviation from the module layout, and whether Node in the
-session could load the `.ts` example._
+**Date:** 2026-09-06. **Pull request:** <https://github.com/lekman/qa-toolkit/pull/2>
+(`feat(data-sampler): graded sampling with exact spread allocation`, branch
+`feat/data-sampler`). Executed by an implementation session (Claude Code)
+after qat-001 merged and `Continuous Integration` passed on `main`.
+
+### Verification
+
+`bun test`: 66 tests pass across 7 files. Coverage over `src/` with the
+`bunfig.toml` exclusions: functions 78.5 percent, lines 99.8 percent, against
+thresholds 0.6 and 0.8. Bun's report prints functions and lines only, so
+the statement figure was not observed separately. `bun run lint`, `typecheck` and
+`build` exit 0 and `trunk check --all` reports no issues. On the pull request, every check passed on the first run: `Continuous Integration` (lint, typecheck, test, build, and trunk hold-the-line) and CodeQL.
+
+### The Determinism Guard
+
+The pinned first record is from `Sampler.run(patient, { count: 200, seed: 7 })`
+under `@faker-js/faker` 10.6.0 (the current major on 2026-09-06, so the
+brief's `^10.0.0` stands). The snapshot only became stable after admission
+dates were drawn against a fixed reference date; see deviation 1.
+
+### Node
+
+The session's Node is 22.22.1. Type stripping is on by default there (Node's
+documentation: enabled by default from v22.18.0 and v23.6.0, flag added in
+v22.6.0), so `node dist/cli.js plan --dataset examples/patient.ts --count 10`
+and `generate` both succeed with no flag. The README states 22.18 rather than
+the brief's 23.6. What did fail under Node was the example's directory
+import of `../src`; see deviation 2.
+
+### Deviations from the Design and Steps
+
+1. **Fixed reference date for admissions.** `faker.date.recent({ days: 30 })`
+   measures from the current time, so the same seed produced different dates
+   on different days and the first-record guard could not hold overnight.
+   `examples/patient.ts` passes `refDate: "2026-09-01T00:00:00.000Z"`, with a
+   comment, and the README tells dataset authors to do the same.
+2. **The example imports `@lekman/data-sampler` by name**, not `../src`.
+   Node's ESM loader rejects a directory import; the package name resolves to
+   `src/` under Bun (the `bun` export condition) and to `dist/` under Node.
+   It is also the import a consumer writes. The integration test imports the
+   same way.
+3. **`Sampler.records` takes options, not a resolved seed.** It calls `plan`
+   itself and draws a seed silently when none is given. `run` and the CLI
+   call `plan` first so the seed is reported before the first record, as the
+   brief allowed. `Spread.allocate` and `Sampler.plan` throw `SpreadError`
+   for a count that is not a non-negative integer.
+4. **`Spread` imports `SpreadError` from `sampler/errors.ts` directly** rather
+   than from the sampler barrel, with a comment: the barrel loads
+   `sampler.ts`, which imports `Spread`, and the cycle is avoided by importing
+   the file.
+5. **`Ndjson.object` is a third public method** shared by `line` and
+   `document`; `_meta` is `{ grade, index, seed }` in that key order.
+6. **`--no-meta` is declared as its own boolean option** rather than a
+   negation of `--meta`, because `parseArgs` negation needs `allowNegative`,
+   which Node 20 lacks.
+7. **`Distribution.outside` chooses the side with one draw, then the value
+   with a second.** The high side is mirrored (`limits.max - u * width`) so
+   the result can reach `limits.max` and never equals `max`.
+8. **Commit per module became six `feat` commits plus one `style` and one
+   `docs`.** Trunk's prettier pass over the finished package was committed
+   separately so the diff per module stays readable.
+9. **The CLI accepts `--help` and `--version` with `-h` and `-v`**, and
+   prints the usage with exit 1 when no command is given.
+
+### Not Done
+
+- Not published to npm; `scripts/release.ts` is untouched.
+- The probabilistic sampler the practice mentions does not exist.
+- Node 20 and 21 were not exercised.
