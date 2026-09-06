@@ -1,0 +1,65 @@
+# This file controls the behavior of Trunk: https://docs.trunk.io/cli
+# To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
+version: 0.1
+cli:
+  version: 1.25.0
+# Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.10.2
+      uri: https://github.com/trunk-io/plugins
+# Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
+runtimes:
+  enabled:
+    - node@22.16.0
+    - python@3.14.4
+# This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
+lint:
+  ignore:
+    # Release Please writes the changelogs, and not to prettier's rules.
+    # Formatting them would be undone by the next release, and until this
+    # was ignored every release pull request failed here — a check that
+    # blocks the release it is reviewing.
+    - linters: [prettier, markdownlint]
+      paths:
+        - CHANGELOG.md
+        - packages/**/CHANGELOG.md
+  enabled:
+    - gitleaks@8.30.1
+    - git-diff-check
+    - markdownlint@0.49.1
+    - prettier@3.9.6
+    - trufflehog@3.95.6
+actions:
+  definitions:
+    - id: eslint-fix
+      display_name: eslint --fix staged files
+      run: bash scripts/pre-commit-eslint.sh
+      triggers:
+        - git_hooks: [pre-commit]
+
+    # The leak guard also lives in .githooks/pre-commit. It is repeated here
+    # because trunk takes over core.hooksPath the first time it runs in a
+    # clone, which stops .githooks from being called at all — the guard was
+    # silently bypassed that way on 13 Aug. Whichever hook path is in force,
+    # one of the two copies runs.
+    - id: no-client-content
+      display_name: block client-identifying content
+      run: bash scripts/check-no-client-content.sh --staged
+      triggers:
+        - git_hooks: [pre-commit]
+    # Same reasoning as no-client-content above, for the message rather than
+    # the content. Added 17 Aug after finding .githooks/commit-msg had never
+    # run: trunk owns the hooks path, so a hook living only in .githooks is
+    # inert while looking installed.
+    - id: no-client-message
+      display_name: block a commit message naming a client
+      run: bash scripts/check-no-client-content.sh --message
+      triggers:
+        - git_hooks: [commit-msg]
+  enabled:
+    - commitlint
+    - no-client-message
+    - eslint-fix
+    - no-client-content

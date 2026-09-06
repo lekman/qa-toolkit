@@ -1,0 +1,5 @@
+# Build output.
+dist/
+
+# The release copies the root licence in; the per-package copy is generated.
+LICENSE
