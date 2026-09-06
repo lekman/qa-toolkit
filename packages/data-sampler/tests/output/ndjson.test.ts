@@ -11,10 +11,13 @@ const records: SampledRecord<{ name: string; n: number }>[] = [
 
 describe("Ndjson.line", () => {
   test("one object per line, newline terminated, _meta first", () => {
-    const line = Ndjson.line(records[0] as SampledRecord<{ name: string; n: number }>, {
-      meta: true,
-      seed: 7,
-    });
+    const line = Ndjson.line(
+      records[0] as SampledRecord<{ name: string; n: number }>,
+      {
+        meta: true,
+        seed: 7,
+      },
+    );
     expect(line.endsWith("\n")).toBe(true);
     expect(line.split("\n")).toHaveLength(2);
     const parsed = JSON.parse(line);
@@ -25,7 +28,10 @@ describe("Ndjson.line", () => {
 
   test("omits _meta when meta is false", () => {
     const parsed = JSON.parse(
-      Ndjson.line(records[1] as SampledRecord<{ name: string; n: number }>, { meta: false, seed: 7 }),
+      Ndjson.line(records[1] as SampledRecord<{ name: string; n: number }>, {
+        meta: false,
+        seed: 7,
+      }),
     );
     expect(parsed).toEqual({ n: 2, name: "two" });
   });
@@ -41,6 +47,8 @@ describe("Ndjson.document", () => {
   });
 
   test("is pretty-printed with two spaces", () => {
-    expect(Ndjson.document(records, { meta: false, seed: 3 })).toContain('\n  {\n    "n": 1');
+    expect(Ndjson.document(records, { meta: false, seed: 3 })).toContain(
+      '\n  {\n    "n": 1',
+    );
   });
 });

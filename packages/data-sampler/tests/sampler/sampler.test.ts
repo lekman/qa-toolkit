@@ -12,7 +12,10 @@ const rows = Dataset.define<Row>({
   fields: {
     fromCtx: { default: (ctx) => ctx.grade },
     seen: { default: (ctx) => `${ctx.record.fromCtx}/${ctx.index}` },
-    value: { a: (ctx) => ctx.faker.number.int({ max: 9, min: 0 }), b: () => 100 },
+    value: {
+      a: (ctx) => ctx.faker.number.int({ max: 9, min: 0 }),
+      b: () => 100,
+    },
   },
   grades: ["a", "b"],
   name: "rows",
@@ -30,7 +33,9 @@ describe("Sampler", () => {
   test("each generator receives the record's grade", () => {
     for (const record of Sampler.run(rows, { count: 50, seed: 2 }).records) {
       expect(record.data.fromCtx).toBe(record.grade);
-      expect(record.data.value).toBe(record.grade === "b" ? 100 : record.data.value);
+      expect(record.data.value).toBe(
+        record.grade === "b" ? 100 : record.data.value,
+      );
       if (record.grade === "b") expect(record.data.value).toBe(100);
       else expect(record.data.value).toBeLessThan(10);
     }
@@ -43,7 +48,9 @@ describe("Sampler", () => {
   });
 
   test("index runs 0..count-1 in yield order", () => {
-    const indexes = [...Sampler.records(rows, { count: 10, seed: 4 })].map((r) => r.index);
+    const indexes = [...Sampler.records(rows, { count: 10, seed: 4 })].map(
+      (r) => r.index,
+    );
     expect(indexes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
@@ -57,12 +64,18 @@ describe("Sampler", () => {
   });
 
   test("spread in options overrides the dataset default", () => {
-    const run = Sampler.run(rows, { count: 10, seed: 1, spread: { a: 0.5, b: 0.5 } });
+    const run = Sampler.run(rows, {
+      count: 10,
+      seed: 1,
+      spread: { a: 0.5, b: 0.5 },
+    });
     expect(run.allocation).toEqual({ a: 5, b: 5 });
   });
 
   test("an invalid override spread is rejected", () => {
-    expect(() => Sampler.run(rows, { count: 10, seed: 1, spread: { c: 1 } })).toThrow(SpreadError);
+    expect(() =>
+      Sampler.run(rows, { count: 10, seed: 1, spread: { c: 1 } }),
+    ).toThrow(SpreadError);
   });
 
   test("plan returns the allocation and the given seed without generating", () => {

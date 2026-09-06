@@ -34,7 +34,9 @@ describe("Dataset.define", () => {
   });
 
   test("scales a percentage spread", () => {
-    expect(Dataset.define({ ...valid, spread: { a: 90, b: 10 } }).spread).toEqual({ a: 0.9, b: 0.1 });
+    expect(
+      Dataset.define({ ...valid, spread: { a: 90, b: 10 } }).spread,
+    ).toEqual({ a: 0.9, b: 0.1 });
   });
 
   test("rejects an empty name", () => {
@@ -42,25 +44,37 @@ describe("Dataset.define", () => {
   });
 
   test("rejects empty grades", () => {
-    expect(() => Dataset.define({ ...valid, grades: [], spread: {} })).toThrow(/no grades/);
+    expect(() => Dataset.define({ ...valid, grades: [], spread: {} })).toThrow(
+      /no grades/,
+    );
   });
 
   test("rejects duplicate grades", () => {
-    expect(() => Dataset.define({ ...valid, grades: ["a", "a"] })).toThrow(/twice/);
+    expect(() => Dataset.define({ ...valid, grades: ["a", "a"] })).toThrow(
+      /twice/,
+    );
   });
 
   test('rejects a grade named "default"', () => {
     expect(() =>
-      Dataset.define({ ...valid, grades: ["a", "default"], spread: { a: 0.5, default: 0.5 } }),
+      Dataset.define({
+        ...valid,
+        grades: ["a", "default"],
+        spread: { a: 0.5, default: 0.5 },
+      }),
     ).toThrow(/default/);
   });
 
   test("rejects a spread key outside the scale", () => {
-    expect(() => Dataset.define({ ...valid, spread: { a: 0.5, c: 0.5 } })).toThrow(DatasetError);
+    expect(() =>
+      Dataset.define({ ...valid, spread: { a: 0.5, c: 0.5 } }),
+    ).toThrow(DatasetError);
   });
 
   test("rejects weights that do not sum to 1", () => {
-    expect(() => Dataset.define({ ...valid, spread: { a: 0.5, b: 0.4 } })).toThrow(/sum to 1/);
+    expect(() =>
+      Dataset.define({ ...valid, spread: { a: 0.5, b: 0.4 } }),
+    ).toThrow(/sum to 1/);
   });
 
   test("rejects a field with no generator for a grade and no default", () => {
@@ -69,7 +83,10 @@ describe("Dataset.define", () => {
   });
 
   test("rejects a field that is not an object", () => {
-    const fields = { ...valid.fields, value: null } as unknown as DatasetDefinition<Row>["fields"];
+    const fields = {
+      ...valid.fields,
+      value: null,
+    } as unknown as DatasetDefinition<Row>["fields"];
     expect(() => Dataset.define({ ...valid, fields })).toThrow(/no generators/);
   });
 

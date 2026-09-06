@@ -4,7 +4,10 @@ import type { EncodeOptions } from "./types";
 /** Encodes sampled records as newline-delimited JSON or a JSON document. */
 export class Ndjson {
   /** A JSON array document, pretty-printed with two spaces, newline terminated. */
-  static document<T>(records: Iterable<SampledRecord<T>>, options: EncodeOptions): string {
+  static document<T>(
+    records: Iterable<SampledRecord<T>>,
+    options: EncodeOptions,
+  ): string {
     const objects = [];
     for (const record of records) objects.push(Ndjson.object(record, options));
     return `${JSON.stringify(objects, null, 2)}\n`;

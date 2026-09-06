@@ -50,13 +50,26 @@ export class Sampler {
     const faker = Fakers.seeded(seed);
     const random = new FakerRandom(faker);
     const grades = Spread.sequence(allocation, dataset.grades, random);
-    const specs = Object.entries(dataset.fields) as [keyof T & string, FieldSpec<T, unknown>][];
+    const specs = Object.entries(dataset.fields) as [
+      keyof T & string,
+      FieldSpec<T, unknown>,
+    ][];
     for (let index = 0; index < grades.length; index += 1) {
       const grade = grades[index] as Grade;
       const record: Partial<T> = {};
       for (const [key, spec] of specs) {
-        const generate = (spec[grade] ?? spec.default) as FieldGenerator<T, T[typeof key]>;
-        const ctx: GenerateContext<T> = { faker, grade, index, random, record, scale: dataset.grades };
+        const generate = (spec[grade] ?? spec.default) as FieldGenerator<
+          T,
+          T[typeof key]
+        >;
+        const ctx: GenerateContext<T> = {
+          faker,
+          grade,
+          index,
+          random,
+          record,
+          scale: dataset.grades,
+        };
         record[key] = generate(ctx);
       }
       yield { data: record as T, grade, index };
@@ -64,7 +77,10 @@ export class Sampler {
   }
 
   /** Collects `records` into a SampleRun. Convenience for tests and small fixtures. */
-  static run<T>(dataset: DatasetDefinition<T>, options: SampleOptions): SampleRun<T> {
+  static run<T>(
+    dataset: DatasetDefinition<T>,
+    options: SampleOptions,
+  ): SampleRun<T> {
     const { allocation, seed } = Sampler.plan(dataset, options);
     const records = [...Sampler.records(dataset, { ...options, seed })];
     return { allocation, records, seed };

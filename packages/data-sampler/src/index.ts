@@ -1,7 +1,14 @@
 export { Spread } from "./grade";
 export type { Allocation, Grade, GradeScale, Weights } from "./grade";
 export { FakerRandom, Fakers } from "./faker";
-export { Dataset, DatasetError, Distribution, Sampler, SpreadError, defineDataset } from "./sampler";
+export {
+  Dataset,
+  DatasetError,
+  Distribution,
+  Sampler,
+  SpreadError,
+  defineDataset,
+} from "./sampler";
 export type {
   DatasetDefinition,
   FieldGenerator,

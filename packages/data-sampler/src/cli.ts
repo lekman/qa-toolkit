@@ -57,7 +57,9 @@ const parseCount = (text: string | undefined): number => {
   if (text === undefined) throw new UsageError("--count is required");
   const count = Number(text);
   if (!Number.isInteger(count) || count < 0) {
-    throw new UsageError(`--count must be a non-negative integer, got "${text}"`);
+    throw new UsageError(
+      `--count must be a non-negative integer, got "${text}"`,
+    );
   }
   return count;
 };
@@ -65,15 +67,19 @@ const parseCount = (text: string | undefined): number => {
 const parseSeed = (text: string | undefined): number | undefined => {
   if (text === undefined) return undefined;
   const seed = Number(text);
-  if (!Number.isInteger(seed)) throw new UsageError(`--seed must be an integer, got "${text}"`);
+  if (!Number.isInteger(seed))
+    throw new UsageError(`--seed must be an integer, got "${text}"`);
   return seed;
 };
 
-const loadDataset = async (path: string | undefined): Promise<DatasetDefinition<unknown>> => {
+const loadDataset = async (
+  path: string | undefined,
+): Promise<DatasetDefinition<unknown>> => {
   if (path === undefined) throw new UsageError("--dataset is required");
   const url = pathToFileURL(resolve(process.cwd(), path)).href;
   const module = (await import(url)) as { default?: unknown };
-  const candidate = module.default as Partial<DatasetDefinition<unknown>> | undefined;
+  const candidate = module.default as
+    Partial<DatasetDefinition<unknown>> | undefined;
   if (
     candidate === undefined ||
     candidate === null ||
@@ -81,18 +87,26 @@ const loadDataset = async (path: string | undefined): Promise<DatasetDefinition<
     !Array.isArray(candidate.grades) ||
     typeof candidate.fields !== "object"
   ) {
-    throw new UsageError(`${path} must default-export a dataset definition (see Dataset.define)`);
+    throw new UsageError(
+      `${path} must default-export a dataset definition (see Dataset.define)`,
+    );
   }
   return Dataset.define(candidate as DatasetDefinition<unknown>);
 };
 
-const planTable = (dataset: DatasetDefinition<unknown>, weights: Weights, options: SampleOptions): string => {
+const planTable = (
+  dataset: DatasetDefinition<unknown>,
+  weights: Weights,
+  options: SampleOptions,
+): string => {
   const { allocation, seed } = Sampler.plan(dataset, options);
   const width = Math.max(5, ...dataset.grades.map((g) => g.length));
   const lines = [`seed: ${seed}`, `${"grade".padEnd(width)}  weight  count`];
   for (const grade of dataset.grades) {
     const weight = (weights[grade] ?? 0).toFixed(2).padStart(6);
-    lines.push(`${grade.padEnd(width)}  ${weight}  ${String(allocation[grade] ?? 0).padStart(5)}`);
+    lines.push(
+      `${grade.padEnd(width)}  ${weight}  ${String(allocation[grade] ?? 0).padStart(5)}`,
+    );
   }
   return `${lines.join("\n")}\n`;
 };
@@ -128,9 +142,16 @@ const main = async (argv: string[]): Promise<number> => {
   }
 
   const dataset = await loadDataset(values.dataset);
-  const spread = values.spread === undefined ? undefined : Spread.parse(values.spread);
-  const options: SampleOptions = { count: parseCount(values.count), seed: parseSeed(values.seed), spread };
-  const weights = spread ? Spread.validate(spread, dataset.grades) : dataset.spread;
+  const spread =
+    values.spread === undefined ? undefined : Spread.parse(values.spread);
+  const options: SampleOptions = {
+    count: parseCount(values.count),
+    seed: parseSeed(values.seed),
+    spread,
+  };
+  const weights = spread
+    ? Spread.validate(spread, dataset.grades)
+    : dataset.spread;
 
   if (command === "plan") {
     process.stdout.write(planTable(dataset, weights, options));
@@ -144,13 +165,15 @@ const main = async (argv: string[]): Promise<number> => {
   const { seed } = Sampler.plan(dataset, options);
   process.stderr.write(`seed: ${seed}\n`);
   const encode = { meta: !values["no-meta"], seed };
-  const sink: IOutputSink = values.out === undefined ? new StdoutSink() : new FileSink(values.out);
+  const sink: IOutputSink =
+    values.out === undefined ? new StdoutSink() : new FileSink(values.out);
   try {
     const records = Sampler.records(dataset, { ...options, seed });
     if (format === "json") {
       await sink.write(Ndjson.document(records, encode));
     } else {
-      for (const record of records) await sink.write(Ndjson.line(record, encode));
+      for (const record of records)
+        await sink.write(Ndjson.line(record, encode));
     }
   } finally {
     await sink.close();
@@ -163,18 +186,28 @@ main(process.argv.slice(2)).then(
     process.exitCode = code;
   },
   (error: unknown) => {
-    if (error instanceof UsageError || error instanceof DatasetError || error instanceof SpreadError) {
+    if (
+      error instanceof UsageError ||
+      error instanceof DatasetError ||
+      error instanceof SpreadError
+    ) {
       process.stderr.write(`${error.name}: ${error.message}\n`);
       process.exitCode = 1;
       return;
     }
     // parseArgs reports unknown or malformed options as a TypeError with a code.
-    if (error instanceof TypeError && "code" in error && String(error.code).startsWith("ERR_PARSE_ARGS")) {
+    if (
+      error instanceof TypeError &&
+      "code" in error &&
+      String(error.code).startsWith("ERR_PARSE_ARGS")
+    ) {
       process.stderr.write(`${error.message}\n\n${USAGE}`);
       process.exitCode = 1;
       return;
     }
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    );
     process.exitCode = 2;
   },
 );

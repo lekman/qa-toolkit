@@ -47,32 +47,55 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const REF_DATE = "2026-09-01T00:00:00.000Z";
 
 /** A clamped, rounded normal draw. */
-const roundedNormal = (random: IRandom, mean: number, sd: number, min: number, max: number): number =>
-  Math.round(Distribution.clamp(Distribution.normal(random, mean, sd), min, max));
+const roundedNormal = (
+  random: IRandom,
+  mean: number,
+  sd: number,
+  min: number,
+  max: number,
+): number =>
+  Math.round(
+    Distribution.clamp(Distribution.normal(random, mean, sd), min, max),
+  );
 
 /** Integer in one of two bands, chosen by a coin flip. */
-const eitherInt = (random: IRandom, low: [number, number], high: [number, number]): number =>
+const eitherInt = (
+  random: IRandom,
+  low: [number, number],
+  high: [number, number],
+): number =>
   random.next() < 0.5
     ? Distribution.integer(random, high[0], high[1])
     : Distribution.integer(random, low[0], low[1]);
 
 /** One-decimal number in one of two bands, chosen by a coin flip. */
-const eitherTenth = (random: IRandom, low: [number, number], high: [number, number]): number => {
+const eitherTenth = (
+  random: IRandom,
+  low: [number, number],
+  high: [number, number],
+): number => {
   const [min, max] = random.next() < 0.5 ? high : low;
   return Math.round(Distribution.band(random, min, max) * 10) / 10;
 };
 
 /** One of two fixed values, chosen by a coin flip. */
-const pick = (random: IRandom, a: number, b: number): number => (random.next() < 0.5 ? a : b);
+const pick = (random: IRandom, a: number, b: number): number =>
+  random.next() < 0.5 ? a : b;
 
 const isoDaysFrom = (iso: string, days: number): string =>
   new Date(new Date(iso).getTime() + days * DAY_MS).toISOString();
 
 const dischargedAfter: FieldGenerator<Patient, string> = (ctx) =>
-  isoDaysFrom(ctx.record.admittedAt as string, Distribution.band(ctx.random, 0, 14));
+  isoDaysFrom(
+    ctx.record.admittedAt as string,
+    Distribution.band(ctx.random, 0, 14),
+  );
 
 const dischargedBefore: FieldGenerator<Patient, string> = (ctx) =>
-  isoDaysFrom(ctx.record.admittedAt as string, -Distribution.band(ctx.random, 1, 30));
+  isoDaysFrom(
+    ctx.record.admittedAt as string,
+    -Distribution.band(ctx.random, 1, 30),
+  );
 
 const patient = Dataset.define<Patient>({
   fields: {
@@ -97,7 +120,13 @@ const patient = Dataset.define<Patient>({
     },
     temperatureC: {
       normal: (ctx) =>
-        Math.round(Distribution.clamp(Distribution.normal(ctx.random, 36.7, 0.3), 36.1, 37.2) * 10) / 10,
+        Math.round(
+          Distribution.clamp(
+            Distribution.normal(ctx.random, 36.7, 0.3),
+            36.1,
+            37.2,
+          ) * 10,
+        ) / 10,
       warning: (ctx) => eitherTenth(ctx.random, [35.0, 36.0], [37.3, 38.4]),
       ill: (ctx) => eitherTenth(ctx.random, [32.0, 34.9], [38.5, 41.0]),
       impossible: (ctx) => pick(ctx.random, 15.0, 60.0),
@@ -108,7 +137,10 @@ const patient = Dataset.define<Patient>({
       ill: (ctx) => Distribution.integer(ctx.random, 70, 89),
       impossible: (ctx) => pick(ctx.random, 120, -5),
     },
-    admittedAt: { default: (ctx) => ctx.faker.date.recent({ days: 30, refDate: REF_DATE }).toISOString() },
+    admittedAt: {
+      default: (ctx) =>
+        ctx.faker.date.recent({ days: 30, refDate: REF_DATE }).toISOString(),
+    },
     dischargedAt: { default: dischargedAfter, impossible: dischargedBefore },
   },
   grades: ["normal", "warning", "ill", "impossible"],
@@ -123,8 +155,10 @@ export default patient;
  * uses, or when discharge precedes admission. True for every other grade.
  */
 export function isPlausible(record: Patient): boolean {
-  const within = (value: number, limit: { max: number; min: number }): boolean =>
-    value >= limit.min && value <= limit.max;
+  const within = (
+    value: number,
+    limit: { max: number; min: number },
+  ): boolean => value >= limit.min && value <= limit.max;
   return (
     within(record.age, LIMITS.age) &&
     within(record.heartRate, LIMITS.heartRate) &&

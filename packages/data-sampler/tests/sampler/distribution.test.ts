@@ -33,15 +33,21 @@ describe("Distribution.outside", () => {
   });
 
   test("uses the only side that has width", () => {
-    const value = Distribution.outside(new ScriptedRandom([0.5]), 0, 10, { max: 20, min: 0 });
+    const value = Distribution.outside(new ScriptedRandom([0.5]), 0, 10, {
+      max: 20,
+      min: 0,
+    });
     expect(value).toBeGreaterThan(10);
     expect(value).toBeLessThanOrEqual(20);
   });
 
   test("throws when neither side has width", () => {
-    expect(() => Distribution.outside(new ScriptedRandom([0.5]), 0, 10, { max: 10, min: 0 })).toThrow(
-      RangeError,
-    );
+    expect(() =>
+      Distribution.outside(new ScriptedRandom([0.5]), 0, 10, {
+        max: 10,
+        min: 0,
+      }),
+    ).toThrow(RangeError);
   });
 });
 
@@ -63,7 +69,9 @@ describe("Distribution.normal", () => {
   });
 
   test("stays finite for a draw of 0", () => {
-    expect(Number.isFinite(Distribution.normal(new ScriptedRandom([0, 0]), 5, 2))).toBe(true);
+    expect(
+      Number.isFinite(Distribution.normal(new ScriptedRandom([0, 0]), 5, 2)),
+    ).toBe(true);
   });
 });
 

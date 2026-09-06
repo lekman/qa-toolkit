@@ -7,7 +7,12 @@ describe("examples/patient", () => {
   const run = Sampler.run(patient, { count: 200, seed: 7 });
 
   test("yields the default allocation for 200 records", () => {
-    expect(run.allocation).toEqual({ ill: 20, impossible: 10, normal: 140, warning: 30 });
+    expect(run.allocation).toEqual({
+      ill: 20,
+      impossible: 10,
+      normal: 140,
+      warning: 30,
+    });
   });
 
   test("every normal record has a resting heart rate and is plausible", () => {
@@ -22,7 +27,8 @@ describe("examples/patient", () => {
 
   test("every warning and ill record is plausible", () => {
     for (const { data, grade } of run.records) {
-      if (grade === "warning" || grade === "ill") expect(isPlausible(data)).toBe(true);
+      if (grade === "warning" || grade === "ill")
+        expect(isPlausible(data)).toBe(true);
     }
   });
 
@@ -37,20 +43,20 @@ describe("examples/patient", () => {
     // regenerate and say so in the commit body. A change with no dependency
     // change means something consumed the random stream in a new order.
     expect(run.records[0]).toEqual({
-    data: {
-      id: "9c0bf94a-ba2f-4f69-b0fd-ac34391e771a",
-      givenName: "Porter",
-      familyName: "McClure",
-      age: 39,
-      heartRate: 65,
-      systolicBp: 122,
-      temperatureC: 36.9,
-      spo2: 100,
-      admittedAt: "2026-08-04T23:31:48.657Z",
-      dischargedAt: "2026-08-14T00:40:17.627Z",
-    },
-    grade: "normal",
-    index: 0,
-  });
+      data: {
+        id: "9c0bf94a-ba2f-4f69-b0fd-ac34391e771a",
+        givenName: "Porter",
+        familyName: "McClure",
+        age: 39,
+        heartRate: 65,
+        systolicBp: 122,
+        temperatureC: 36.9,
+        spo2: 100,
+        admittedAt: "2026-08-04T23:31:48.657Z",
+        dischargedAt: "2026-08-14T00:40:17.627Z",
+      },
+      grade: "normal",
+      index: 0,
+    });
   });
 });

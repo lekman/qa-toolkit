@@ -20,10 +20,14 @@ export class Dataset {
       throw new DatasetError(`dataset "${name}" has no grades`);
     }
     if (new Set(grades).size !== grades.length) {
-      throw new DatasetError(`dataset "${name}" lists a grade twice: [${grades.join(", ")}]`);
+      throw new DatasetError(
+        `dataset "${name}" lists a grade twice: [${grades.join(", ")}]`,
+      );
     }
     if (grades.includes("default")) {
-      throw new DatasetError(`dataset "${name}": a grade may not be named "default"`);
+      throw new DatasetError(
+        `dataset "${name}": a grade may not be named "default"`,
+      );
     }
     let spread;
     try {
@@ -38,9 +42,14 @@ export class Dataset {
       throw new DatasetError(`dataset "${name}" has no fields`);
     }
     const frozenFields: Record<string, FieldSpec<T, unknown>> = {};
-    for (const [key, spec] of Object.entries(fields) as [string, FieldSpec<T, unknown>][]) {
+    for (const [key, spec] of Object.entries(fields) as [
+      string,
+      FieldSpec<T, unknown>,
+    ][]) {
       if (spec === null || typeof spec !== "object") {
-        throw new DatasetError(`dataset "${name}": field "${key}" has no generators`);
+        throw new DatasetError(
+          `dataset "${name}": field "${key}" has no generators`,
+        );
       }
       for (const grade of grades) {
         const generator = spec[grade] ?? spec.default;

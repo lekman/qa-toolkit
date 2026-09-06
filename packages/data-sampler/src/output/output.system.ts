@@ -15,7 +15,9 @@ export class StdoutSink implements IOutputSink {
   /** Resolves once the chunk has been handed to the stream. */
   write(chunk: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      process.stdout.write(chunk, (error) => (error ? reject(error) : resolve()));
+      process.stdout.write(chunk, (error) =>
+        error ? reject(error) : resolve(),
+      );
     });
   }
 }

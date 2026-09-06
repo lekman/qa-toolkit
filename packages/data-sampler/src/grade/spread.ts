@@ -17,9 +17,15 @@ export class Spread {
    * grade in the scale. The counts sum to `count`. Grades in the scale but
    * absent from `weights` get 0.
    */
-  static allocate(weights: Weights, count: number, scale: GradeScale): Allocation {
+  static allocate(
+    weights: Weights,
+    count: number,
+    scale: GradeScale,
+  ): Allocation {
     if (!Number.isInteger(count) || count < 0) {
-      throw new SpreadError(`count must be a non-negative integer, got ${count}`);
+      throw new SpreadError(
+        `count must be a non-negative integer, got ${count}`,
+      );
     }
     const shares = scale.map((grade, position) => {
       const raw = (weights[grade] ?? 0) * count;
@@ -51,9 +57,12 @@ export class Spread {
       }
       const weight = Number(value);
       if (value === "" || Number.isNaN(weight)) {
-        throw new SpreadError(`weight for "${grade}" is not a number: "${value}"`);
+        throw new SpreadError(
+          `weight for "${grade}" is not a number: "${value}"`,
+        );
       }
-      if (grade in weights) throw new SpreadError(`grade "${grade}" is listed twice`);
+      if (grade in weights)
+        throw new SpreadError(`grade "${grade}" is listed twice`);
       weights[grade] = weight;
     }
     return Object.freeze(weights);
@@ -63,7 +72,11 @@ export class Spread {
    * Expand the allocation to one grade per index, in scale order, then
    * Fisher-Yates shuffle it with `random`.
    */
-  static sequence(allocation: Allocation, scale: GradeScale, random: IRandom): Grade[] {
+  static sequence(
+    allocation: Allocation,
+    scale: GradeScale,
+    random: IRandom,
+  ): Grade[] {
     const grades: Grade[] = [];
     for (const grade of scale) {
       for (let i = 0; i < (allocation[grade] ?? 0); i += 1) grades.push(grade);
@@ -86,22 +99,34 @@ export class Spread {
     const keys = Object.keys(weights);
     if (keys.length === 0) throw new SpreadError("spread has no grades");
     for (const grade of keys) {
-      if (grade === "default") throw new SpreadError('a grade may not be named "default"');
+      if (grade === "default")
+        throw new SpreadError('a grade may not be named "default"');
       if (!scale.includes(grade)) {
-        throw new SpreadError(`grade "${grade}" is not in the scale [${scale.join(", ")}]`);
+        throw new SpreadError(
+          `grade "${grade}" is not in the scale [${scale.join(", ")}]`,
+        );
       }
       const weight = weights[grade] as number;
       if (!Number.isFinite(weight) || weight < 0) {
-        throw new SpreadError(`weight for "${grade}" must be a non-negative number, got ${weight}`);
+        throw new SpreadError(
+          `weight for "${grade}" must be a non-negative number, got ${weight}`,
+        );
       }
     }
-    const sum = keys.reduce((total, grade) => total + (weights[grade] as number), 0);
-    if (Math.abs(sum - 1) <= SUM_TOLERANCE) return Object.freeze({ ...weights });
+    const sum = keys.reduce(
+      (total, grade) => total + (weights[grade] as number),
+      0,
+    );
+    if (Math.abs(sum - 1) <= SUM_TOLERANCE)
+      return Object.freeze({ ...weights });
     if (Math.abs(sum - 100) <= PERCENT_TOLERANCE) {
       const scaled: Record<Grade, number> = {};
-      for (const grade of keys) scaled[grade] = (weights[grade] as number) / 100;
+      for (const grade of keys)
+        scaled[grade] = (weights[grade] as number) / 100;
       return Object.freeze(scaled);
     }
-    throw new SpreadError(`weights must sum to 1 (or 100 as percentages), got ${sum}`);
+    throw new SpreadError(
+      `weights must sum to 1 (or 100 as percentages), got ${sum}`,
+    );
   }
 }

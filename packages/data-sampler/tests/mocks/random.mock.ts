@@ -5,7 +5,8 @@ export class ScriptedRandom implements IRandom {
   private position = 0;
 
   constructor(private readonly values: readonly number[]) {
-    if (values.length === 0) throw new Error("ScriptedRandom needs at least one value");
+    if (values.length === 0)
+      throw new Error("ScriptedRandom needs at least one value");
   }
 
   /** The next scripted value; wraps around at the end of the list. */
