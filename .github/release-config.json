@@ -9,6 +9,7 @@
       "release-type": "node",
       "package-name": "@lekman/data-sampler",
       "component": "data-sampler",
+      "initial-version": "0.1.0",
       "changelog-path": "CHANGELOG.md",
       "changelog-sections": [
         {
