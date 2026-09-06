@@ -1,6 +1,6 @@
 # qat-001: Repository Scaffold
 
-> **Status:** Dispatched | **Date:** 2026-09-06 | **Author:** planning session (Claude chat) | **Keys:** qat-001
+> **Status:** Consumed | **Date:** 2026-09-06 | **Author:** planning session (Claude chat) | **Keys:** qat-001
 
 ## Context
 
@@ -348,6 +348,73 @@ Wait for `Continuous Integration` to pass. The operator merges.
 
 ## Outcome
 
-_Empty at dispatch. The implementation session fills in: date, pull request
-URL, deviations from the steps, and any decision taken on day plan gaps 2, 3
-and 4._
+**Date:** 2026-09-06. **Pull request:** <https://github.com/lekman/qa-toolkit/pull/1>
+(`chore(repo): scaffold repository`, branch `chore/repo-scaffold`). Executed by
+an implementation session (Claude Code) working in a fresh clone.
+
+### Verification
+
+Every command in step 7 exited 0 in the clone: `bun run lint`, `typecheck`,
+`test`, `build` and `hooks`, and `trunk check --all`. The build produced
+`packages/data-sampler/dist/cli.js` (executable) and `dist/index.js`.
+`bun run hooks` reports both guards live. On the pull request, every check passed on the first run: `Continuous Integration` (lint, typecheck, test, build, and trunk hold-the-line), CodeQL, and the dependabot config check.
+
+### Decisions on the Day Plan Gaps
+
+The operator listed the options for gaps 2, 3 and 4 without choosing, so each
+follows the brief's default:
+
+- **Gap 2, `perfectionist/sort-classes`: enabled** as `error`. The skeleton has
+  no classes, so the rule met nothing to fight. It is untested against real
+  code until qat-002 lands; if it rejects the ordering the rule file describes,
+  that is the time to revisit it.
+- **Gap 3, release identity: left to the first `cd.yml` run.** The workflow is
+  copied unchanged. Neither `vars.APP_ID` and `secrets.APP_PRIVATE_KEY` nor the
+  "Allow GitHub Actions to create and approve pull requests" setting was
+  verified for this repository. A permissions failure on the first push to
+  `main` is a settings gap for the operator, not a code defect.
+- **Gap 4, `client-content.yml`: omitted.** Only the local hooks run, through
+  trunk actions. `docs/CONTRIBUTING.md` says so. Add the workflow when a
+  `CLIENT_TERMS` secret exists.
+
+### Deviations from the Steps
+
+1. **No commitlint devDependencies in the root `package.json`.** Step 4 asked
+   to match the versions ai-toolkit uses; it uses none. Trunk's `commitlint`
+   action ships its own packages. Verified before the first real commit: a
+   non-conventional message was rejected by the commit-msg hook, and a body
+   line over 100 characters was rejected too.
+2. **`.claude/hooks/` copied in part.** Only `no-verify-guard.ts`, its test and
+   `guard-tripwire.sh` were copied: the files `settings.json` wires. The
+   `deny-local-writes.*` guard was left out because it is opt-in, is wired from
+   a local settings file, and documents itself against `security/isolated/`,
+   which step 2 excludes from the copy.
+3. **`.github/pull_request_template.md` renamed too.** Step 3 lists the files
+   in which to replace `ai-toolkit`; the template is not on the list but names
+   the repository in its first comment, so the name was replaced there as well.
+   Nothing else in it changed.
+4. **Handoff documents formatted by trunk.** The supplied briefs failed
+   prettier and markdownlint (table column style, one bare URL). `trunk fmt`
+   reformatted them and the ai-toolkit URL in the day plan is wrapped in angle
+   brackets. Wording is unchanged. Several verbatim copies from ai-toolkit also
+   needed `trunk fmt`; ai-toolkit checks only changed lines, so its files were
+   never formatted whole.
+5. **`.gitignore`: the `.env` comment lost its RAG sentence.** Step 3 removes
+   "the RAG runtime lines"; the sentence naming the RAG runtime inside the
+   `.env` comment was read as one of them.
+6. **`mise.toml` header comment trimmed** to drop the mention of cloud
+   launchers along with the tools that served them.
+7. **`@faker-js/faker` major verified as 10** (`npm view` on 2026-09-06), so
+   the `^10.0.0` range in the brief stands.
+8. **Trunk claimed `core.hooksPath` on its first run**, as the failure table
+   predicted. `bun run hooks` reported both guards live via `.githooks` before
+   that and via trunk actions after. The commitlint action only runs on the
+   trunk path, so a clone that never runs trunk enforces the client guards but
+   not conventional commits.
+
+### Not Done
+
+- Nothing was published to npm.
+- qat-002 was not started. It waits on this pull request merging and the
+  `Continuous Integration` workflow passing on `main`.
+- `cd.yml` has not run; it only runs on `main`.
