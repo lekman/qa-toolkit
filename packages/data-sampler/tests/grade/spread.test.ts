@@ -64,7 +64,7 @@ describe("Spread.allocate", () => {
   test("hands the remainder of three thirds over 10 to the earlier grades", () => {
     const third = 1 / 3;
     const allocation = Spread.allocate({ ill: third, normal: third, warning: third }, 10, scale);
-    expect(allocation.normal + allocation.warning + allocation.ill).toBe(10);
+    expect(Object.values(allocation).reduce((sum, n) => sum + n, 0)).toBe(10);
     expect(allocation).toEqual({ ill: 3, impossible: 0, normal: 4, warning: 3 });
   });
 
