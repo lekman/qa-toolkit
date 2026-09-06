@@ -1,0 +1,24 @@
+{
+  "name": "@lekman/qa-toolkit",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter '*' test",
+    "lint": "eslint .",
+    "hooks": "bun run scripts/hooks.ts",
+    "check": "bun run lint && bun run hooks && bun run --filter '*' check",
+    "release": "bun run scripts/release.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-plugin-jsdoc": "^64.1.0",
+    "eslint-plugin-perfectionist": "^5.10.0",
+    "typescript-eslint": "^8.65.0"
+  }
+}
