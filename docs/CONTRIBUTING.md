@@ -52,11 +52,11 @@ bad   fix(data-sampler): stop generating Acme Ltd records
 good  fix(data-sampler): stop generating records for an excluded grade
 ```
 
-Enforced locally only, for now. The `pre-commit` and `commit-msg` hooks in
-`.githooks/` run the guard; install them once per clone with
-`scripts/install-hooks.sh`. Both yield to `--no-verify`. There is no CI check
-yet: the workflow for it reads the term list from a `CLIENT_TERMS` repository
-secret and fails without one, so it is added once that secret exists.
+Enforced locally, by the `pre-commit` and `commit-msg` hooks in `.githooks/`.
+Install them once per clone with `scripts/install-hooks.sh`. The guard reads
+a gitignored term list and skips when there is none, so a contributor with no
+list is never blocked. There is no CI check: this repository does not carry a
+term list, so a secret-backed workflow would have nothing to match on.
 
 Audit what is already committed:
 

@@ -373,9 +373,11 @@ follows the brief's default:
   "Allow GitHub Actions to create and approve pull requests" setting was
   verified for this repository. A permissions failure on the first push to
   `main` is a settings gap for the operator, not a code defect.
-- **Gap 4, `client-content.yml`: omitted.** Only the local hooks run, through
-  trunk actions. `docs/CONTRIBUTING.md` says so. Add the workflow when a
-  `CLIENT_TERMS` secret exists.
+- **Gap 4, `client-content.yml`: omitted, and not planned.** After the pull
+  request opened, the operator decided a client term list is not needed for
+  this repository, so no `CLIENT_TERMS` secret and no CI check will be added.
+  The local guard stays as copied: it skips when no term list exists, so it
+  costs nothing. `docs/CONTRIBUTING.md` says so.
 
 ### Deviations from the Steps
 
