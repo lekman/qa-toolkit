@@ -57,3 +57,60 @@ jobs:
           target-branch: ${{ github.ref_name }}
           config-file: .github/release-config.json
           manifest-file: .github/release-manifest.json
+
+  # Publish every package release-please just released, with npm trusted
+  # publishing (OIDC). No npm token exists anywhere: the job's id-token
+  # permission lets npm verify that this workflow, in this repository, is the
+  # publisher configured on npmjs.com, and npm attaches provenance on its own.
+  #
+  # The trusted publisher on npmjs.com is bound to this file's name, cd.yml.
+  # Renaming the file breaks publishing until the connection is recreated.
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: release
+    if: needs.release.outputs.paths_released != '' && needs.release.outputs.paths_released != '[]'
+    permissions:
+      contents: read
+      id-token: write # mint the OIDC token npm exchanges for a publish credential
+    strategy:
+      fail-fast: false
+      matrix:
+        path: ${{ fromJson(needs.release.outputs.paths_released) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node 24 because trusted publishing needs npm 11.5.1 or later and Node
+      # 22 still bundles npm 10. registry-url writes the .npmrc npm reads.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Check npm supports trusted publishing
+        run: |
+          version=$(npm --version)
+          echo "npm $version"
+          if [ "$(printf '%s\n11.5.1\n' "$version" | sort -V | head -1)" != "11.5.1" ]; then
+            echo "::error::npm $version is older than 11.5.1, which trusted publishing needs"
+            exit 1
+          fi
+
+      # npm includes a LICENSE next to package.json. The repo keeps one copy at
+      # the root and each package gitignores its own, as scripts/release.ts does.
+      - name: Copy the licence into the package
+        run: cp LICENSE "${{ matrix.path }}/LICENSE"
+
+      # prepublishOnly runs `bun run check` (typecheck, test, build), so the
+      # tarball is built and verified by npm itself right before upload.
+      - name: Publish
+        working-directory: ${{ matrix.path }}
+        run: npm publish --access public

@@ -141,9 +141,22 @@ specific to it.
 
 ### Releasing
 
-Packages publish from a maintainer's machine with browser-based `npm login`, not
-a token. npm revoked classic tokens in early 2026 and write-enabled granular
-tokens now expire in days, so a long-lived local token is not something you can
-have. Release from CI with
-[trusted publishing](https://docs.npmjs.com/trusted-publishers/) if you want
-provenance attestations, which cannot be produced from a laptop.
+Releases are cut by release-please and published by CI, with no npm token
+anywhere:
+
+1. A `feat` or `fix` commit lands on `main`. `cd.yml` runs release-please,
+   which opens or updates the release pull request with the version bump and
+   changelog.
+2. Merging that pull request creates the tag and the GitHub release. The same
+   workflow run then publishes every released package with npm
+   [trusted publishing](https://docs.npmjs.com/trusted-publishers/): the job's
+   OIDC token proves it is `cd.yml` in this repository, which is the publisher
+   configured on the package at npmjs.com, and npm attaches provenance on its
+   own.
+
+The trusted publisher is bound to the workflow filename. Renaming `cd.yml`
+stops publishing until the connection is deleted and recreated on npmjs.com.
+
+`scripts/release.ts` remains for a publish from a maintainer's machine with
+browser-based `npm login`, for example to recover a tag that was created but
+never published. A laptop cannot produce provenance, so prefer the CI path.
