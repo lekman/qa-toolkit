@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "kind": "run",
+  "run": {
+    "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+    "environment": "local",
+    "tool": {
+      "name": "<tool>",
+      "version": "<version>",
+      "language": "<language>",
+      "runtime": "<runtime>"
+    },
+    "source": {
+      "commit": null,
+      "branch": null,
+      "dirty": null
+    },
+    "actor": {
+      "name": null,
+      "ci": null,
+      "ciRunUrl": null
+    },
+    "target": {},
+    "policy": {
+      "productionWriteBlocked": false,
+      "overrides": []
+    },
+    "startedAt": "<timestamp>",
+    "endedAt": "<timestamp>"
+  },
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "fail": 0,
+    "error": 1,
+    "skip": 0,
+    "verdict": "fail"
+  },
+  "tests": [
+    {
+      "id": "OQ-CONF-004",
+      "level": "OQ",
+      "title": "thrown-error test",
+      "given": "a conformance fixture",
+      "when": "the scenario runs",
+      "then": "the evidence matches the expected file",
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "error",
+      "error": {
+        "type": "<runtime error>",
+        "message": "boom",
+        "site": "<scenario>:0"
+      },
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "one equals one",
+          "matcher": "equals",
+          "expected": 1,
+          "actual": 1,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    }
+  ]
+}

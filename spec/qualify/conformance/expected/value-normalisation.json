@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "kind": "run",
+  "run": {
+    "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+    "environment": "local",
+    "tool": {
+      "name": "<tool>",
+      "version": "<version>",
+      "language": "<language>",
+      "runtime": "<runtime>"
+    },
+    "source": {
+      "commit": null,
+      "branch": null,
+      "dirty": null
+    },
+    "actor": {
+      "name": null,
+      "ci": null,
+      "ciRunUrl": null
+    },
+    "target": {},
+    "policy": {
+      "productionWriteBlocked": false,
+      "overrides": []
+    },
+    "startedAt": "<timestamp>",
+    "endedAt": "<timestamp>"
+  },
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "error": 0,
+    "skip": 0,
+    "verdict": "pass"
+  },
+  "tests": [
+    {
+      "id": "OQ-CONF-017",
+      "level": "OQ",
+      "title": "value-normalisation test",
+      "given": "a conformance fixture",
+      "when": "the scenario runs",
+      "then": "the evidence matches the expected file",
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "pass",
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "value",
+          "description": "bytes",
+          "matcher": "equals",
+          "expected": {
+            "$bytes": "AQI="
+          },
+          "actual": {
+            "$bytes": "AQI="
+          },
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 1,
+          "context": "value",
+          "description": "instant",
+          "matcher": "equals",
+          "expected": "2026-01-02T03:04:05.006Z",
+          "actual": "2026-01-02T03:04:05.006Z",
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 2,
+          "context": "value",
+          "description": "big integer",
+          "matcher": "equals",
+          "expected": "1152921504606846976",
+          "actual": "1152921504606846976",
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 3,
+          "context": "value",
+          "description": "NaN",
+          "matcher": "equals",
+          "expected": "NaN",
+          "actual": "NaN",
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 4,
+          "context": "value",
+          "description": "map",
+          "matcher": "equals",
+          "expected": {
+            "a": {
+              "c": 3,
+              "d": 2
+            },
+            "b": 1
+          },
+          "actual": {
+            "a": {
+              "c": 3,
+              "d": 2
+            },
+            "b": 1
+          },
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 5,
+          "context": "value",
+          "description": "set",
+          "matcher": "equals",
+          "expected": [
+            "a",
+            "b"
+          ],
+          "actual": [
+            "a",
+            "b"
+          ],
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 6,
+          "context": "value",
+          "description": "cycle",
+          "matcher": "equals",
+          "expected": "[unserialisable: <type>]",
+          "actual": "[unserialisable: <type>]",
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    }
+  ]
+}

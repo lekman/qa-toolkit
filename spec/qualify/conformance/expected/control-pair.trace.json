@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "kind": "trace",
+  "inputs": [
+    {
+      "path": "test-evidence.json",
+      "role": "evidence",
+      "sha256": "<sha256>"
+    }
+  ],
+  "runs": [
+    {
+      "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+      "environment": "local",
+      "commit": null,
+      "verdict": "pass"
+    }
+  ],
+  "summary": {
+    "tests": 2,
+    "pass": 2,
+    "fail": 0,
+    "error": 0,
+    "skip": 0,
+    "notRun": 0,
+    "requirements": 0,
+    "requirementsWithoutPass": 0,
+    "verdict": "pass"
+  },
+  "rows": [
+    {
+      "requirement": null,
+      "sources": [],
+      "testId": "OQ-CONF-022",
+      "level": "OQ",
+      "title": "an unsigned call is refused",
+      "risk": null,
+      "controls": null,
+      "outcome": "pass",
+      "run": "01HQA1ZQJ0C0NF0RMANCE00000",
+      "environment": "local"
+    },
+    {
+      "requirement": null,
+      "sources": [],
+      "testId": "OQ-CONF-023",
+      "level": "OQ",
+      "title": "a signed call is accepted",
+      "risk": null,
+      "controls": "OQ-CONF-022",
+      "outcome": "pass",
+      "run": "01HQA1ZQJ0C0NF0RMANCE00000",
+      "environment": "local"
+    }
+  ],
+  "notRun": [],
+  "requirementsWithoutPass": []
+}

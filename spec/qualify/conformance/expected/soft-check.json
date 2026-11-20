@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "run",
+  "run": {
+    "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+    "environment": "local",
+    "tool": {
+      "name": "<tool>",
+      "version": "<version>",
+      "language": "<language>",
+      "runtime": "<runtime>"
+    },
+    "source": {
+      "commit": null,
+      "branch": null,
+      "dirty": null
+    },
+    "actor": {
+      "name": null,
+      "ci": null,
+      "ciRunUrl": null
+    },
+    "target": {},
+    "policy": {
+      "productionWriteBlocked": false,
+      "overrides": []
+    },
+    "startedAt": "<timestamp>",
+    "endedAt": "<timestamp>"
+  },
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "fail": 1,
+    "error": 0,
+    "skip": 0,
+    "verdict": "fail"
+  },
+  "tests": [
+    {
+      "id": "OQ-CONF-003",
+      "level": "OQ",
+      "title": "soft-check test",
+      "given": "a conformance fixture",
+      "when": "the scenario runs",
+      "then": "the evidence matches the expected file",
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "fail",
+      "error": {
+        "type": "CheckFailed",
+        "message": "1 soft check(s) failed",
+        "site": "<scenario>:0"
+      },
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "soft fails",
+          "matcher": "equals",
+          "expected": "b",
+          "actual": "a",
+          "pass": false,
+          "soft": true,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 1,
+          "context": "fixture",
+          "description": "still runs",
+          "matcher": "isTrue",
+          "expected": true,
+          "actual": true,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    }
+  ]
+}

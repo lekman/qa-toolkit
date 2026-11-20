@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "kind": "run",
+  "run": {
+    "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+    "environment": "local",
+    "tool": {
+      "name": "<tool>",
+      "version": "<version>",
+      "language": "<language>",
+      "runtime": "<runtime>"
+    },
+    "source": {
+      "commit": null,
+      "branch": null,
+      "dirty": null
+    },
+    "actor": {
+      "name": null,
+      "ci": null,
+      "ciRunUrl": null
+    },
+    "target": {},
+    "policy": {
+      "productionWriteBlocked": false,
+      "overrides": []
+    },
+    "startedAt": "<timestamp>",
+    "endedAt": "<timestamp>"
+  },
+  "summary": {
+    "total": 3,
+    "pass": 2,
+    "fail": 1,
+    "error": 0,
+    "skip": 0,
+    "verdict": "fail"
+  },
+  "tests": [
+    {
+      "id": "IQ-CONF-001",
+      "level": "IQ",
+      "title": "all-pass test",
+      "given": "a conformance fixture",
+      "when": "the scenario runs",
+      "then": "the evidence matches the expected file",
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "pass",
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "one equals one",
+          "matcher": "equals",
+          "expected": 1,
+          "actual": 1,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 1,
+          "context": "fixture",
+          "description": "text contains a word",
+          "matcher": "contains",
+          "expected": "ali",
+          "actual": "qualify",
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    },
+    {
+      "id": "OQ-CONF-002",
+      "level": "OQ",
+      "title": "failing-check-stops test",
+      "given": "a conformance fixture",
+      "when": "the scenario runs",
+      "then": "the evidence matches the expected file",
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "fail",
+      "error": {
+        "type": "CheckFailed",
+        "message": "fixture: second fails",
+        "site": "<scenario>:0"
+      },
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "first passes",
+          "matcher": "equals",
+          "expected": 1,
+          "actual": 1,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        },
+        {
+          "seq": 1,
+          "context": "fixture",
+          "description": "second fails",
+          "matcher": "equals",
+          "expected": 3,
+          "actual": 2,
+          "pass": false,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    },
+    {
+      "id": "PQ-CONF-014",
+      "level": "PQ",
+      "title": "narrative test",
+      "given": "données d’entrée — 入力",
+      "when": "the run 🚀 starts",
+      "then": "“quoted” output",
+      "and": [
+        "first",
+        "second",
+        "third — 3"
+      ],
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "pass",
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "one equals one",
+          "matcher": "equals",
+          "expected": 1,
+          "actual": 1,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    }
+  ]
+}
