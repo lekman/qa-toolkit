@@ -56,6 +56,7 @@ gates qat-004 and qat-005. The package is built and tested, not published.
    flags and exit codes in section 8. Write `spec/qualify/trace.schema.json`
    for `trace.json` (draft 2020-12, `schemaVersion` 1) in the same pull request
    and validate `trace` output against it in tests. Usage errors exit 64.
+   4a. **PDF report**: `qualify report` as specified in section 9 of the specification, rendered with `pdf-lib` with `@pdf-lib/fontkit`, and `pdfjs-dist` as a dev dependency to extract text in tests. Bundle Noto Sans (SIL Open Font License, include its licence file) and embed the subset used. Pass conformance scenario 21 (`report`): the extracted text holds every line of `expected/report.outline.txt` in order, and the metadata matches. Add a sample PDF from the conformance run to the package README as an image of its first two pages.
 5. **Conformance.** `packages/qualify/conformance/` holds one test file per
    scenario, written for vitest, plus a harness script
    (`bun run conformance`) that runs each scenario as the spec describes:
@@ -66,7 +67,8 @@ gates qat-004 and qat-005. The package is built and tested, not published.
    `process.exit` inside a forked worker. Add a `node:test` and a bun run of
    scenarios 1, 2, 6 and 10 to prove the other adapters, compared against the
    same expected files.
-6. **Expected files.** Generate `spec/qualify/conformance/expected/*.json` from
+6. **Expected files.** Generate `spec/qualify/conformance/expected/*.json` and
+   `expected/report.outline.txt` from
    the TypeScript run, then review each one by hand against the scenario text.
    Every value the scenario names must appear as written. Commit them in this
    pull request. Note in Outcome any scenario text that was ambiguous and how it

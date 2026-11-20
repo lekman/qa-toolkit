@@ -32,8 +32,9 @@ and an implementation disagree, the implementation is wrong.
 6. [Evidence Files](#6-evidence-files)
 7. [Values and Redaction](#7-values-and-redaction)
 8. [The CLI](#8-the-cli)
-9. [Keeping the Languages in Step](#9-keeping-the-languages-in-step)
-10. [Out of Scope](#10-out-of-scope)
+9. [The Qualification Report](#9-the-qualification-report)
+10. [Keeping the Languages in Step](#10-keeping-the-languages-in-step)
+11. [Out of Scope](#11-out-of-scope)
 
 ## 1. Principles
 
@@ -469,14 +470,18 @@ keeps its bytes, redacted as bytes.
 ## 8. The CLI
 
 The full CLI ships in the TypeScript package (`npx @lekman/qualify`). The Python
-and Java packages ship `merge` and `validate` with the same flags and exit codes,
-so their end-of-run hooks work without Node.
+and Java packages ship `merge`, `validate` and `report` with the same flags and
+exit codes, so a project can produce its evidence and its PDF report without
+Node.
 
 ```text
 qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
 qualify validate FILE...
 qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                  [--md trace.md] [--json trace.json] [--fail-on-skip]
+qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
+                 [--title TEXT] [--document-id TEXT]
+                 [--signatures ROLE;ROLE;...] [--no-signatures]
 ```
 
 - `protocol.yaml` lists the test IDs that must run, each with `title`, `level`,
@@ -520,11 +525,77 @@ missing record. A skipped test does not stop exit 0 unless `--fail-on-skip` is
 given; then a skip of a protocol ID, or of any test when there is no protocol,
 exits 3. `merge` exits with the code of its verdict: 0 for `pass`, 1 for
 `fail`, 3 for `incomplete`, and 2 for invalid input, when it writes no run
-file. `validate` exits 0 when every file is valid and 2 otherwise.
+file. `validate` exits 0 when every file is valid and 2 otherwise. `report`
+exits 0 when the PDF is written, whatever the run's outcome, because a failed
+run needs its report too. It exits 2 for invalid input.
 
 The test run itself keeps the native runner's exit code.
 
-## 9. Keeping the Languages in Step
+## 9. The Qualification Report
+
+`qualify report` renders a run file as a PDF that a reviewer can read, sign and
+file without the code or the JSON. Every package renders it with a library
+written in its own language, so no system libraries are needed:
+
+| Package    | Library                           | Licence    |
+| ---------- | --------------------------------- | ---------- |
+| TypeScript | `pdf-lib` with `@pdf-lib/fontkit` | MIT        |
+| Python     | `fpdf2`                           | LGPL-3.0   |
+| Java       | Apache PDFBox                     | Apache-2.0 |
+
+The three PDFs do not look identical. They hold the same sections, in the same
+order, with the same values, and conformance checks that by extracting the text
+(section 10).
+
+### 9.1 Contents
+
+In this order:
+
+1. **Cover page.** The title (default `Qualification report`), the document ID
+   (default `QR-<environment>-<run start date as YYYYMMDD>`), the verdict in
+   words (`Passed`, `Failed` or `Incomplete`), the summary counts, the
+   environment, the run ID, the run start and end, the source commit and branch,
+   the tool name and version, the generation time, and the SHA-256 of the run
+   file exactly as read. Any merged run IDs and production write overrides are
+   listed here too, because a reviewer must see them first.
+2. **Summary and traceability.** Counts per level and outcome. The trace table:
+   requirement, test ID, level, title, risk and outcome, with the same rows and
+   link sources as `trace`. Protocol IDs with no record, and requirements with
+   no passing test, each as a list, or the line `None` when empty.
+3. **One section per test,** sorted by ID: the ID and title as a heading; level,
+   outcome, risk, scope, requirements, tags and `controls`; the skip reason, or
+   the error type and message; the narrative (`Given`, `When`, `Then`, and each
+   `And`); a checks table with number (`seq` plus 1), context, description,
+   matcher, expected, actual, result (`Pass` or `Fail`) and `soft` when set;
+   attachments by file name, content type, size and SHA-256 (the content itself
+   is not rendered); and the names in `secretsUsed`.
+4. **Signature block,** unless `--no-signatures`. One row per role from
+   `--signatures`, default `Prepared by;Reviewed by;Approved by`, each with
+   blank lines for name, signature and date.
+
+Every page has a footer with the document ID, `Page <n> of <N>`, and the first
+12 characters of the run file's SHA-256.
+
+### 9.2 Rendering Rules
+
+- A4 portrait, 20 mm margins. Tables wrap their cells; a row never splits
+  across pages unless it is taller than a page.
+- The package bundles one font family with Latin, Greek and Cyrillic coverage
+  (Noto Sans, under the SIL Open Font License) and embeds the subset it uses. A
+  character the font cannot draw is drawn as `?`. The evidence file stays the
+  record of the exact text.
+- `expected` and `actual` are rendered as compact JSON. A value longer than 200
+  characters is cut and ends with `… (<n> more characters)`.
+- Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
+- PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
+  `sha256:<run file digest>`, `Producer` the tool name and version, and
+  `CreationDate` the generation time.
+- The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
+  (an ISO 8601 UTC instant), so a report can be reproduced.
+- `report` reads only the run file and the optional protocol and map files. It
+  never re-runs or alters evidence.
+
+## 10. Keeping the Languages in Step
 
 - [evidence.schema.json](evidence.schema.json) (JSON Schema draft 2020-12) is
   hand-written and normative. Each language validates its own output against it
@@ -535,14 +606,15 @@ The test run itself keeps the native runner's exit code.
 - A breaking schema change bumps `schemaVersion`. `validate` accepts the current
   and the previous version for one minor release after a change.
 
-## 10. Out of Scope
+## 11. Out of Scope
 
 - Harnesses for cloud services, and providers for infrastructure outputs or
   secret stores. Projects provide clients through their own fixtures.
 - Export formats for test-management tools. `trace.json` is the integration
   point.
-- PDF reports, signatures and document approval states. These belong to a
-  document control system.
+- Electronic signatures and document approval states such as draft and
+  approved. The report leaves signature lines blank; signing and approval
+  belong to a document control system.
 - A custom runner or a `run` command.
 - Skip records for tests deselected by a filter.
 - A scaffolding command. Copy an example file instead.

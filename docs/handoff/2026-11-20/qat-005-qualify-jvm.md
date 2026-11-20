@@ -50,6 +50,7 @@ this framework existed before; this is new work.
    flags and exit codes, runnable as `java -jar qualify-<version>-cli.jar`
    (a shaded or `application` distribution). `trace` prints a pointer to
    `npx @lekman/qualify trace` and exits 64.
+   4a. **PDF report**: `qualify report` as specified in section 9 of the specification, rendered with Apache PDFBox, whose `PDFTextStripper` also extracts text in tests. Bundle Noto Sans (SIL Open Font License, include its licence file) and embed the subset used. Pass conformance scenario 21 (`report`): the extracted text holds every line of `expected/report.outline.txt` in order, and the metadata matches. Add a sample PDF from the conformance run to the package README as an image of its first two pages.
 5. **Conformance**: one JUnit test class per scenario under a `conformance`
    source set, plus a Gradle task (`./gradlew conformance`) that runs each
    scenario through the JUnit Platform launcher exactly as the scenario text

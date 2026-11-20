@@ -54,6 +54,7 @@ qat-005.
 4. **CLI**: `qualify merge` and `qualify validate`, same flags and exit codes as
    the specification section 8. `trace` prints a message pointing at
    `npx @lekman/qualify trace` and exits 64.
+   4a. **PDF report**: `qualify report` as specified in section 9 of the specification, rendered with `fpdf2`, and `pypdf` as a dev dependency to extract text in tests. Bundle Noto Sans (SIL Open Font License, include its licence file) and embed the subset used. Pass conformance scenario 21 (`report`): the extracted text holds every line of `expected/report.outline.txt` in order, and the metadata matches. Add a sample PDF from the conformance run to the package README as an image of its first two pages.
 5. **Conformance**: `packages/qualify-python/conformance/test_<scenario>.py`
    per scenario, plus a harness (`python -m qualify_conformance` or a script)
    that runs each with pytest exactly as the scenario text says, merges, masks
