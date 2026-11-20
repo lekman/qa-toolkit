@@ -12,8 +12,8 @@ read without the code, and a trace matrix links each record to the requirements
 it covers.
 
 This document is the contract for every implementation. The TypeScript package
-is the reference and carries the full CLI. The Python and Java packages follow
-the same rules and must pass the same conformance scenarios. Where this document
+is the reference and carries the full CLI. The Python, Java and C# packages
+follow the same rules and must pass the same conformance scenarios. Where this document
 and an implementation disagree, the implementation is wrong.
 
 | Language   | Package                      | Runs on                      |
@@ -21,6 +21,7 @@ and an implementation disagree, the implementation is wrong.
 | TypeScript | `@lekman/qualify` (npm)      | vitest, `node:test`, bun     |
 | Python     | `lekman-qualify` (PyPI)      | pytest, as a plugin          |
 | Java       | `com.lekman:qualify` (Maven) | JUnit 5, from Java or Kotlin |
+| C#         | `Lekman.Qualify` (NuGet)     | xUnit v3 on .NET 10 and 11   |
 
 ## Contents
 
@@ -205,6 +206,48 @@ void bankFileKeepsAmounts(QualifyContext ctx) {
   `hasLength`, `isAtLeast`, `isAtMost`, `isOneOf`. The JSON records the shared
   names in [section 3.2](#32-matchers).
 
+### 2.5 C#
+
+An xUnit v3 extension for .NET, built with the .NET 11 SDK and targeting
+`net11.0` and `net10.0`, so teams on the long-term-support release can use it.
+
+```csharp
+public class BankFileTests
+{
+    [OQ("OQ-EXPORT-003", "The bank file never changes an amount",
+        Given = "a day of payments in three currencies",
+        When = "the export writes the bank file",
+        Then = "every amount in the file equals the amount in the ledger",
+        Requirements = ["EXPORT-003"], Risk = Risk.High, Scope = Scope.Read,
+        Tags = ["export"])]
+    public void BankFileKeepsAmounts()
+    {
+        var ctx = QualifyContext.Current;
+        var file = BankFile.Export(ledger);
+        ctx.Check("bank file", "EUR keeps two decimals").That(file.Amount("EUR")).IsEqualTo("100.50");
+    }
+}
+```
+
+- `[IQ]`, `[OQ]`, `[PQ]` and `[IU]` derive from xUnit's `FactAttribute` and
+  use a test case of qualify's own that wraps the method body, so the outcome
+  never depends on runner hooks. The display name is `[<ID>] <title>`.
+- xUnit facts take no method parameters, so the test reads its context from
+  `QualifyContext.Current`, which qualify sets for the duration of the test
+  (an `AsyncLocal`, safe across `await`).
+- The attribute adds the traits `Qualify` (the level) and `Tag` (each tag), so
+  the runner's trait filter selects by level or tag, and the display name
+  selects by ID. The package README gives the exact `dotnet test` filter syntax
+  for the Microsoft Testing Platform and for VSTest.
+- `ctx.Skip(reason)` records the skip and ends the test as skipped, using
+  xUnit v3's dynamic skip.
+- C# matcher names follow the language: `IsEqualTo`, `IsNotEqualTo`,
+  `Contains`, `Matches`, `IsTrue`, `IsFalse`, `IsNull`, `IsNotNull`,
+  `HasLength`, `IsAtLeast`, `IsAtMost`, `IsOneOf`. The JSON records the shared
+  names in [section 3.2](#32-matchers).
+- Language assertion errors (`fail` rather than `error`) are xUnit's
+  `XunitException` family and `System.Diagnostics.Debug` assertion failures.
+
 ## 3. The Context and Checks
 
 ### 3.1 The Context
@@ -268,12 +311,12 @@ measured length, and a string's length counts Unicode code points.
 
 ### 3.3 Outcomes
 
-| Outcome | When                                                                                                                                                                                |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pass`  | The body completed and every check passed.                                                                                                                                          |
-| `fail`  | A hard check failed, a soft check failed, or the language's own assertion error was raised (`AssertionError` in Python and Java, an assertion error from the runner in TypeScript). |
-| `error` | Any other exception. `error.type` is its type name and `error.message` its redacted message.                                                                                        |
-| `skip`  | `ctx.skip`, the runner's own in-body skip, or a policy or "not applicable" rule. `skipReason` is required.                                                                          |
+| Outcome | When                                                                                                                                                                                                           |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pass`  | The body completed and every check passed.                                                                                                                                                                     |
+| `fail`  | A hard check failed, a soft check failed, or the language's own assertion error was raised (`AssertionError` in Python and Java, an assertion error from the runner in TypeScript, an `XunitException` in C#). |
+| `error` | Any other exception. `error.type` is its type name and `error.message` its redacted message.                                                                                                                   |
+| `skip`  | `ctx.skip`, the runner's own in-body skip, or a policy or "not applicable" rule. `skipReason` is required.                                                                                                     |
 
 `error` holds the first failure only: `type`, redacted `message`, and `site`
 (the `path:line` of the failing check or the innermost frame in the test file,
@@ -469,8 +512,8 @@ keeps its bytes, redacted as bytes.
 
 ## 8. The CLI
 
-The full CLI ships in the TypeScript package (`npx @lekman/qualify`). The Python
-and Java packages ship `merge`, `validate` and `report` with the same flags and
+The full CLI ships in the TypeScript package (`npx @lekman/qualify`). The Python,
+Java and C# packages ship `merge`, `validate` and `report` with the same flags and
 exit codes, so a project can produce its evidence and its PDF report without
 Node.
 
@@ -542,8 +585,9 @@ written in its own language, so no system libraries are needed:
 | TypeScript | `pdf-lib` with `@pdf-lib/fontkit` | MIT        |
 | Python     | `fpdf2`                           | LGPL-3.0   |
 | Java       | Apache PDFBox                     | Apache-2.0 |
+| C#         | PDFsharp 6                        | MIT        |
 
-The three PDFs do not look identical. They hold the same sections, in the same
+The PDFs do not look identical. They hold the same sections, in the same
 order, with the same values, and conformance checks that by extracting the text
 (section 10).
 

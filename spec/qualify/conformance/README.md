@@ -11,8 +11,9 @@ the serialiser and misses outcome bugs.
 
 1. The scenario's test files live in the implementation, for example
    `packages/qualify/conformance/<scenario>.test.ts`,
-   `packages/qualify-python/conformance/test_<scenario>.py` and
-   `packages/qualify-jvm/src/conformance/.../<Scenario>Test.java`. They declare
+   `packages/qualify-python/conformance/test_<scenario>.py`,
+   `packages/qualify-jvm/src/conformance/.../<Scenario>Test.java` and
+   `packages/qualify-dotnet/conformance/<Scenario>Tests.cs`. They declare
    exactly the tests listed here, with the same IDs, narratives, checks and
    values, in the language's own syntax.
 2. The harness runs them with `QUALIFY_RUN_ID=01HQA1ZQJ0C0NF0RMANCE00000`,
@@ -109,7 +110,7 @@ gives no check has none.
 
 - `OQ-CONF-004`: one passing check, then the body throws the language's plain
   runtime error with message `boom` (`Error` in TypeScript, `RuntimeError` in
-  Python, `IllegalStateException` in Java).
+  Python, `IllegalStateException` in Java, `InvalidOperationException` in C#).
 - Expect: outcome `error`; `error.type` the language's type name, which the
   harness masks to `"<runtime error>"`; `error.message` `boom`; one check.
 
@@ -219,7 +220,7 @@ in another source.
   - bytes `0x01 0x02`
   - the instant `2026-01-02T03:04:05.006Z`
   - the integer 2^60
-  - `NaN` (Python and Java `NaN`; TypeScript `NaN`)
+  - `NaN` (`NaN` in every language)
   - a map `{"b": 1, "a": {"d": 2, "c": 3}}`
   - a set of the strings `"b"` and `"a"`
   - a self-referencing list or object
@@ -245,7 +246,7 @@ in another source.
 
 - `OQ-CONF-019` ends its process abruptly mid-test, after its marker is written
   (`process.kill(process.pid, "SIGKILL")` in TypeScript, `os._exit` in Python,
-  `Runtime.halt` in Java), in a worker or child process so the harness
+  `Runtime.halt` in Java, `Environment.FailFast` in C#), in a worker or child process so the harness
   survives. TypeScript cannot use `process.exit`: vitest replaces it in its
   workers with a function that throws, so the test would record an `error`
   and never crash.

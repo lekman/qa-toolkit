@@ -63,7 +63,7 @@
           "minLength": 1
         },
         "version": { "type": "string", "minLength": 1 },
-        "language": { "enum": ["typescript", "python", "java"] },
+        "language": { "enum": ["typescript", "python", "java", "csharp"] },
         "runtime": {
           "description": "Runtime and test runner, for example \"node 22.11.0; vitest 3.2.4\".",
           "type": "string",
