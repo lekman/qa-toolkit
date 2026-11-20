@@ -54,6 +54,19 @@ jobs:
       - name: Build all packages
         run: bun run build
 
+      # The node:test conformance files are TypeScript that Node loads
+      # directly, which needs Node 22.18 or later. Node 22 is what
+      # mise.toml pins for development.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      # Every package with a `conformance` script runs it: for qualify, the
+      # shared scenarios through vitest, node:test and bun, diffed against
+      # spec/qualify/conformance/expected/. Any difference fails the job.
+      - name: Conformance
+        run: bun run conformance
+
   trunk:
     name: Trunk hold-the-line
     runs-on: ubuntu-latest
