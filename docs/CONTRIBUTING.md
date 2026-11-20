@@ -138,9 +138,32 @@ needed to _use_ what this repo publishes. A released CLI runs under plain Node
 
 ## Linting
 
-[Trunk](https://trunk.io) runs markdownlint, prettier, gitleaks, trufflehog, and
-a diff check, with commitlint as an action. Configuration is in
-[.trunk/trunk.yaml](../.trunk/trunk.yaml).
+[Trunk](https://trunk.io) runs on every commit through the git hooks and on
+every pull request in CI, so a problem is caught before it is pushed.
+Configuration is in [.trunk/trunk.yaml](../.trunk/trunk.yaml), with linter
+settings in `.trunk/configs/` and shared editor settings in
+[.editorconfig](../.editorconfig).
+
+| Area            | Linters                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| Every file      | gitleaks, trufflehog, a diff check, osv-scanner for lockfiles      |
+| Markdown, JSON  | prettier, markdownlint                                             |
+| YAML, workflows | yamllint, actionlint                                               |
+| Shell scripts   | shellcheck, with its default checks                                |
+| Python          | ruff                                                               |
+| Kotlin          | ktlint (official style), detekt (default rules, any finding fails) |
+| Java            | google-java-format                                                 |
+
+commitlint and the client-content guard run as Trunk actions.
+
+Trunk covers formatting and quick static checks. Each package's own build
+enforces the rest of the standard and fails on any violation: type checks
+(TypeScript, mypy), Error Prone and NullAway for Java, the .NET analyzers and
+`dotnet format` for C#, and a coverage floor of 80% of lines in every
+language. C# formatting is checked by the .NET build, not by Trunk, because
+Trunk's `dotnet-format` needs a .NET SDK on the path. A package build and
+Trunk must agree: when a package pins ktlint or google-java-format in its
+build, it pins the version Trunk uses.
 
 ```bash
 trunk check          # lint the diff

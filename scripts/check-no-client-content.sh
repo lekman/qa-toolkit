@@ -88,6 +88,7 @@ case "$MODE" in
       if [ "$QUIET" -eq 1 ]; then
         HITS="the commit message names a protected term"
       else
+        # shellcheck disable=SC2001 # sed indents every line of a multi-line value
         HITS=$(echo "$match" | sed 's/^/    /')
       fi
     fi
@@ -105,7 +106,7 @@ case "$MODE" in
 "
         fi
       fi
-    done < <(git rev-list ${RANGE:-HEAD})
+    done < <(git rev-list "${RANGE:-HEAD}")
     ;;
 
   --history)
@@ -128,6 +129,7 @@ case "$MODE" in
         HITS="${HITS}${f}
 "
       elif [ -n "$match" ]; then
+        # shellcheck disable=SC2001 # sed indents every line of a multi-line value
         HITS="${HITS}${f}:
 $(echo "$match" | sed 's/^/    /')
 "
@@ -149,6 +151,7 @@ esac
 
 if [ -n "$HITS" ]; then
   echo "BLOCKED: client-identifying content found." >&2
+  # shellcheck disable=SC2001 # sed indents every line of a multi-line value
   echo "$HITS" | sed 's/^/  /' >&2
   echo >&2
   if [ "$QUIET" -eq 1 ]; then
