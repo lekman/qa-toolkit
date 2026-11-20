@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using Lekman.Qualify.Xunit;
+using Lekman.Qualify.Runner;
 using Xunit;
 using Xunit.v3;
 

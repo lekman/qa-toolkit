@@ -14,11 +14,17 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3.extensibility.core" />
     <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="PDFsharp" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The normative schema, read from the specification at build time. -->
     <EmbeddedResource Include="../../../../spec/qualify/evidence.schema.json" LogicalName="Lekman.Qualify.evidence.schema.json" />
+    <EmbeddedResource Include="../../../../spec/qualify/report-theme.schema.json" LogicalName="Lekman.Qualify.report-theme.schema.json" />
+    <!-- Both bundled report themes, byte for byte from the specification. -->
+    <EmbeddedResource Include="../../../../spec/qualify/report/themes/**/*" LogicalName="Lekman.Qualify.themes/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
     <None Include="../../icon.png" Pack="true" PackagePath="/" />
     <InternalsVisibleTo Include="Lekman.Qualify.Tests" />

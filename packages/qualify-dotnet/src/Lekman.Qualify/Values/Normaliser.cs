@@ -142,15 +142,8 @@ public static class Normaliser
             ? JsonValue.Create((long)value)
             : JsonValue.Create(value.ToString(CultureInfo.InvariantCulture));
 
-    private static double ToDouble(JsonValue value)
-    {
-        if (value.TryGetValue<long>(out var whole))
-        {
-            return whole;
-        }
-
-        return value.TryGetValue<JsonElement>(out var element) ? element.GetDouble() : value.GetValue<double>();
-    }
+    private static double ToDouble(JsonValue value) =>
+        double.Parse(JsonText.NumberText(value), NumberStyles.Float, CultureInfo.InvariantCulture);
 
     private static bool IsNumber(JsonNode? node) =>
         node is JsonValue value && value.GetValueKind() == JsonValueKind.Number;

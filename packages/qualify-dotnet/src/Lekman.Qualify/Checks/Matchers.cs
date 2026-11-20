@@ -110,7 +110,7 @@ public static class Matchers
                 var whole = decimal.Truncate(dec);
                 return new(new BigInteger(whole), (double)(dec - whole), 0);
             case float or double or Half:
-                var real = Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+                var real = value is Half half ? (double)half : Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
                 if (double.IsNaN(real))
                 {
                     return null;

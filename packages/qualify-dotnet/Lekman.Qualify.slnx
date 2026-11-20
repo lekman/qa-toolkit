@@ -3,6 +3,12 @@
     <Project Path="src/Lekman.Qualify/Lekman.Qualify.csproj" />
     <Project Path="src/Lekman.Qualify.Tool/Lekman.Qualify.Tool.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lekman.Qualify.Tests/Lekman.Qualify.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Lekman.Qualify.RenderPages/Lekman.Qualify.RenderPages.csproj" />
+  </Folder>
   <Folder Name="/conformance/">
     <Project Path="conformance/Lekman.Qualify.Conformance/Lekman.Qualify.Conformance.csproj" />
     <Project Path="conformance/Lekman.Qualify.FilterSample/Lekman.Qualify.FilterSample.csproj" />

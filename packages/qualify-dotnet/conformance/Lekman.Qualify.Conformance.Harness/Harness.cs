@@ -76,6 +76,13 @@ public static partial class Harness
         return Run(App(app), args, Package, ScenarioEnvironment(string.Empty, null));
     }
 
+    /// <summary>Run the qualify tool with extra environment variables.</summary>
+    public static Exec ToolWith(IDictionary<string, string> env, params string[] args)
+    {
+        var app = Path.Combine(Package, "src", "Lekman.Qualify.Tool", "bin", Configuration, "net11.0", "qualify");
+        return Run(App(app), args, Package, ScenarioEnvironment(string.Empty, env));
+    }
+
     /// <summary>Run <c>dotnet test</c> on a project of this package.</summary>
     public static Exec DotnetTest(string project, string dir, params string[] args) =>
         Run(

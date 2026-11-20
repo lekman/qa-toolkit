@@ -4,7 +4,7 @@ using Lekman.Qualify.Execution;
 using Xunit.Sdk;
 using Xunit.v3;
 
-namespace Lekman.Qualify.Xunit;
+namespace Lekman.Qualify.Runner;
 
 /// <summary>
 /// A qualification test case. It runs itself through qualify's own test

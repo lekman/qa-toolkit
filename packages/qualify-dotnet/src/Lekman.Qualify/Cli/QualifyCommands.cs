@@ -1,12 +1,17 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Lekman.Qualify.Envelope;
 using Lekman.Qualify.Evidence;
 using Lekman.Qualify.Execution;
 using Lekman.Qualify.Merge;
+using Lekman.Qualify.Report;
 using Lekman.Qualify.Schema;
 using Lekman.Qualify.Settings;
+using Lekman.Qualify.Theme;
+using Lekman.Qualify.Trace;
 using Lekman.Qualify.Values;
 
 namespace Lekman.Qualify.Cli;
@@ -66,7 +71,7 @@ public static class ExitCodes
 /// and <c>report</c>. <c>trace</c> belongs to the TypeScript CLI. All I/O goes
 /// through <see cref="ICliIO"/>.
 /// </summary>
-public static class QualifyCommands
+public static partial class QualifyCommands
 {
     /// <summary>The usage text.</summary>
     public const string Usage = """
@@ -74,7 +79,8 @@ public static class QualifyCommands
           qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
           qualify validate FILE...
           qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
-                           [--title TEXT] [--document-id TEXT]
+                           [--theme NAME|PATH] [--title TEXT] [--subtitle TEXT]
+                           [--document-id TEXT] [--classification TEXT]
                            [--signatures ROLE;ROLE;...] [--no-signatures]
           qualify trace    is in the TypeScript CLI: npx @lekman/qualify trace ...
           qualify --help | --version
@@ -250,9 +256,182 @@ public static class QualifyCommands
 
     private static int Report(List<string> args, ICliIO io)
     {
-        _ = Options.Parse(args, ["document-id", "map", "pdf", "protocol", "signatures", "title"], ["no-signatures"]);
-        io.Err.Write("qualify report: the PDF report is not built yet in the .NET tool; use npx @lekman/qualify report\n");
-        return ExitCodes.Usage;
+        var (values, positionals) = Options.Parse(
+            args,
+            ["classification", "document-id", "map", "pdf", "protocol", "signatures", "subtitle", "theme", "title"],
+            ["no-signatures"]);
+        if (positionals.Count != 1)
+        {
+            throw new UsageException("report takes exactly one run file");
+        }
+
+        if (!values.TryGetValue("pdf", out var pdf))
+        {
+            throw new UsageException("report needs --pdf FILE");
+        }
+
+        var noSignatures = values.ContainsKey("no-signatures");
+        if (noSignatures && values.ContainsKey("signatures"))
+        {
+            throw new UsageException("--signatures and --no-signatures exclude each other");
+        }
+
+        IReadOnlyList<string>? signatures = null;
+        if (noSignatures)
+        {
+            signatures = [];
+        }
+        else if (values.TryGetValue("signatures", out var roles))
+        {
+            signatures = [.. roles.Split(';').Select(r => r.Trim()).Where(r => r.Length > 0)];
+            if (signatures.Count == 0)
+            {
+                throw new UsageException("--signatures names no role");
+            }
+        }
+
+        foreach (var flag in new[] { "title", "document-id", "theme" })
+        {
+            if (values.TryGetValue(flag, out var value) && value.Trim().Length == 0)
+            {
+                throw new UsageException($"--{flag} must not be empty");
+            }
+        }
+
+        var generatedAt = ReportTime(io);
+        var reference = values.GetValueOrDefault("theme")
+            ?? (io.Environment.TryGetValue("QUALIFY_REPORT_THEME", out var fromEnv) && fromEnv.Length > 0 ? fromEnv : null)
+            ?? BundledThemes.Default;
+        ReportTheme theme;
+        try
+        {
+            theme = ThemeLoader.Load(reference, io.WorkingDirectory, new ThemeFiles(io));
+        }
+        catch (ThemeException error)
+        {
+            throw new InputException(error.Message);
+        }
+
+        var (run, digest) = RunFile(io, positionals[0]);
+        IReadOnlyList<ProtocolEntry>? protocol = null;
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? map = null;
+        try
+        {
+            if (values.TryGetValue("protocol", out var protocolPath))
+            {
+                protocol = TraceMatrix.Protocol(Encoding.UTF8.GetString(Read(io, protocolPath)), protocolPath);
+            }
+
+            if (values.TryGetValue("map", out var mapPath))
+            {
+                map = TraceMatrix.Map(Encoding.UTF8.GetString(Read(io, mapPath)), mapPath);
+            }
+        }
+        catch (TraceInputException error)
+        {
+            throw new InputException(error.Message);
+        }
+
+        var document = ReportContent.Build(new ReportInput
+        {
+            Run = run,
+            Digest = digest,
+            Trace = TraceMatrix.Build(run, protocol, map),
+            Theme = theme.Spec,
+            Producer = $"{QualifyRuntime.ToolName} {QualifyRuntime.ToolVersion}",
+            Options = new ReportOptions
+            {
+                GeneratedAt = generatedAt,
+                Title = values.GetValueOrDefault("title"),
+                Subtitle = values.GetValueOrDefault("subtitle"),
+                DocumentId = values.GetValueOrDefault("document-id"),
+                Classification = values.GetValueOrDefault("classification"),
+                SignaturesGiven = signatures is not null,
+                Signatures = signatures ?? [],
+            },
+        });
+        var bytes = PdfReportRenderer.Render(document, theme);
+        var output = PathOf(io, pdf);
+        io.Writer.Write(output, bytes);
+        io.Out.Write($"qualify report: wrote {output} with theme {theme.Spec.Name}; run verdict {run["summary"]!["verdict"]}\n");
+        return ExitCodes.Ok;
+    }
+
+    /// <summary>The generation time: <c>QUALIFY_REPORT_TIME</c> when set, else now.</summary>
+    private static DateTimeOffset ReportTime(ICliIO io)
+    {
+        if (!io.Environment.TryGetValue("QUALIFY_REPORT_TIME", out var value) || value.Length == 0)
+        {
+            return io.Now();
+        }
+
+        if (!ReportTimeRegex().IsMatch(value) ||
+            !DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var time))
+        {
+            throw new InputException($"QUALIFY_REPORT_TIME must be a UTC instant such as 2026-01-02T03:04:05.006Z, got {value}");
+        }
+
+        return time;
+    }
+
+    /// <summary>Read a run file: its validated content and the digest of its bytes, checking a <c>.sha256</c> sidecar when there is one.</summary>
+    private static (JsonObject Run, string Digest) RunFile(ICliIO io, string path)
+    {
+        var bytes = Read(io, path);
+        var digest = EvidenceFiles.Sha256(bytes);
+        byte[]? sidecar = null;
+        try
+        {
+            sidecar = io.ReadBytes(PathOf(io, path) + ".sha256");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // No sidecar: nothing to check.
+        }
+
+        if (sidecar is not null)
+        {
+            var recorded = Encoding.UTF8.GetString(sidecar).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            if (recorded != digest)
+            {
+                throw new InputException($"{path}: the SHA-256 does not match {path}.sha256");
+            }
+        }
+
+        JsonNode? data;
+        try
+        {
+            data = JsonNode.Parse(bytes);
+        }
+        catch (JsonException error)
+        {
+            throw new InputException($"{path}: not valid JSON ({error.Message})");
+        }
+
+        var problems = EvidenceSchema.Problems(data);
+        if (problems.Count > 0)
+        {
+            throw new InputException($"{path}: {string.Join("; ", problems)}");
+        }
+
+        if ((string?)data!["kind"] != "run")
+        {
+            throw new InputException($"{path}: expected a run file; run qualify merge first");
+        }
+
+        return ((JsonObject)data, digest);
+    }
+
+    private static byte[] Read(ICliIO io, string path)
+    {
+        try
+        {
+            return io.ReadBytes(PathOf(io, path));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            throw new InputException($"cannot read {path}: {error.Message}");
+        }
     }
 
     /// <summary>The envelope of a run with no records, from this process's environment.</summary>
@@ -271,6 +450,14 @@ public static class QualifyCommands
     }
 
     private static string PathOf(ICliIO io, string path) => Path.GetFullPath(path, io.WorkingDirectory);
+
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")]
+    private static partial Regex ReportTimeRegex();
+
+    private sealed class ThemeFiles(ICliIO io) : IThemeFiles
+    {
+        public byte[] ReadBytes(string path) => io.ReadBytes(path);
+    }
 }
 
 /// <summary>A problem with how the command was called. Exit 64.</summary>

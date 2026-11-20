@@ -15,6 +15,8 @@
 
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
+    <!-- Extracts the report's text for scenarios 21 and 22. Apache-2.0. -->
+    <PackageReference Include="PdfPig" />
     <ProjectReference Include="../../src/Lekman.Qualify/Lekman.Qualify.csproj" />
     <!-- Built first, run as child processes; never loaded here. -->
     <ProjectReference Include="../Lekman.Qualify.Conformance/Lekman.Qualify.Conformance.csproj" ReferenceOutputAssembly="false" />

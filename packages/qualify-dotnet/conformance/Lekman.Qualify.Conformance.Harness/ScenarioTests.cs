@@ -8,12 +8,23 @@ namespace Lekman.Qualify.Conformance.Harness;
 
 /// <summary>
 /// The scenarios of spec/qualify/conformance/README.md, one test each,
-/// numbered as the README numbers them. Scenario 21 (the PDF report) is not
-/// here yet.
+/// numbered as the README numbers them.
 /// </summary>
-public class ScenarioTests
+public partial class ScenarioTests
 {
     private const string Secret = "s3cr3t-value-123";
+    private const string ReportTime = "2026-01-02T03:04:05.006Z";
+    private static readonly string[] Roles = ["Prepared by", "Reviewed by", "Approved by"];
+
+    /// <summary>Scenarios 1, 2 and 6 as one run, merged: the run file scenarios 21 and 22 render.</summary>
+    private static readonly Lazy<string> ReportRun = new(() =>
+    {
+        var dir = Harness.NewDirectory("report");
+        var result = Harness.RunScenario(dir, ["AllPassTests", "FailingCheckStopsTests", "RuntimeSkipTests"]);
+        Assert.True(result.Status == 2, result.Output);
+        Harness.Merge(dir, 1);
+        return Path.Combine(dir, EvidenceFiles.RunFile);
+    });
 
     private static readonly JsonShape TraceShape = JsonShape.Ordered(
         ["schemaVersion", "kind", "inputs", "runs", "summary", "rows", "notRun", "requirementsWithoutPass"],
@@ -277,6 +288,98 @@ public class ScenarioTests
             Assert.True(at >= 0 && at + 1 < rows.Count && rows[at + 1] == "OQ-CONF-023", "the pair is not on adjacent rows");
         });
 
+    [Fact]
+    public void Scenario21Report()
+    {
+        var (exec, pdf) = Report(["--protocol", Path.Combine(Harness.Root, "spec", "qualify", "conformance", "fixtures", "report.protocol.yaml"), "--title", "Conformance report", "--document-id", "CONF-RPT-001"]);
+        Assert.True(exec.Status == 0, $"report exited {exec.Status}, expected 0\n{exec.Output}");
+        var content = CheckReport(pdf, "report.outline.txt", "Conformance report", "Conformance report Internal");
+        Assert.Contains(content.PageLines[1], line => line.StartsWith("CONF-RPT-001 Page 2 of", StringComparison.Ordinal));
+        KeepSample(pdf, "report-lekman.pdf");
+    }
+
+    [Fact]
+    public void Scenario22ReportTheme()
+    {
+        string[] common = ["--protocol", Path.Combine(Harness.Root, "spec", "qualify", "conformance", "fixtures", "report.protocol.yaml"), "--title", "Conformance report", "--document-id", "CONF-RPT-001"];
+
+        // Run A: the plain theme.
+        var (a, plain) = Report([.. common, "--theme", "plain"]);
+        Assert.True(a.Status == 0, $"run A exited {a.Status}, expected 0\n{a.Output}");
+        var text = string.Join("\n", CheckReport(plain, "report-plain.outline.txt", "Conformance report", "Conformance report").Lines);
+        foreach (var absent in new[] { "lekman.com", "Classification", "Internal" })
+        {
+            Assert.False(text.Contains(absent, StringComparison.Ordinal), $"the plain report holds \"{absent}\"");
+        }
+
+        KeepSample(plain, "report-plain.pdf");
+
+        // Run B: an unknown token.
+        var (b, bad) = Report(["--theme", Path.Combine(Harness.Root, "spec", "qualify", "conformance", "fixtures", "bad-theme", "theme.json")]);
+        Assert.True(b.Status == 2, $"run B exited {b.Status}, expected 2\n{b.Output}");
+        Assert.Contains("{nope}", b.Output, StringComparison.Ordinal);
+        Assert.False(File.Exists(bad), "run B wrote a PDF");
+
+        // Run C: classification and signatures from flags.
+        var (c, flags) = Report(["--theme", "lekman", "--classification", "Commercial in confidence", "--no-signatures"]);
+        Assert.True(c.Status == 0, $"run C exited {c.Status}, expected 0\n{c.Output}");
+        var content = PdfText.Extract(File.ReadAllBytes(flags));
+        Assert.Contains(content.PageLines[0], line => line.Contains("Commercial in confidence", StringComparison.Ordinal));
+        Assert.Equal("Qualification report Commercial in confidence", content.PageLines[1][0]);
+        foreach (var role in Roles)
+        {
+            Assert.DoesNotContain(content.Lines, line => line.Contains(role, StringComparison.Ordinal));
+        }
+    }
+
+    private static (Exec Exec, string Pdf) Report(string[] args)
+    {
+        var run = ReportRun.Value;
+        var pdf = Path.Combine(Path.GetDirectoryName(run)!, $"report-{Guid.NewGuid():N}.pdf");
+        var exec = Harness.ToolWith(new Dictionary<string, string> { ["QUALIFY_REPORT_TIME"] = ReportTime }, ["report", run, "--pdf", pdf, .. args]);
+        return (exec, pdf);
+    }
+
+    /// <summary>The outline in order, the metadata, no header or footer on the cover, and both on every later page.</summary>
+    private static PdfContent CheckReport(string pdf, string outline, string title, string header)
+    {
+        Assert.True(File.Exists(pdf), $"{pdf} was not written");
+        var content = PdfText.Extract(File.ReadAllBytes(pdf));
+        var missing = PdfText.MissingFromOutline(content.Lines, PdfText.Outline(Path.Combine(Harness.Expected, outline)));
+        Assert.True(missing is null, $"the report text does not hold \"{missing}\" in order\n{string.Join("\n", content.Lines)}");
+        var digest = EvidenceFiles.Sha256(File.ReadAllBytes(ReportRun.Value));
+        Assert.Equal(title, content.Info["Title"]);
+        Assert.Equal(Harness.RunId, content.Info["Subject"]);
+        Assert.Contains($"sha256:{digest}", content.Info["Keywords"], StringComparison.Ordinal);
+        Assert.StartsWith("D:20260102030405", content.Info["CreationDate"], StringComparison.Ordinal);
+        var cover = content.PageLines[0];
+        Assert.DoesNotContain(cover, line => PageOf().IsMatch(line));
+
+        // A header equal to the title cannot be told from the cover title by
+        // text, so the cover may hold that line once, as its title, and no more.
+        Assert.True(cover.Count(line => line == header) <= (header == title ? 1 : 0), "the cover has a header");
+        var pages = content.PageLines.Count;
+        for (var n = 2; n <= pages; n++)
+        {
+            var page = content.PageLines[n - 1];
+            Assert.True(page[0] == header, $"page {n} starts with \"{page[0]}\", not the header \"{header}\"");
+            Assert.Contains(page, line => line.Contains($"Page {n} of {pages}", StringComparison.Ordinal) && line.Contains(digest[..12], StringComparison.Ordinal));
+        }
+
+        return content;
+    }
+
+    /// <summary>Keep a report for the README images when <c>QUALIFY_REPORT_SAMPLES</c> names a folder.</summary>
+    private static void KeepSample(string pdf, string name)
+    {
+        var folder = Environment.GetEnvironmentVariable("QUALIFY_REPORT_SAMPLES");
+        if (!string.IsNullOrEmpty(folder))
+        {
+            Directory.CreateDirectory(folder);
+            File.Copy(pdf, Path.Combine(folder, name), overwrite: true);
+        }
+    }
+
     /// <summary>
     /// Run one scenario: the runner's exit code (null for a crash), merge and
     /// its exit code, the trace exit code where the README lists one, the
@@ -368,4 +471,7 @@ public class ScenarioTests
         Harness.Compare(expected, JsonText.Document(Harness.MaskTrace(trace), TraceShape));
         return (result.Status, trace);
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"Page \d+ of")]
+    private static partial System.Text.RegularExpressions.Regex PageOf();
 }
