@@ -1,0 +1,5 @@
+# The conformance expected files are compared byte for byte with what each
+# qualify implementation writes: two-space JSON in the layout of section 6.3
+# of spec/qualify/README.md. Prettier would reflow short arrays onto one line
+# and break that comparison.
+spec/qualify/conformance/expected/

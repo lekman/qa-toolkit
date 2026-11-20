@@ -1,0 +1,396 @@
+import type { ParseArgsConfig } from "node:util";
+
+import { createHash } from "node:crypto";
+import { basename, isAbsolute, join, resolve } from "node:path";
+import { parseArgs } from "node:util";
+
+import type { RunFile } from "../evidence";
+import type { ProtocolEntry, TraceSource } from "../trace";
+import type { ICliIO } from "./interfaces";
+
+import { Envelope } from "../envelope";
+import { EVIDENCE_SHAPE, EvidenceFiles } from "../evidence";
+import { Runtime } from "../execution";
+import { Merge } from "../merge";
+import { Schema } from "../schema";
+import { ConfigurationError, Policy, SettingsResolver } from "../settings";
+import {
+  Trace,
+  TRACE_SHAPE,
+  TraceInputError,
+  TraceInputs,
+  TraceMarkdown,
+} from "../trace";
+import { Ulid } from "../ulid";
+import { JsonText } from "../values";
+
+/** Exit codes of section 8. */
+export const EXIT = {
+  ok: 0,
+  failed: 1,
+  invalid: 2,
+  incomplete: 3,
+  usage: 64,
+} as const;
+
+/** The usage text. */
+export const USAGE = `Usage:
+  qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
+  qualify validate FILE...
+  qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
+                   [--md trace.md] [--json trace.json] [--fail-on-skip]
+  qualify --help | --version
+
+Exit codes: 0 pass, 1 fail or error, 2 invalid input, 3 incomplete, 64 usage.
+`;
+
+/** A problem with how the command was called. Exit 64. */
+class UsageError extends Error {}
+
+/** An input that cannot be used. Exit 2. */
+class InputError extends Error {}
+
+const sha256 = (bytes: Uint8Array): string =>
+  createHash("sha256").update(bytes).digest("hex");
+
+const text = (bytes: Uint8Array): string => Buffer.from(bytes).toString("utf8");
+
+type Options = NonNullable<ParseArgsConfig["options"]>;
+
+const parse = (
+  args: string[],
+  options: Options,
+): {
+  positionals: string[];
+  values: Record<string, boolean | string | undefined>;
+} => {
+  try {
+    const parsed = parseArgs({
+      args,
+      options,
+      allowPositionals: true,
+      strict: true,
+    });
+    return {
+      positionals: parsed.positionals,
+      values: parsed.values as Record<string, boolean | string | undefined>,
+    };
+  } catch (error) {
+    throw new UsageError((error as Error).message);
+  }
+};
+
+/** The `qualify` commands, with all I/O through `ICliIO`. */
+export class Commands {
+  /** Run the CLI with arguments (without the program name). Returns the exit code. */
+  static async run(argv: readonly string[], io: ICliIO): Promise<number> {
+    const [command, ...rest] = argv;
+    try {
+      switch (command) {
+        case "--help":
+        case "-h":
+          io.stdout(USAGE);
+          return EXIT.ok;
+        case "--version":
+        case "-v":
+          io.stdout(`${Runtime.TOOL_VERSION}\n`);
+          return EXIT.ok;
+        case "merge":
+          return await Commands.merge(rest, io);
+        case "trace":
+          return await Commands.trace(rest, io);
+        case "validate":
+          return await Commands.validate(rest, io);
+        default:
+          throw new UsageError(
+            command === undefined
+              ? "no command given"
+              : `unknown command ${command}`,
+          );
+      }
+    } catch (error) {
+      if (error instanceof UsageError) {
+        io.stderr(`qualify: ${error.message}\n\n${USAGE}`);
+        return EXIT.usage;
+      }
+      if (
+        error instanceof InputError ||
+        error instanceof TraceInputError ||
+        error instanceof ConfigurationError
+      ) {
+        io.stderr(`qualify: ${error.message}\n`);
+        return EXIT.invalid;
+      }
+      throw error;
+    }
+  }
+
+  /** The envelope of a run with no records, from this process's environment. */
+  private static emptyEnvelope(io: ICliIO): ReturnType<typeof Envelope.build> {
+    const settings = SettingsResolver.resolve(io.env);
+    const runId = io.env.QUALIFY_RUN_ID;
+    return Envelope.build({
+      env: io.env,
+      environment: settings.environment,
+      git: io.git.read(io.cwd()),
+      policy: Policy.info(settings),
+      runId:
+        runId !== undefined && Ulid.isValid(runId)
+          ? runId
+          : Ulid.create(io.now().getTime(), io.random(10)),
+      tool: {
+        name: Runtime.TOOL_NAME,
+        version: Runtime.TOOL_VERSION,
+        language: "typescript",
+        runtime: `${io.runtime()}; qualify merge`,
+      },
+    });
+  }
+
+  private static json(path: string, bytes: Uint8Array): unknown {
+    try {
+      return JSON.parse(text(bytes)) as unknown;
+    } catch (error) {
+      throw new InputError(
+        `${path}: not valid JSON (${(error as Error).message})`,
+      );
+    }
+  }
+
+  /** Rules the schema cannot express: an ID's prefix equals its level. */
+  private static levels(data: unknown): string[] {
+    const file = data as {
+      test?: { id: string; level: string };
+      tests?: { id: string; level: string }[];
+    };
+    const tests = file.tests ?? (file.test ? [file.test] : []);
+    return tests
+      .filter((t) => !t.id.startsWith(`${t.level}-`))
+      .map((t) => `test ${t.id} does not match its level ${t.level}`);
+  }
+
+  private static async merge(args: string[], io: ICliIO): Promise<number> {
+    const { values, positionals } = parse(args, {
+      "allow-runs": { type: "string" },
+      "evidence-dir": { type: "string" },
+      out: { type: "string" },
+    });
+    if (positionals.length > 0) {
+      throw new UsageError(
+        `merge takes no file arguments, got ${positionals.join(" ")}`,
+      );
+    }
+    const allowRuns =
+      typeof values["allow-runs"] === "string"
+        ? values["allow-runs"]
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0)
+        : [];
+    for (const id of allowRuns) {
+      if (!Ulid.isValid(id))
+        throw new UsageError(`--allow-runs: ${id} is not a run ID`);
+    }
+    const dir = Commands.path(
+      io,
+      (values["evidence-dir"] as string | undefined) ??
+        (io.env.QUALIFY_EVIDENCE_DIR || undefined) ??
+        EvidenceFiles.DEFAULT_DIR,
+    );
+    const out = Commands.path(
+      io,
+      (values.out as string | undefined) ?? join(dir, EvidenceFiles.RUN_FILE),
+    );
+
+    const recordsDir = join(dir, "records");
+    let names: string[];
+    try {
+      names = (await io.list(recordsDir)) ?? [];
+    } catch (error) {
+      throw new InputError(
+        `cannot read ${recordsDir}: ${(error as Error).message}`,
+      );
+    }
+    const inputs = [];
+    for (const name of names) {
+      if (name.startsWith(".")) continue;
+      try {
+        inputs.push({
+          name,
+          text: text(await io.readBytes(join(recordsDir, name))),
+        });
+      } catch (error) {
+        throw new InputError(
+          `cannot read ${name}: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    const result = Merge.build(inputs, {
+      allowRuns,
+      emptyEnvelope: () => Commands.emptyEnvelope(io),
+      now: () => io.now(),
+    });
+    if (!result.ok) {
+      io.stderr(result.errors.map((e) => `qualify merge: ${e}\n`).join(""));
+      io.stderr("qualify merge: no run file written\n");
+      return EXIT.invalid;
+    }
+    const problems = Schema.evidence(result.file);
+    if (problems.length > 0) {
+      throw new InputError(
+        `the merged run file is not valid: ${problems.join("; ")}`,
+      );
+    }
+    const document = JsonText.document(result.file, EVIDENCE_SHAPE);
+    await io.writer.write(out, document);
+    await io.writer.write(
+      `${out}.sha256`,
+      EvidenceFiles.sidecar(document, basename(out)),
+    );
+    const s = result.file.summary;
+    io.stdout(
+      `qualify merge: ${s.total} tests, ${s.pass} pass, ${s.fail} fail, ${s.error} error, ${s.skip} skip; verdict ${s.verdict}; wrote ${out}\n`,
+    );
+    return result.exitCode;
+  }
+
+  private static path(io: ICliIO, path: string): string {
+    return isAbsolute(path) ? path : resolve(io.cwd(), path);
+  }
+
+  private static async read(io: ICliIO, path: string): Promise<Uint8Array> {
+    try {
+      return await io.readBytes(Commands.path(io, path));
+    } catch (error) {
+      throw new InputError(`cannot read ${path}: ${(error as Error).message}`);
+    }
+  }
+
+  /** Check a `.sha256` sidecar next to a file, when there is one. */
+  private static async sidecar(
+    io: ICliIO,
+    path: string,
+    bytes: Uint8Array,
+  ): Promise<void> {
+    let sidecar: Uint8Array;
+    try {
+      sidecar = await io.readBytes(`${Commands.path(io, path)}.sha256`);
+    } catch {
+      return;
+    }
+    const recorded = text(sidecar).trim().split(/\s+/)[0];
+    if (recorded !== sha256(bytes)) {
+      throw new InputError(
+        `${path}: the SHA-256 does not match ${path}.sha256`,
+      );
+    }
+  }
+
+  private static async trace(args: string[], io: ICliIO): Promise<number> {
+    const { values, positionals } = parse(args, {
+      "fail-on-skip": { type: "boolean" },
+      json: { type: "string" },
+      map: { type: "string" },
+      md: { type: "string" },
+      protocol: { type: "string" },
+    });
+    if (positionals.length === 0)
+      throw new UsageError("trace needs at least one evidence file");
+
+    const evidence: TraceSource<RunFile>[] = [];
+    const runs = new Set<string>();
+    for (const path of positionals) {
+      const bytes = await Commands.read(io, path);
+      await Commands.sidecar(io, path, bytes);
+      const data = Commands.json(path, bytes);
+      const problems = Schema.evidence(data);
+      if (problems.length > 0)
+        throw new InputError(`${path}: ${problems.join("; ")}`);
+      if ((data as { kind: string }).kind !== "run") {
+        throw new InputError(
+          `${path}: trace reads run files; run qualify merge first`,
+        );
+      }
+      const file = data as RunFile;
+      if (runs.has(file.run.id))
+        throw new InputError(`${path}: run ${file.run.id} is given twice`);
+      runs.add(file.run.id);
+      evidence.push({ path, sha256: sha256(bytes), content: file });
+    }
+
+    let protocol: TraceSource<ProtocolEntry[]> | undefined;
+    if (typeof values.protocol === "string") {
+      const bytes = await Commands.read(io, values.protocol);
+      protocol = {
+        path: values.protocol,
+        sha256: sha256(bytes),
+        content: TraceInputs.protocol(text(bytes), values.protocol),
+      };
+    }
+    let map: TraceSource<Map<string, string[]>> | undefined;
+    if (typeof values.map === "string") {
+      const bytes = await Commands.read(io, values.map);
+      map = {
+        path: values.map,
+        sha256: sha256(bytes),
+        content: TraceInputs.map(text(bytes), values.map),
+      };
+    }
+
+    const result = Trace.build({
+      evidence,
+      protocol,
+      map,
+      failOnSkip: values["fail-on-skip"] === true,
+    });
+    const problems = Schema.trace(result.trace);
+    if (problems.length > 0) {
+      throw new InputError(`the trace is not valid: ${problems.join("; ")}`);
+    }
+    const markdown = TraceMarkdown.render(result.trace);
+    if (typeof values.md === "string")
+      await io.writer.write(Commands.path(io, values.md), markdown);
+    if (typeof values.json === "string") {
+      await io.writer.write(
+        Commands.path(io, values.json),
+        JsonText.document(result.trace, TRACE_SHAPE),
+      );
+    }
+    if (typeof values.md !== "string" && typeof values.json !== "string")
+      io.stdout(markdown);
+    const s = result.trace.summary;
+    io.stderr(
+      `qualify trace: ${s.tests} tests, ${s.notRun} not run, ${s.requirementsWithoutPass} requirements without a passing test; verdict ${s.verdict}\n`,
+    );
+    return result.exitCode;
+  }
+
+  private static async validate(args: string[], io: ICliIO): Promise<number> {
+    const { positionals } = parse(args, {});
+    if (positionals.length === 0)
+      throw new UsageError("validate needs at least one file");
+    let invalid = 0;
+    for (const path of positionals) {
+      try {
+        const bytes = await Commands.read(io, path);
+        await Commands.sidecar(io, path, bytes);
+        const data = Commands.json(path, bytes);
+        const kind = (data as { kind?: unknown } | null)?.kind;
+        const problems =
+          kind === "trace" ? Schema.trace(data) : Schema.evidence(data);
+        if (problems.length === 0 && kind !== "trace") {
+          problems.push(...Commands.levels(data));
+        }
+        if (problems.length > 0)
+          throw new InputError(`${path}: ${problems.join("; ")}`);
+        io.stdout(`valid: ${path}\n`);
+      } catch (error) {
+        if (!(error instanceof InputError)) throw error;
+        invalid++;
+        io.stderr(`qualify validate: ${error.message}\n`);
+      }
+    }
+    return invalid === 0 ? EXIT.ok : EXIT.invalid;
+  }
+}

@@ -1,0 +1,267 @@
+import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+
+import type { RunFile } from "../../src/evidence";
+import type { TraceFile } from "../../src/trace";
+
+import { Commands, EXIT } from "../../src/cli";
+import { Runtime } from "../../src/execution";
+import {
+  envelope,
+  markerEntry,
+  OTHER_RUN,
+  recordEntry,
+  RUN_ID,
+  testRecord,
+} from "../mocks/evidence.mock";
+import { MemoryCliIO } from "../mocks/memory.mock";
+
+const DIR = "/work/qualification/evidence";
+
+const withRecords = (...entries: [string, string][]): MemoryCliIO =>
+  new MemoryCliIO(
+    Object.fromEntries(
+      entries.map(([name, text]) => [`${DIR}/records/${name}`, text]),
+    ),
+  );
+
+const merged = async (io: MemoryCliIO): Promise<string> => {
+  expect(await Commands.run(["merge"], io)).toBe(EXIT.ok);
+  return io.text(`${DIR}/test-evidence.json`);
+};
+
+describe("Commands: help, version and usage", () => {
+  test("help and version", async () => {
+    const io = new MemoryCliIO();
+    expect(await Commands.run(["--help"], io)).toBe(0);
+    expect(io.out.join("")).toContain("qualify merge");
+    expect(await Commands.run(["-v"], io)).toBe(0);
+    expect(io.out.at(-1)).toBe(`${Runtime.TOOL_VERSION}\n`);
+  });
+
+  test.each([
+    [[]],
+    [["run"]],
+    [["merge", "extra"]],
+    [["merge", "--bogus"]],
+    [["merge", "--allow-runs", "nope"]],
+    [["validate"]],
+    [["trace"]],
+  ])("%p is a usage error", async (argv) => {
+    const io = new MemoryCliIO();
+    expect(await Commands.run(argv, io)).toBe(EXIT.usage);
+    expect(io.err.join("")).toContain("Usage:");
+  });
+
+  test("unexpected errors are not swallowed", async () => {
+    const io = new MemoryCliIO();
+    io.list = async () => {
+      throw new Error("EACCES");
+    };
+    expect(await Commands.run(["merge"], io)).toBe(EXIT.invalid);
+    io.readBytes = async () => {
+      throw new Error("EIO");
+    };
+    expect(await Commands.run(["validate", "x.json"], io)).toBe(EXIT.invalid);
+  });
+});
+
+describe("Commands: merge", () => {
+  test("writes the run file and its sidecar", async () => {
+    const t = testRecord("OQ-A1-001");
+    const io = withRecords(recordEntry(t), markerEntry(t));
+    const text = await merged(io);
+    const file = JSON.parse(text) as RunFile;
+    expect(file.summary.verdict).toBe("pass");
+    expect(io.text(`${DIR}/test-evidence.json.sha256`)).toBe(
+      `${createHash("sha256").update(text).digest("hex")}  test-evidence.json\n`,
+    );
+    expect(io.out.join("")).toContain("1 tests, 1 pass");
+  });
+
+  test("--evidence-dir, --out and --allow-runs", async () => {
+    const io = new MemoryCliIO({
+      [`/other/records/${recordEntry(testRecord("OQ-A1-001"))[0]}`]:
+        recordEntry(testRecord("OQ-A1-001"))[1],
+      [`/other/records/${recordEntry(testRecord("OQ-A1-002"), envelope({ id: OTHER_RUN }))[0]}`]:
+        recordEntry(testRecord("OQ-A1-002"), envelope({ id: OTHER_RUN }))[1],
+    });
+    expect(
+      await Commands.run(
+        ["merge", "--evidence-dir", "/other", "--out", "run.json"],
+        io,
+      ),
+    ).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("more than one run");
+    expect(
+      await Commands.run(
+        [
+          "merge",
+          "--evidence-dir",
+          "/other",
+          "--out",
+          "run.json",
+          "--allow-runs",
+          OTHER_RUN,
+        ],
+        io,
+      ),
+    ).toBe(0);
+    expect(
+      (JSON.parse(io.text("/work/run.json")) as RunFile).run.mergedRuns,
+    ).toEqual([OTHER_RUN]);
+    expect(io.text("/work/run.json.sha256")).toEndWith("  run.json\n");
+  });
+
+  test("QUALIFY_EVIDENCE_DIR and an empty directory", async () => {
+    const io = new MemoryCliIO(
+      {},
+      { QUALIFY_EVIDENCE_DIR: "/env-dir", QUALIFY_RUN_ID: RUN_ID },
+    );
+    expect(await Commands.run(["merge"], io)).toBe(EXIT.incomplete);
+    const file = JSON.parse(io.text("/env-dir/test-evidence.json")) as RunFile;
+    expect(file.run.id).toBe(RUN_ID);
+    expect(file.run.tool.runtime).toBe("node 22.0.0; qualify merge");
+    const fresh = new MemoryCliIO();
+    expect(await Commands.run(["merge"], fresh)).toBe(EXIT.incomplete);
+    expect(
+      (JSON.parse(fresh.text(`${DIR}/test-evidence.json`)) as RunFile).run.id,
+    ).toMatch(/^[0-9A-Z]{26}$/);
+  });
+
+  test("an invalid input writes nothing and exits 2", async () => {
+    const io = withRecords(["bad.json", "{}"]);
+    expect(await Commands.run(["merge"], io)).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("no run file written");
+    expect(io.files.has(`${DIR}/test-evidence.json`)).toBe(false);
+  });
+
+  test("a failed test exits 1", async () => {
+    const io = withRecords(
+      recordEntry(
+        testRecord("OQ-A1-001", {
+          outcome: "fail",
+          error: { type: "CheckFailed", message: "m", site: null },
+        }),
+      ),
+    );
+    expect(await Commands.run(["merge"], io)).toBe(EXIT.failed);
+  });
+});
+
+describe("Commands: validate", () => {
+  test("valid files, a broken one, a trace and a sidecar", async () => {
+    const t = testRecord("OQ-A1-001");
+    const io = withRecords(recordEntry(t));
+    const run = await merged(io);
+    io.files.set("/work/bad.json", "{");
+    io.files.set(
+      "/work/level.json",
+      run.replace('"level": "OQ"', '"level": "PQ"'),
+    );
+    expect(
+      await Commands.run(
+        [
+          "validate",
+          `${DIR}/test-evidence.json`,
+          `${DIR}/records/${recordEntry(t)[0]}`,
+        ],
+        io,
+      ),
+    ).toBe(0);
+    expect(await Commands.run(["validate", "bad.json"], io)).toBe(EXIT.invalid);
+    expect(await Commands.run(["validate", "missing.json"], io)).toBe(
+      EXIT.invalid,
+    );
+    expect(await Commands.run(["validate", "level.json"], io)).toBe(
+      EXIT.invalid,
+    );
+    expect(io.err.join("")).toContain("does not match its level PQ");
+    io.files.set(
+      `${DIR}/test-evidence.json.sha256`,
+      `${"0".repeat(64)}  test-evidence.json\n`,
+    );
+    expect(
+      await Commands.run(["validate", `${DIR}/test-evidence.json`], io),
+    ).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("SHA-256 does not match");
+
+    expect(
+      await Commands.run(["trace", `${DIR}/records/${recordEntry(t)[0]}`], io),
+    ).toBe(EXIT.invalid);
+  });
+});
+
+describe("Commands: trace", () => {
+  const setup = async (): Promise<MemoryCliIO> => {
+    const io = withRecords(
+      recordEntry(testRecord("OQ-A1-001", { requirements: ["R1"] })),
+    );
+    await merged(io);
+    io.files.set(
+      "/work/protocol.yaml",
+      "tests:\n  - {id: OQ-A1-001, title: T, level: OQ}\n  - {id: OQ-A1-002, title: U, level: OQ}\n",
+    );
+    io.files.set("/work/trace.yaml", "OQ-A1-001: R2\n");
+    return io;
+  };
+
+  test("writes trace.md and trace.json and exits by the matrix", async () => {
+    const io = await setup();
+    const code = await Commands.run(
+      [
+        "trace",
+        `${DIR}/test-evidence.json`,
+        "--protocol",
+        "protocol.yaml",
+        "--map",
+        "trace.yaml",
+        "--md",
+        "out/trace.md",
+        "--json",
+        "out/trace.json",
+      ],
+      io,
+    );
+    expect(code).toBe(EXIT.incomplete);
+    const trace = JSON.parse(io.text("/work/out/trace.json")) as TraceFile;
+    expect(trace.notRun).toEqual(["OQ-A1-002"]);
+    expect(trace.inputs.map((i) => i.path)).toEqual([
+      `${DIR}/test-evidence.json`,
+      "protocol.yaml",
+      "trace.yaml",
+    ]);
+    expect(io.text("/work/out/trace.md")).toContain("# Trace Matrix");
+    expect(io.err.join("")).toContain("verdict incomplete");
+  });
+
+  test("prints Markdown without --md or --json", async () => {
+    const io = await setup();
+    expect(await Commands.run(["trace", `${DIR}/test-evidence.json`], io)).toBe(
+      0,
+    );
+    expect(io.out.join("")).toContain("| R1 (code) | OQ-A1-001 |");
+  });
+
+  test("invalid inputs exit 2", async () => {
+    const io = await setup();
+    io.files.set("/work/broken.yaml", "tests: [");
+    expect(
+      await Commands.run(
+        ["trace", `${DIR}/test-evidence.json`, "--protocol", "broken.yaml"],
+        io,
+      ),
+    ).toBe(EXIT.invalid);
+    expect(
+      await Commands.run(
+        ["trace", `${DIR}/test-evidence.json`, `${DIR}/test-evidence.json`],
+        io,
+      ),
+    ).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("given twice");
+    io.files.set("/work/schema-bad.json", "{}");
+    expect(await Commands.run(["trace", "schema-bad.json"], io)).toBe(
+      EXIT.invalid,
+    );
+  });
+});
