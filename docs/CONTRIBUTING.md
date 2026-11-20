@@ -9,12 +9,12 @@ in a package's own `README.md`.
 The top level is flat and grouped by how each thing is consumed. [CLAUDE.md](../CLAUDE.md)
 is the navigation map; the short version:
 
-| Folder       | For                                                                                           |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| `packages/`  | Runnable tools: CLIs and libraries. TypeScript built with Bun, plus Python and Java packages. |
-| `practices/` | The reasoning behind each package. Prose, not config.                                         |
-| `spec/`      | Contracts that more than one package implements: schemas and conformance scenarios.           |
-| `docs/`      | The contributing guide, cross-cutting notes and handoff briefs.                               |
+| Folder       | For                                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| `packages/`  | Runnable tools: CLIs and libraries. TypeScript built with Bun, plus Python, Java and .NET packages. |
+| `practices/` | The reasoning behind each package. Prose, not config.                                               |
+| `spec/`      | Contracts that more than one package implements: schemas and conformance scenarios.                 |
+| `docs/`      | The contributing guide, cross-cutting notes and handoff briefs.                                     |
 
 If a change is guidance, it goes in `practices/`. If it is something you install
 and run, it goes in `packages/`. If several packages in different languages must

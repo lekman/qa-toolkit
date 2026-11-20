@@ -5,8 +5,8 @@ the _shape_, for navigation.
 
 - `packages/`: runnable tools. TypeScript packages are built with Bun and
   published for Node 20 or later, with dependencies bundled unless a package
-  README says otherwise. Python and Java packages sit beside them, each with its
-  own build file.
+  README says otherwise. Python, Java and .NET packages sit beside them, each
+  with its own build file.
 - `spec/`: contracts shared by packages in several languages. A spec is
   normative; change it first, in its own pull request, then the packages.
 - `practices/`: patterns and reasoning. Prose, not config. Each package pairs

@@ -2,8 +2,9 @@
 
 The reasoning behind qualify: the
 [specification](../../spec/qualify/README.md) and the TypeScript package
-[@lekman/qualify](../../packages/qualify/README.md), with Python and Java
-packages to follow.
+[@lekman/qualify](../../packages/qualify/README.md), the C# package
+[Lekman.Qualify](../../packages/qualify-dotnet/README.md), with Python and
+Java packages to follow.
 
 ## The Problem
 
@@ -45,8 +46,8 @@ crashes, which is exactly the run a reviewer wants to see.
    second links each result to its requirements, from the code, a protocol
    file and a mapping file, and reports what did not run.
 6. **One contract, several languages.** A JSON Schema and a set of scenarios
-   that real runners must reproduce byte for byte keep the TypeScript, Python
-   and Java packages honest with each other.
+   that real runners must reproduce byte for byte keep the TypeScript, Python,
+   Java and C# packages honest with each other.
 
 ## What It Costs
 

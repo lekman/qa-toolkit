@@ -1,8 +1,16 @@
 using System.Globalization;
+using Lekman.Qualify.RenderPages;
 using PDFtoImage;
 
 // Usage: RenderPages <report.pdf> <out-prefix> [pages] [dpi]
 // Writes <out-prefix>-1.png, <out-prefix>-2.png, ... for the first pages.
+// RenderPages icon <out.png> draws the package icon.
+if (args is ["icon", var iconPath])
+{
+    Icon.Draw(iconPath);
+    return 0;
+}
+
 if (args.Length < 2)
 {
     Console.Error.WriteLine("usage: RenderPages <report.pdf> <out-prefix> [pages] [dpi]");
