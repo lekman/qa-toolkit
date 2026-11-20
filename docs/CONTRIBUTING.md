@@ -55,8 +55,34 @@ good  fix(data-sampler): stop generating records for an excluded grade
 Enforced locally, by the `pre-commit` and `commit-msg` hooks in `.githooks/`.
 Install them once per clone with `scripts/install-hooks.sh`. The guard reads
 a gitignored term list and skips when there is none, so a contributor with no
-list is never blocked. There is no CI check: this repository does not carry a
-term list, so a secret-backed workflow would have nothing to match on.
+list is never blocked.
+
+CI runs the same guard as a backstop, in the `leak-guard` job of
+[ci.yml](../.github/workflows/ci.yml). It catches a commit made without the
+hooks. It scans the working tree on every pull request and push to `main`, and
+on a pull request it also scans the message of every commit the pull request
+adds. The Quality Gate requires it to pass.
+
+The job reads its term list from the `CLIENT_TERMS` repository secret. The
+secret holds the same newline-separated regex list as your local
+`scripts/client-terms.txt`. The repository owner sets it:
+
+```bash
+gh secret set CLIENT_TERMS -R lekman/qa-toolkit < scripts/client-terms.txt
+```
+
+Set it again whenever the local list changes. A term missing from the secret is
+a term CI lets through.
+
+The job fails when the secret is empty, so a missing list cannot pass as a
+clean scan. Two cases are exempt, because GitHub does not pass the secret to
+them: pull requests from a fork, and runs Dependabot starts. They warn and pass
+instead. To cover Dependabot too, set the same value as a Dependabot secret
+with `gh secret set CLIENT_TERMS --app dependabot -R lekman/qa-toolkit`.
+
+CI logs are public for this repository. The job runs the guard with `--quiet`,
+which reports file paths and commit SHAs only, never the term or the matching
+line. To see what matched, run the guard locally without `--quiet`.
 
 Audit what is already committed:
 
