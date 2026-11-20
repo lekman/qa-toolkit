@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "name": "lekman",
+  "page": { "size": "A4", "marginMm": 25 },
+  "brand": {
+    "logo": "logo.png",
+    "logoHeightMm": 14,
+    "name": "lekman.com"
+  },
+  "fonts": {
+    "body": "fonts/Geist-Regular.ttf",
+    "bodyBold": "fonts/Geist-SemiBold.ttf",
+    "heading": "fonts/Geist-SemiBold.ttf",
+    "mono": "fonts/GeistMono-Regular.ttf"
+  },
+  "colours": {
+    "text": "#2b2e33",
+    "muted": "#7a7a7a",
+    "title": "#141414",
+    "heading": "#141414",
+    "accent": "#0284c7",
+    "rule": "#dedede",
+    "tableHeader": "#141414",
+    "tableHeaderText": "#ffffff",
+    "tableStripe": "#f4f6f8"
+  },
+  "texts": {
+    "title": "Qualification report",
+    "subtitle": "{levels} qualification, {environment} environment, {date}",
+    "classification": "Internal",
+    "header": "{title}",
+    "footer": "{documentId}   Page {page} of {pages}   sha256 {sha12}"
+  },
+  "cover": {
+    "fields": [
+      "documentId",
+      "date",
+      "verdict",
+      "tests",
+      "environment",
+      "version",
+      "classification"
+    ]
+  },
+  "signatures": ["Prepared by", "Reviewed by", "Approved by"]
+}

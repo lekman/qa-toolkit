@@ -275,10 +275,10 @@ in another source.
 - Run scenarios 1, 2 and 6 together as one run, merge, then render
   `qualify report <run file> --pdf report.pdf --protocol report.protocol.yaml
 --title "Conformance report" --document-id CONF-RPT-001` with
-  `QUALIFY_REPORT_TIME=2026-01-02T03:04:05.006Z`. `report.protocol.yaml` lists
-  `IQ-CONF-001`, `OQ-CONF-002`, `OQ-CONF-006` and `OQ-CONF-099`; every language
-  uses the same file,
-  [fixtures/report.protocol.yaml](fixtures/report.protocol.yaml).
+  `QUALIFY_REPORT_TIME=2026-01-02T03:04:05.006Z` and no `--theme`, so the
+  default `lekman` theme applies. `report.protocol.yaml` lists `IQ-CONF-001`,
+  `OQ-CONF-002`, `OQ-CONF-006` and `OQ-CONF-099`; every language uses the same
+  file, [fixtures/report.protocol.yaml](fixtures/report.protocol.yaml).
 - Extract the PDF's text with the language's own PDF library, collapse runs of
   whitespace to one space, and drop empty lines.
 - Expect: every line of `expected/report.outline.txt` appears in the extracted
@@ -286,24 +286,53 @@ in another source.
   wrapping may differ between languages. An outline line is found when it is
   part of an extracted line, at or after the end of the previous match; several
   outline lines may come from one extracted line, such as the cells of one
-  table row. The outline covers the cover page
-  values (title, document ID, `Failed`, the counts, the environment, the run ID
-  `01HQA1ZQJ0C0NF0RMANCE00000`, the generation time `2026-01-02 03:04:05 UTC`),
-  the trace rows, `OQ-CONF-099` listed as not run, each test heading in ID
-  order, `fixture: second fails`, `fixture not seeded`, and the three
-  signature roles.
+  table row. The outline covers:
+  - the cover: `lekman.com`, the title, the subtitle
+    `IQ and OQ qualification, local environment, 2026-01-02`, and the cover
+    rows in theme order (document ID, `2026-01-02`, `Failed`, the counts,
+    `local`, `-` for the version, `Internal`);
+  - page 2: the header (title and `Internal`), the title as a level 1 heading,
+    `Run details` with the run ID `01HQA1ZQJ0C0NF0RMANCE00000` and the
+    generation time `2026-01-02 03:04:05 UTC`;
+  - the trace rows, `OQ-CONF-099` listed as not run, each test heading in ID
+    order, `fixture: second fails`, `fixture not seeded`, and the three
+    signature roles.
+- Expect: page 2 holds the footer `CONF-RPT-001 Page 2 of`. It is checked on
+  page 2 and is not in the outline: the footer is the last line of page 2, and
+  how much content page 2 holds differs between languages, so its place in the
+  order differs too.
+- Expect: the cover page has no header and no footer text. A header that equals
+  the title, as in the `plain` theme, cannot be told from the cover title by
+  text, so the cover may hold that line once and no more.
 - Expect: PDF metadata `Title` `Conformance report`, `Subject`
   `01HQA1ZQJ0C0NF0RMANCE00000`, and `Keywords` containing `sha256:` followed by
   the run file's digest.
 - Expect: `report` exits 0 although the run failed.
 
+### 22. `report-theme`
+
+- Use the run file from scenario 21.
+- Run A: scenario 21's flags plus `--theme plain`. Expect: every line of
+  `expected/report-plain.outline.txt` in order. That outline has the title and
+  subtitle but no `lekman.com`, no `Classification` row, and the `Commit` row's
+  label: its value is the first 12 characters of the commit, or `-` when the
+  source commit is null, and the conformance run has a commit; exit 0.
+- Run B: `--theme fixtures/bad-theme/theme.json`, a copy of the `plain` theme
+  whose `texts.footer` holds the unknown token `{nope}`. Expect: exit 2, an
+  error naming `{nope}`, and no PDF written.
+- Run C: `--theme lekman --classification "Commercial in confidence"
+--no-signatures`. Expect: `Commercial in confidence` on the cover and in the
+  page 2 header, and none of the three signature roles; exit 0.
+
 ## Exit Codes Checked
 
-| Scenario              | `merge` | `trace` |
-| --------------------- | ------- | ------- |
-| `all-pass`            | 0       | 0       |
-| `failing-check-stops` | 1       | 1       |
-| `runtime-skip`        | 0       | 0       |
-| `duplicate-id`        | 2       | n/a     |
-| `crash`               | 1       | 1       |
-| `deselected`          | 0       | 3       |
+| Scenario              | `merge` | `trace` | `report` |
+| --------------------- | ------- | ------- | -------- |
+| `all-pass`            | 0       | 0       | n/a      |
+| `failing-check-stops` | 1       | 1       | n/a      |
+| `runtime-skip`        | 0       | 0       | n/a      |
+| `duplicate-id`        | 2       | n/a     | n/a      |
+| `crash`               | 1       | 1       | n/a      |
+| `deselected`          | 0       | 3       | n/a      |
+| `report`              | 1       | n/a     | 0        |
+| `report-theme`        | n/a     | n/a     | 0, 2, 0  |
