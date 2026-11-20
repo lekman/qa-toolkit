@@ -384,7 +384,7 @@
     },
 
     "startedFile": {
-      "description": "Written atomically when a test starts, at <evidenceDir>/records/<runId>__<testId>.started. A marker with no matching record means the test began and never finished.",
+      "description": "Written atomically when a test starts, at <evidenceDir>/records/<runId>__<testId>__<key>.started, where <key> is the first 8 hex digits of the SHA-256 of the declaration's site. A marker with no matching record means the test began and never finished.",
       "type": "object",
       "additionalProperties": false,
       "required": ["schemaVersion", "kind", "run", "test"],
@@ -412,7 +412,7 @@
     },
 
     "recordFile": {
-      "description": "Written atomically, already redacted, by the process that ran the test, at <evidenceDir>/records/<runId>__<testId>.json.",
+      "description": "Written atomically, already redacted, by the process that ran the test, at <evidenceDir>/records/<runId>__<testId>__<key>.json, the same <key> as its marker.",
       "type": "object",
       "additionalProperties": false,
       "required": ["schemaVersion", "kind", "run", "test"],

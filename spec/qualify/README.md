@@ -237,7 +237,9 @@ Java). Behaviour is identical.
   A failure inside `fn` keeps its own type (see 3.3).
 - **Run context** attaches `run-context.json` with the run envelope's `source`,
   `actor` and `target` plus any `extra` values, writing `null` for values that
-  were not available instead of guessing.
+  were not available instead of guessing. The document has four keys,
+  `actor`, `extra`, `source` and `target`, and is written like any JSON
+  attachment (section 7.3).
 
 ### 3.2 Matchers
 
@@ -261,7 +263,7 @@ records `pass: false` with both values.
 | `delegate`  | The delegated function completes                                   | `"completes"`            |
 
 `actual` is the normalised value under test. For `hasLength`, `actual` is the
-measured length.
+measured length, and a string's length counts Unicode code points.
 
 ### 3.3 Outcomes
 
@@ -336,11 +338,18 @@ machines or languages share one run by setting `QUALIFY_RUN_ID` in the job.
 
 Three kinds, all defined in [evidence.schema.json](evidence.schema.json):
 
-- **Started marker**, `<runId>__<testId>.started`, `kind: "started"`, written
-  when the test starts. It holds the run envelope and the test's declaration.
-- **Record**, `<runId>__<testId>.json`, `kind: "record"`, written when the test
-  ends, already redacted. The marker stays in place; `merge` pairs them.
+- **Started marker**, `<runId>__<testId>__<key>.started`, `kind: "started"`,
+  written when the test starts. It holds the run envelope and the test's
+  declaration.
+- **Record**, `<runId>__<testId>__<key>.json`, `kind: "record"`, written when the
+  test ends, already redacted. The marker stays in place; `merge` pairs them.
 - **Run file**, `kind: "run"`, written by `merge`.
+
+`<key>` is the first 8 lowercase hex digits of the SHA-256 of the declaration's
+`site` (UTF-8). Without it, two declarations of one ID in one run would write
+to the same file name, the second would overwrite the first, and `merge` could
+never see the duplicate. A retried test keeps its site, so it overwrites its own
+files.
 
 Every file is written atomically: write to a temporary file in the same
 directory, flush, then rename. JSON is UTF-8, two-space indented, keys in
@@ -350,22 +359,30 @@ schema order for the envelope and sorted inside values, with a trailing newline.
 
 Each marker and record carries the full `run` envelope, so a file is readable on
 its own. `source` comes from git (`commit`, `branch`, `dirty`), each value
-`null` if git is unavailable. `actor` comes from the CI environment
+`null` if git is unavailable. `dirty` counts changes to tracked files only: the
+evidence directory usually sits untracked inside the repository, and counting
+it would change `dirty` partway through a run. `actor` comes from the CI environment
 (`GITHUB_ACTOR`, `GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`, `GITHUB_RUN_ID` on
 GitHub Actions; `name` from `USER` or `USERNAME` outside CI). `target` comes
-from `QUALIFY_TARGET_<NAME>` variables: `QUALIFY_TARGET_DIGEST=sha256:...`
-becomes `target.digest`. A variable that is set but empty becomes `null`.
+from `QUALIFY_TARGET_<NAME>` variables, with the name lower-cased:
+`QUALIFY_TARGET_DIGEST=sha256:...` becomes `target.digest`, and
+`QUALIFY_TARGET_IMAGE_TAG` becomes `target.image_tag`. A variable that is set
+but empty becomes `null`.
 
 ### 6.5 Merge
 
-`merge` reads `<evidenceDir>/records/` and:
+`merge` reads `<evidenceDir>/records/`, ignoring file names that start with a
+dot (the temporary files of an interrupted atomic write), and:
 
-1. validates every file against the schema;
+1. validates every file against the schema, and checks that each file name
+   matches the `run.id`, test ID and kind inside it;
 2. refuses records from more than one `run.id` unless `--allow-runs` names the
    others, and lists them in `run.mergedRuns`;
 3. refuses two records with one test ID;
 4. checks that the envelopes agree on `environment`, `source` and `policy`, and
-   refuses the merge if they do not;
+   refuses the merge if they do not. `tool`, `actor` and `target` may differ
+   (a run split across machines or languages); the run file takes them from the
+   main run's file with the lowest test ID;
 5. turns every marker without a record into a record with outcome `error`,
    error type `DidNotFinish` and message `test started and did not finish`,
    `startedAt` and `endedAt` from the marker, `durationMs` 0;
@@ -376,7 +393,9 @@ becomes `target.digest`. A variable that is set but empty becomes `null`.
    sidecar.
 
 `summary.verdict` is `fail` if any test failed or errored, `incomplete` if there
-are no records, and `pass` otherwise.
+are no records, and `pass` otherwise. With no records at all, `merge` still
+writes a run file, with the envelope of the process that runs `merge` and
+`startedAt` and `endedAt` set to the current time.
 
 ## 7. Values and Redaction
 
@@ -385,14 +404,17 @@ are no records, and `pass` otherwise.
 Every value recorded as `expected` or `actual` is normalised the same way in
 every language, so the expected files match:
 
-- Object and map keys are sorted. Arrays and lists keep their order. Sets become
-  sorted arrays.
+- Object and map keys are sorted by Unicode code point. Arrays and lists keep
+  their order. Sets become sorted arrays: numbers in numeric order, strings by
+  code point, and a set of mixed types by the compact JSON text of each element.
 - Bytes become `{"$bytes": "<base64>"}`.
 - Dates and instants become timestamp strings in the schema's format, in UTC.
 - Integers outside plus or minus 2^53 become strings. `NaN` and infinities
   become the strings `"NaN"`, `"Infinity"` and `"-Infinity"`.
 - Cycles and values that cannot be serialised become
-  `"[unserialisable: <type>]"`, with the language's type name.
+  `"[unserialisable: <type>]"`, with the language's type name. A value that
+  holds a cycle anywhere becomes one such string as a whole, named after the
+  outer value's type.
 - Strings are recorded as they are, then redacted.
 
 ### 7.2 Redaction
@@ -404,16 +426,23 @@ narrative, and attachments.
 - **Registered values.** Values from `ctx.secret`, `ctx.redact` and secret
   objects are replaced wherever they occur. A value shorter than 6 characters is
   refused with a warning, because it would redact ordinary words.
-- **Pattern rules,** applied without registration:
+- **Pattern rules,** applied without registration, after registered values:
   - PEM private key blocks, from `-----BEGIN ... PRIVATE KEY-----` to the
-    matching `END` line;
+    matching `END` line, or to the end of the text when there is none;
   - JWT-shaped tokens: three base64url segments separated by dots, the first
     starting with `eyJ`;
   - access-key-ID shapes: `AKIA` or `ASIA` followed by 16 upper-case letters or
     digits.
+
+  As regular expressions, in this order:
+  `-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----(?:[\s\S]*?-----END \1PRIVATE KEY-----|[\s\S]*$)`,
+  `eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+` and
+  `(?:AKIA|ASIA)[A-Z0-9]{16}`. Registered values are replaced longest first.
+
 - **JSON attachments** (content type `application/json`): values under keys
   named `password`, `passwd`, `secret`, `token`, `authorization`, `apiKey`,
-  `api_key` or `privateKey`, compared case-insensitively, are replaced.
+  `api_key` or `privateKey`, compared case-insensitively, are replaced, whole,
+  by `"[REDACTED]"`. Every other string and key is redacted as text.
 - **Binary attachments** are scanned as bytes, so a match never corrupts the
   bytes around it.
 - The replacement text is `[REDACTED]`.
@@ -425,7 +454,17 @@ narrative, and attachments.
 Attachments are stored inline, base64-encoded, with `sizeBytes` and `sha256` of
 the redacted bytes. The size limit is 1 MiB per attachment by default
 (`QUALIFY_ATTACHMENT_LIMIT` in bytes). An attachment over the limit ends the
-test with outcome `error`, type `AttachmentTooLarge`; it is never truncated.
+test with outcome `error`, type `AttachmentTooLarge`, message
+`attachment <filename> is <size> bytes, over the limit of <limit> bytes`; it is
+never truncated. The size is measured when the test attaches it, before
+redaction, because a later secret could still change it.
+
+A JSON attachment (content type `application/json`, given as a value or as JSON
+text) is parsed, normalised (section 7.1), redacted, and written the way the
+evidence files are: UTF-8, two-space indent, keys sorted by code point, and a
+trailing newline. So every language produces the same bytes, and the same
+`sha256`. JSON text that does not parse is kept as bytes. Any other attachment
+keeps its bytes, redacted as bytes.
 
 ## 8. The CLI
 
@@ -441,8 +480,24 @@ qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
 ```
 
 - `protocol.yaml` lists the test IDs that must run, each with `title`, `level`,
-  and optional `requirements` and `risk`.
-- `trace.yaml` maps test IDs to requirement IDs without touching code.
+  and optional `requirements` and `risk`, under a `tests` key:
+
+  ```yaml
+  tests:
+    - id: OQ-EXPORT-003
+      title: The bank file never changes an amount
+      level: OQ
+      requirements: [EXPORT-003]
+      risk: high
+  ```
+
+- `trace.yaml` maps test IDs to requirement IDs without touching code. A value
+  is one requirement ID or a list:
+
+  ```yaml
+  OQ-EXPORT-003: [EXPORT-004, EXPORT-005]
+  ```
+
 - Requirement links are the union of the map, the protocol and the code
   declarations. The matrix shows where each link came from.
 - `trace.md` has a header (environments, run IDs, commits, and the SHA-256 of
@@ -459,6 +514,13 @@ qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
 | 2         | Input invalid: schema violation, duplicate ID, mixed runs, unreadable file                            |
 | 3         | Incomplete: no records, a protocol ID has no record, or a required test skipped with `--fail-on-skip` |
 | 64        | Usage error                                                                                           |
+
+When several codes apply, 1 wins over 3, and 3 over 0: a failure outranks a
+missing record. A skipped test does not stop exit 0 unless `--fail-on-skip` is
+given; then a skip of a protocol ID, or of any test when there is no protocol,
+exits 3. `merge` exits with the code of its verdict: 0 for `pass`, 1 for
+`fail`, 3 for `incomplete`, and 2 for invalid input, when it writes no run
+file. `validate` exits 0 when every file is valid and 2 otherwise.
 
 The test run itself keeps the native runner's exit code.
 
