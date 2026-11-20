@@ -119,6 +119,80 @@ class LayoutTest {
   }
 
   @Test
+  void fillsAreDrawnFirstSoAStripeNeverCoversTheLineAbove() {
+    List<List<String>> rows = List.of(List.of("r0"), List.of("r1"), List.of("r2"), List.of("r3"));
+    List<DrawOp> raw =
+        Layout.paginate(
+                List.of(new Block.Table(List.of(new Block.Column("H", 1.0)), rows)), METRICS, A4)
+            .get(0);
+    List<DrawOp> ordered = Layout.drawOrder(raw);
+    assertEquals(raw.size(), ordered.size());
+    int lastFill = -1;
+    int firstLine = ordered.size();
+    int lastLine = -1;
+    int firstText = ordered.size();
+    for (int i = 0; i < ordered.size(); i++) {
+      DrawOp op = ordered.get(i);
+      if (op instanceof DrawOp.Fill) {
+        lastFill = i;
+      } else if (op instanceof DrawOp.Line) {
+        firstLine = Math.min(firstLine, i);
+        lastLine = i;
+      } else if (op instanceof DrawOp.Text) {
+        firstText = Math.min(firstText, i);
+      }
+    }
+    assertTrue(lastFill < firstLine && lastLine < firstText);
+  }
+
+  /** Lay out a filler paragraph of n lines, then a heading and a block, and return the pages. */
+  private static List<List<String>> after(int filler, Block heading, Block next) {
+    List<String> lines = new ArrayList<>();
+    for (int i = 0; i < filler; i++) {
+      lines.add("f" + i);
+    }
+    List<List<String>> pages = new ArrayList<>();
+    for (List<DrawOp> page :
+        Layout.paginate(
+            List.of(new Block.Paragraph(String.join("\n", lines)), heading, next), METRICS, A4)) {
+      pages.add(texts(page));
+    }
+    return pages;
+  }
+
+  @Test
+  void aHeadingStaysWithTheStartOfWhatFollows() {
+    String tall = "l0\nl1\nl2\nl3\nl4";
+    for (int filler = 1; filler < 90; filler++) {
+      for (List<String> page :
+          after(
+              filler,
+              new Block.Heading(2, "Signatures"),
+              new Block.Signatures(List.of("A", "B", "C")))) {
+        if (page.contains("Signatures")) {
+          assertTrue(page.containsAll(List.of("A", "B", "C")), "filler " + filler + ": " + page);
+        }
+      }
+      for (List<String> page :
+          after(
+              filler,
+              new Block.Heading(3, "Checks"),
+              new Block.Table(List.of(new Block.Column("H", 1.0)), List.of(List.of(tall))))) {
+        if (page.contains("Checks")) {
+          assertTrue(page.containsAll(List.of("H", "l0", "l4")), "filler " + filler + ": " + page);
+        }
+      }
+      for (List<String> page :
+          after(
+              filler, new Block.Heading(3, "Not run"), new Block.Bullets(List.of("i0\ni1\ni2")))) {
+        if (page.contains("Not run")) {
+          assertTrue(page.contains("i2"), "filler " + filler + ": " + page);
+        }
+      }
+    }
+  }
+
+  @Test
   void reportTextFormatsValues() {
     assertEquals("-", ReportText.list(List.of()));
     assertEquals("a, b", ReportText.list(List.of("a", "b")));

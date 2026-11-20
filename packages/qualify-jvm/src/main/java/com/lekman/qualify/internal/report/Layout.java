@@ -223,6 +223,16 @@ public final class Layout {
     return ops;
   }
 
+  /**
+   * The order to draw a page in: fills first, then images, lines and text, so a row's fill never
+   * covers the hairline of the row above it. The order within each kind is kept.
+   */
+  public static List<DrawOp> drawOrder(List<DrawOp> page) {
+    List<DrawOp> sorted = new ArrayList<>(page);
+    sorted.sort(java.util.Comparator.comparingInt(Layout::rank));
+    return sorted;
+  }
+
   /** Shorten text to a width, ending it with {@code …} when it had to be cut. */
   public static String fit(
       String text, double width, double size, FontSlot font, TextMetrics metrics) {
@@ -301,14 +311,13 @@ public final class Layout {
               metrics);
       double before = heading.level() == 1 ? 0 : heading.level() == 2 ? 16 : 9;
       double after = heading.level() == 1 ? 18 : 4;
-      // Keep a heading with at least two lines of what follows, or with a whole field list that
-      // fits on a page.
+      // Keep a heading with the start of what follows: a whole field list, a table's header and
+      // first row, a list's first item, or the first three signature roles, as far as that fits
+      // on a page.
       double follow =
-          next instanceof Block.Fields fields
-              ? Math.min(
-                  fieldsHeight(cursor, fields.fields()),
-                  cursor.top() - cursor.bottom() - 2 * lineHeight(size))
-              : 2 * lineHeight(BODY) + 2 * PAD_Y;
+          Math.min(
+              leadHeight(cursor, next),
+              cursor.top() - cursor.bottom() - before - lines.size() * lineHeight(size) - after);
       double needed = before + lines.size() * lineHeight(size) + after + follow;
       if (cursor.room() < needed) {
         cursor.newPage();
@@ -449,6 +458,38 @@ public final class Layout {
     return total;
   }
 
+  /** The height of what a heading must keep with: the start of the next block. */
+  private static double leadHeight(Cursor cursor, @Nullable Block next) {
+    double lh = lineHeight(BODY);
+    if (next instanceof Block.Fields fields) {
+      return fieldsHeight(cursor, fields.fields());
+    }
+    if (next instanceof Block.Table table) {
+      TableCells cells =
+          tableCells(
+              cursor,
+              table.columns(),
+              table.rows().isEmpty() ? List.of() : table.rows().subList(0, 1));
+      return heightOf(cells.header())
+          + (cells.wrapped().isEmpty() ? 0 : heightOf(cells.wrapped().get(0)));
+    }
+    if (next instanceof Block.Bullets bullets) {
+      String first = bullets.items().isEmpty() ? "" : bullets.items().get(0);
+      return wrap(
+                  clean(cursor.metrics, first, FontSlot.BODY),
+                  cursor.width() - 12,
+                  BODY,
+                  FontSlot.BODY,
+                  cursor.metrics)
+              .size()
+          * lh;
+    }
+    if (next instanceof Block.Signatures signatures) {
+      return signatureHeight() * Math.min(signatures.roles().size(), 3);
+    }
+    return 2 * lh + 2 * PAD_Y;
+  }
+
   private static double lineHeight(double size) {
     return size * 1.4;
   }
@@ -511,9 +552,24 @@ public final class Layout {
     }
   }
 
+  private static int rank(DrawOp op) {
+    if (op instanceof DrawOp.Fill) {
+      return 0;
+    }
+    if (op instanceof DrawOp.Image) {
+      return 1;
+    }
+    return op instanceof DrawOp.Line ? 2 : 3;
+  }
+
+  /** The height one signature role takes. */
+  private static double signatureHeight() {
+    return lineHeight(H3) + 3 * (lineHeight(BODY) + 14) + 12;
+  }
+
   private static void signatures(Cursor cursor, List<String> roles) {
     double lh = lineHeight(BODY);
-    double perRole = lineHeight(H3) + 3 * (lh + 14) + 12;
+    double perRole = signatureHeight();
     if (cursor.room() < perRole * Math.min(roles.size(), 3)) {
       cursor.newPage();
     }
@@ -551,7 +607,15 @@ public final class Layout {
     return font == FontSlot.MONO ? MONO : BODY;
   }
 
-  private static void table(Cursor cursor, List<Column> columns, List<List<String>> rows) {
+  /** A table's column widths and fonts, and its header and rows wrapped to them. */
+  private record TableCells(
+      List<Double> widths,
+      List<FontSlot> fonts,
+      List<List<String>> header,
+      List<List<List<String>>> wrapped) {}
+
+  private static TableCells tableCells(
+      Cursor cursor, List<Column> columns, List<List<String>> rows) {
     TextMetrics metrics = cursor.metrics;
     List<Double> widths = columns.stream().map(c -> c.width() * cursor.width()).toList();
     List<FontSlot> fonts =
@@ -566,10 +630,6 @@ public final class Layout {
               FontSlot.BODY_BOLD,
               metrics));
     }
-    List<Style> headerStyles =
-        columns.stream().map(c -> new Style(FontSlot.BODY_BOLD, "tableHeaderText")).toList();
-    List<Style> bodyStyles = fonts.stream().map(f -> new Style(f, "text")).toList();
-    Runnable drawHeader = () -> row(cursor, widths, header, headerStyles, "tableHeader", () -> {});
     List<List<List<String>>> wrapped = new ArrayList<>();
     for (List<String> row : rows) {
       List<List<String>> cells = new ArrayList<>();
@@ -585,6 +645,19 @@ public final class Layout {
       }
       wrapped.add(cells);
     }
+    return new TableCells(widths, fonts, header, wrapped);
+  }
+
+  private static void table(Cursor cursor, List<Column> columns, List<List<String>> rows) {
+    TableCells cells = tableCells(cursor, columns, rows);
+    List<Double> widths = cells.widths();
+    List<List<String>> header = cells.header();
+    List<List<List<String>>> wrapped = cells.wrapped();
+    List<FontSlot> fonts = cells.fonts();
+    List<Style> headerStyles =
+        columns.stream().map(c -> new Style(FontSlot.BODY_BOLD, "tableHeaderText")).toList();
+    List<Style> bodyStyles = fonts.stream().map(f -> new Style(f, "text")).toList();
+    Runnable drawHeader = () -> row(cursor, widths, header, headerStyles, "tableHeader", () -> {});
     double first = wrapped.isEmpty() ? 0 : heightOf(wrapped.get(0));
     // Keep the header with the first row.
     if (cursor.room() < heightOf(header) + first) {

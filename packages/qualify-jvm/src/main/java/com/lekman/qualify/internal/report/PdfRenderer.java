@@ -98,7 +98,7 @@ public final class PdfRenderer {
         PDPage page = new PDPage(new PDRectangle((float) g.width(), (float) g.height()));
         pdf.addPage(page);
         try (PDPageContentStream content = new PDPageContentStream(pdf, page)) {
-          for (DrawOp op : ops) {
+          for (DrawOp op : Layout.drawOrder(ops)) {
             draw(content, op, fonts, theme.colours(), logo);
           }
         }
