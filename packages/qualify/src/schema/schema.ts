@@ -3,9 +3,11 @@ import type { ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import Ajv2020 from "ajv/dist/2020.js";
 
 import evidenceSchema from "./evidence.schema.json" with { type: "json" };
+import themeSchema from "./report-theme.schema.json" with { type: "json" };
 import traceSchema from "./trace.schema.json" with { type: "json" };
 
 let evidence: undefined | ValidateFunction;
+let theme: undefined | ValidateFunction;
 let trace: undefined | ValidateFunction;
 
 const compile = (schema: object): ValidateFunction => {
@@ -33,6 +35,12 @@ export class Schema {
   static evidence(data: unknown): string[] {
     evidence ??= compile(evidenceSchema);
     return evidence(data) ? [] : Schema.summarise(describe(evidence.errors));
+  }
+
+  /** Problems with a report theme, or an empty list when it is valid. */
+  static theme(data: unknown): string[] {
+    theme ??= compile(themeSchema);
+    return theme(data) ? [] : Schema.summarise(describe(theme.errors));
   }
 
   /** Problems with a trace file, or an empty list when it is valid. */

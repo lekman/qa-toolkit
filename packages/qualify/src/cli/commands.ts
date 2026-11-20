@@ -15,6 +15,7 @@ import { Merge } from "../merge";
 import { PdfRenderer, ReportContent } from "../report";
 import { Schema } from "../schema";
 import { ConfigurationError, Policy, SettingsResolver } from "../settings";
+import { ThemeError, ThemeLoader } from "../theme";
 import {
   Trace,
   TRACE_SHAPE,
@@ -40,8 +41,9 @@ export const USAGE = `Usage:
   qualify validate FILE...
   qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                    [--md trace.md] [--json trace.json] [--fail-on-skip]
-  qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
-                   [--title TEXT] [--document-id TEXT]
+  qualify report   RUNFILE --pdf FILE [--theme NAME|PATH] [--protocol protocol.yaml]
+                   [--map trace.yaml] [--title TEXT] [--subtitle TEXT]
+                   [--document-id TEXT] [--classification TEXT]
                    [--signatures ROLE;ROLE;...] [--no-signatures]
   qualify --help | --version
 
@@ -122,6 +124,7 @@ export class Commands {
       if (
         error instanceof InputError ||
         error instanceof TraceInputError ||
+        error instanceof ThemeError ||
         error instanceof ConfigurationError
       ) {
         io.stderr(`qualify: ${error.message}\n`);
@@ -306,12 +309,15 @@ export class Commands {
 
   private static async report(args: string[], io: ICliIO): Promise<number> {
     const { values, positionals } = parse(args, {
+      classification: { type: "string" },
       "document-id": { type: "string" },
       map: { type: "string" },
       "no-signatures": { type: "boolean" },
       pdf: { type: "string" },
       protocol: { type: "string" },
       signatures: { type: "string" },
+      subtitle: { type: "string" },
+      theme: { type: "string" },
       title: { type: "string" },
     });
     if (positionals.length !== 1)
@@ -323,7 +329,7 @@ export class Commands {
         "--signatures and --no-signatures exclude each other",
       );
     }
-    let signatures: null | string[] = ReportContent.DEFAULT_ROLES;
+    let signatures: null | string[] | undefined;
     if (values["no-signatures"] === true) signatures = null;
     else if (typeof values.signatures === "string") {
       signatures = values.signatures
@@ -333,13 +339,21 @@ export class Commands {
       if (signatures.length === 0)
         throw new UsageError("--signatures names no role");
     }
-    for (const flag of ["title", "document-id"] as const) {
+    for (const flag of ["title", "document-id", "theme"] as const) {
       const value = values[flag];
       if (typeof value === "string" && value.trim().length === 0) {
         throw new UsageError(`--${flag} must not be empty`);
       }
     }
     const generatedAt = Commands.reportTime(io);
+    const reference =
+      (values.theme as string | undefined) ??
+      (io.env.QUALIFY_REPORT_THEME || undefined) ??
+      ThemeLoader.DEFAULT;
+    const theme = await ThemeLoader.load(reference, io.cwd(), {
+      bundledDir: () => io.themesDir(),
+      readBytes: (path) => io.readBytes(path),
+    });
 
     const run = await Commands.runFile(io, positionals[0] as string);
     const { protocol, map } = await Commands.inputs(io, values);
@@ -349,25 +363,34 @@ export class Commands {
       map,
       failOnSkip: false,
     }).trace;
+    const text = (flag: string): Record<string, string> =>
+      typeof values[flag] === "string"
+        ? {
+            [flag === "document-id" ? "documentId" : flag]: values[
+              flag
+            ] as string,
+          }
+        : {};
     const document = ReportContent.build({
       run: run.content,
       digest: run.sha256,
       trace,
+      theme: theme.spec,
       tool: { name: Runtime.TOOL_NAME, version: Runtime.TOOL_VERSION },
       options: {
         generatedAt,
-        signatures,
-        ...(typeof values.title === "string" ? { title: values.title } : {}),
-        ...(typeof values["document-id"] === "string"
-          ? { documentId: values["document-id"] }
-          : {}),
+        ...(signatures === undefined ? {} : { signatures }),
+        ...text("title"),
+        ...text("subtitle"),
+        ...text("document-id"),
+        ...text("classification"),
       },
     });
-    const pdf = await PdfRenderer.render(document, await io.fonts());
+    const pdf = await PdfRenderer.render(document, theme);
     const out = Commands.path(io, values.pdf);
     await io.writer.write(out, pdf);
     io.stdout(
-      `qualify report: wrote ${out}; run verdict ${run.content.summary.verdict}\n`,
+      `qualify report: wrote ${out} with theme ${theme.spec.name}; run verdict ${run.content.summary.verdict}\n`,
     );
     return EXIT.ok;
   }

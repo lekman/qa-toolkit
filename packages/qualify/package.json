@@ -59,7 +59,7 @@
   "files": [
     "dist",
     "src",
-    "fonts",
+    "themes",
     "README.md",
     "LICENSE"
   ],

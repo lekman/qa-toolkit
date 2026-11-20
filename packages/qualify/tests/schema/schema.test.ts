@@ -27,14 +27,15 @@ const props = (node: SchemaNode | undefined): string[] => [
 ];
 
 describe("Schema copies", () => {
-  test.each(["evidence.schema.json", "trace.schema.json"])(
-    "%s matches spec/qualify byte for byte",
-    (name) => {
-      expect(readFileSync(join(SRC, name), "utf8")).toBe(
-        readFileSync(join(SPEC, name), "utf8"),
-      );
-    },
-  );
+  test.each([
+    "evidence.schema.json",
+    "trace.schema.json",
+    "report-theme.schema.json",
+  ])("%s matches spec/qualify byte for byte", (name) => {
+    expect(readFileSync(join(SRC, name), "utf8")).toBe(
+      readFileSync(join(SPEC, name), "utf8"),
+    );
+  });
 });
 
 describe("Key order follows the schema", () => {
@@ -119,7 +120,8 @@ describe("Schema validation", () => {
     expect(messages.at(-1)).toMatch(/^and \d+ more$/);
   });
 
-  test("trace files", () => {
+  test("trace files and themes", () => {
     expect(Schema.trace({}).length).toBeGreaterThan(0);
+    expect(Schema.theme({}).length).toBeGreaterThan(0);
   });
 });

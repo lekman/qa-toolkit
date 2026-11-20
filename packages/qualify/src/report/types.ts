@@ -1,23 +1,40 @@
 import type { RunFile } from "../evidence";
+import type { ColourName, FontSlot, ThemeFile, TokenValues } from "../theme";
 import type { TraceFile } from "../trace";
 
-/** One column of a table: its header and its share of the content width. */
+/** One column of a table: its header, its share of the text width, and its font. */
 export interface Column {
   header: string;
-  /** Fraction of the content width; the columns of a table add up to 1. */
+  /** Draw the column's cells in the mono font. */
+  mono?: boolean;
+  /** Fraction of the text width; the columns of a table add up to 1. */
   width: number;
 }
 
-/** A piece of report content, laid out in order. */
+/** One label and value of a field list. */
+export interface Field {
+  label: string;
+  /** Draw the value in the mono font. */
+  mono?: boolean;
+  value: string;
+}
+
+/** A piece of report content after the cover, laid out in order. */
 export type Block =
   | { columns: Column[]; kind: "table"; rows: string[][] }
+  | { fields: Field[]; kind: "fields" }
   | { items: string[]; kind: "list" }
-  | { kind: "fields"; rows: [string, string][] }
-  | { kind: "heading"; level: 1 | 2; text: string }
-  | { kind: "pageBreak" }
+  | { kind: "heading"; level: 1 | 2 | 3; text: string }
   | { kind: "paragraph"; text: string }
-  | { kind: "signatures"; roles: string[] }
-  | { kind: "title"; text: string };
+  | { kind: "signatures"; roles: string[] };
+
+/** What the cover page shows, section 9.1. */
+export interface Cover {
+  brandName: null | string;
+  fields: Field[];
+  subtitle: string;
+  title: string;
+}
 
 /** The PDF's document information. */
 export interface ReportMetadata {
@@ -28,52 +45,32 @@ export interface ReportMetadata {
   title: string;
 }
 
-/** Everything the renderer needs: content, metadata and the footer text. */
+/** Everything the renderer needs: cover, content, page texts and metadata. */
 export interface ReportDocument {
   blocks: Block[];
-  /** Footer parts: document ID and the first 12 hex digits of the digest. */
-  footer: { digest: string; documentId: string };
+  /** The classification, drawn on the right of every header. */
+  classification: string;
+  cover: Cover;
+  /** The footer template; `{page}` and `{pages}` are filled per page. */
+  footer: string;
+  /** The header template; `{page}` and `{pages}` are filled per page. */
+  header: string;
   metadata: ReportMetadata;
+  /** Token values for the header and footer templates. */
+  tokens: TokenValues;
 }
 
-/** What the caller asked for, after defaults. */
+/** What the caller asked for. A value left out comes from the theme. */
 export interface ReportOptions {
+  classification?: string;
   documentId?: string;
   /** The generation time. */
   generatedAt: Date;
-  /** Signature roles, or `null` for no signature block. */
-  signatures: null | string[];
+  /** Signature roles, `null` for no signature block, or left out for the theme's. */
+  signatures?: null | string[];
+  subtitle?: string;
   title?: string;
 }
-
-/** The bundled font files. */
-export interface ReportFonts {
-  bold: Uint8Array;
-  regular: Uint8Array;
-}
-
-/** A drawing instruction on one page, in points from the bottom left. */
-export type DrawOp =
-  | {
-      bold: boolean;
-      kind: "text";
-      size: number;
-      text: string;
-      x: number;
-      y: number;
-    }
-  | { height: number; kind: "fill"; width: number; x: number; y: number }
-  | {
-      kind: "line";
-      thickness: number;
-      x1: number;
-      x2: number;
-      y1: number;
-      y2: number;
-    };
-
-/** One laid-out page. */
-export type Page = DrawOp[];
 
 /** What the report shows about a run. */
 export interface ReportInput {
@@ -81,8 +78,50 @@ export interface ReportInput {
   digest: string;
   options: ReportOptions;
   run: RunFile;
+  /** The theme file; its texts are the templates. */
+  theme: ThemeFile;
   /** The name and version of the tool writing the report. */
   tool: { name: string; version: string };
   /** The trace of this run, with the protocol and map applied. */
   trace: TraceFile;
 }
+
+/** Page size and margin in points. */
+export interface Geometry {
+  height: number;
+  margin: number;
+  width: number;
+}
+
+/** A drawing instruction on one page, in points from the bottom left. */
+export type DrawOp =
+  | {
+      colour: ColourName;
+      font: FontSlot;
+      kind: "text";
+      size: number;
+      text: string;
+      x: number;
+      y: number;
+    }
+  | {
+      colour: ColourName;
+      kind: "line";
+      thickness: number;
+      x1: number;
+      x2: number;
+      y1: number;
+      y2: number;
+    }
+  | {
+      colour: ColourName;
+      height: number;
+      kind: "fill";
+      width: number;
+      x: number;
+      y: number;
+    }
+  | { height: number; kind: "image"; width: number; x: number; y: number };
+
+/** One laid-out page. */
+export type Page = DrawOp[];

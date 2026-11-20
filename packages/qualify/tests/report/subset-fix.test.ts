@@ -1,17 +1,14 @@
 import fontkit from "@pdf-lib/fontkit";
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { SubsetFix } from "../../src/report/subset-fix";
+import { THEMES } from "../mocks/theme.mock";
 
-const FONT = new Uint8Array(
-  readFileSync(join(import.meta.dir, "../../fonts/NotoSans-Regular.ttf")),
-);
-const TEXT = "Conformance report: fixture not seeded";
+const TEXT = "Conformance report: fixture not seeded 0123456789 {}[]";
 
 interface Glyph {
-  id: number;
   path: { toSVG(): string };
 }
 interface Font {
@@ -24,9 +21,20 @@ interface Font {
   layout(text: string): { glyphs: Glyph[] };
 }
 
+const FONTS = readdirSync(THEMES).flatMap((theme) =>
+  readdirSync(join(THEMES, theme, "fonts"))
+    .filter((name) => name.endsWith(".ttf"))
+    .map((name) => join(THEMES, theme, "fonts", name)),
+);
+
 /** Subset the text's glyphs, then compare every outline with the original font. */
-const differing = async (kit: typeof fontkit): Promise<number> => {
-  const font = kit.create(FONT) as unknown as Font;
+const differing = async (
+  kit: typeof fontkit,
+  file: string,
+): Promise<number> => {
+  const font = kit.create(
+    new Uint8Array(readFileSync(file)),
+  ) as unknown as Font;
   const subset = font.createSubset();
   for (const glyph of font.layout(TEXT).glyphs) subset.includeGlyph(glyph);
   const parts: Uint8Array[] = [];
@@ -50,12 +58,22 @@ const differing = async (kit: typeof fontkit): Promise<number> => {
 };
 
 describe("SubsetFix", () => {
-  test("every subset glyph keeps its outline", async () => {
-    expect(await differing(SubsetFix.fontkit())).toBe(0);
+  test("covers every bundled font", () => {
+    expect(FONTS.length).toBe(5);
   });
 
-  test("@pdf-lib/fontkit alone still loses outlines; drop the fix when this fails", async () => {
-    expect(await differing(fontkit)).toBeGreaterThan(0);
+  test.each(FONTS)(
+    "every subset glyph of %s keeps its outline",
+    async (file) => {
+      expect(await differing(SubsetFix.fontkit(), file)).toBe(0);
+    },
+  );
+
+  test("@pdf-lib/fontkit alone still loses Noto Sans outlines; drop the fix when this fails", async () => {
+    const noto = FONTS.find((f) =>
+      f.endsWith("NotoSans-Regular.ttf"),
+    ) as string;
+    expect(await differing(fontkit, noto)).toBeGreaterThan(0);
   });
 
   test("a subset without the expected shape is left alone", () => {

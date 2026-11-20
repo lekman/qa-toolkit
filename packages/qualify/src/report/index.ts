@@ -1,16 +1,18 @@
 export type { ITextMetrics } from "./interfaces";
-export { Layout, PAGE } from "./layout";
-export { BundledFonts } from "./report.system";
+export { Layout, SIZE } from "./layout";
+export { PdfRenderer } from "./renderer";
 export { ReportContent } from "./report-content";
 export { ReportText } from "./report-text";
-export { PdfRenderer } from "./renderer";
+export { SubsetFix } from "./subset-fix";
 export type {
   Block,
   Column,
+  Cover,
   DrawOp,
+  Field,
+  Geometry,
   Page,
   ReportDocument,
-  ReportFonts,
   ReportInput,
   ReportMetadata,
   ReportOptions,

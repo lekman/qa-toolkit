@@ -2,7 +2,9 @@
  * Render the first pages of a PDF to PNG with pdfjs-dist and @napi-rs/canvas,
  * for the sample images in the README. Development only.
  *
- *   bun run scripts/render-pages.ts report.pdf docs/ 2
+ *   bun run scripts/render-pages.ts report.pdf docs/ 3 report-lekman
+ *
+ * writes docs/report-lekman-page-1.png to -page-3.png.
  */
 
 import { createCanvas } from "@napi-rs/canvas";
@@ -10,9 +12,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
-const [input, outDir = ".", count = "2"] = process.argv.slice(2);
+const [input, outDir = ".", count = "2", prefix = "report"] =
+  process.argv.slice(2);
 if (input === undefined) {
-  console.error("usage: render-pages.ts FILE.pdf [OUT_DIR] [PAGES]");
+  console.error("usage: render-pages.ts FILE.pdf [OUT_DIR] [PAGES] [PREFIX]");
   process.exit(64);
 }
 
@@ -36,7 +39,7 @@ for (let n = 1; n <= Math.min(Number(count), pdf.numPages); n++) {
     canvasContext: context as never,
     viewport,
   }).promise;
-  const out = join(outDir, `report-page-${n}.png`);
+  const out = join(outDir, `${prefix}-page-${n}.png`);
   writeFileSync(out, canvas.toBuffer("image/png"));
   console.log(`wrote ${out}`);
 }

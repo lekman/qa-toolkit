@@ -919,89 +919,211 @@ const runSharedRunId = (runner: Runner): void => {
 const sampleArg = process.argv.indexOf("--sample");
 const SAMPLE = sampleArg >= 0 ? process.argv[sampleArg + 1] : undefined;
 
+/** The run file of scenarios 1, 2 and 6, merged once for scenarios 21 and 22. */
+let reportRunDir: string | undefined;
+const reportRun = (): string => {
+  if (reportRunDir !== undefined)
+    return join(reportRunDir, "test-evidence.json");
+  const dir = mkdtempSync(join(tmpdir(), "qualify-report-"));
+  const result = runTests(
+    "vitest",
+    { files: ["all-pass", "failing-check-stops", "runtime-skip"], status: 1 },
+    dir,
+  );
+  assert(
+    result.status === 1,
+    `vitest exited ${result.status}, expected 1\n${result.output.slice(-2000)}`,
+  );
+  const merge = cli(["merge", "--evidence-dir", dir]);
+  assert(merge.status === 1, `merge exited ${merge.status}, expected 1`);
+  reportRunDir = dir;
+  return join(dir, "test-evidence.json");
+};
+
+const REPORT_TIME = "2026-01-02T03:04:05.006Z";
+
+/** Run `qualify report` on the shared run file. */
+const report = (args: string[]): { exec: Exec; pdf: string } => {
+  const runFile = reportRun();
+  const pdf = join(
+    dirname(runFile),
+    `report-${Math.random().toString(16).slice(2)}.pdf`,
+  );
+  const exec = cli(["report", runFile, "--pdf", pdf, ...args], {
+    ...scenarioEnv(dirname(runFile)),
+    QUALIFY_REPORT_TIME: REPORT_TIME,
+  });
+  return { exec, pdf };
+};
+
+const outline = (name: string): string[] =>
+  readFileSync(join(EXPECTED, name), "utf8")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0);
+
+/** The checks every rendered report shares: outline, metadata, cover and footers. */
+const checkReport = async (
+  pdfPath: string,
+  outlineFile: string,
+  title: string,
+  header: string,
+): Promise<string[]> => {
+  const bytes = new Uint8Array(readFileSync(pdfPath));
+  const { info, lines, pageLines, pages } = await extractPdf(bytes);
+  const missing = missingFromOutline(lines, outline(outlineFile));
+  assert(
+    missing === undefined,
+    `the report text does not hold "${missing}" in order`,
+  );
+  const digest = sha256(readFileSync(reportRun()));
+  assert(info.Title === title, `Title is ${String(info.Title)}`);
+  assert(info.Subject === RUN_ID, `Subject is ${String(info.Subject)}`);
+  assert(
+    String(info.Keywords).includes(`sha256:${digest}`),
+    `Keywords is ${String(info.Keywords)}`,
+  );
+  assert(
+    String(info.CreationDate).startsWith("D:20260102030405"),
+    `CreationDate is ${String(info.CreationDate)}`,
+  );
+  const cover = pageLines[0] as string[];
+  assert(
+    !cover.some((line) => /Page \d+ of/.test(line)),
+    "the cover has a footer",
+  );
+  // A header equal to the title cannot be told from the cover title by text,
+  // so the cover may hold that line once, as its title, and no more.
+  const allowed = header === title ? 1 : 0;
+  assert(
+    cover.filter((line) => line === header).length <= allowed,
+    "the cover has a header",
+  );
+  for (let n = 2; n <= pages; n++) {
+    const page = pageLines[n - 1] as string[];
+    assert(
+      page[0] === header,
+      `page ${n} starts with "${page[0]}", not the header "${header}"`,
+    );
+    assert(
+      page.some(
+        (line) =>
+          line.includes(`Page ${n} of ${pages}`) &&
+          line.includes(digest.slice(0, 12)),
+      ),
+      `page ${n} has no footer`,
+    );
+  }
+  return lines;
+};
+
 /**
- * Scenario 21: scenarios 1, 2 and 6 as one run, merged, then rendered as a
- * PDF. The extracted text must hold the hand-written outline in order, and
- * the metadata must name the run and the run file's digest. With `--sample
- * DIR`, the PDF is kept there for the README images.
+ * Scenario 21: the default theme. The extracted text must hold the
+ * hand-written outline in order; the page 2 footer is checked on page 2.
+ * With `--sample DIR`, the PDF is kept there for the README images.
  */
 const runReport = async (): Promise<void> => {
-  const dir = mkdtempSync(join(tmpdir(), "qualify-report-"));
-  try {
-    const result = runTests(
-      "vitest",
-      { files: ["all-pass", "failing-check-stops", "runtime-skip"], status: 1 },
-      dir,
-    );
+  const { exec, pdf } = report([
+    "--protocol",
+    join(FIXTURES, "report.protocol.yaml"),
+    "--title",
+    "Conformance report",
+    "--document-id",
+    "CONF-RPT-001",
+  ]);
+  assert(
+    exec.status === 0,
+    `report exited ${exec.status}, expected 0\n${exec.output}`,
+  );
+  await checkReport(
+    pdf,
+    "report.outline.txt",
+    "Conformance report",
+    "Conformance report Internal",
+  );
+  const { pageLines } = await extractPdf(new Uint8Array(readFileSync(pdf)));
+  assert(
+    (pageLines[1] as string[]).some((line) =>
+      line.startsWith("CONF-RPT-001 Page 2 of"),
+    ),
+    "page 2 has no footer CONF-RPT-001 Page 2 of",
+  );
+  if (SAMPLE !== undefined) {
+    mkdirSync(SAMPLE, { recursive: true });
+    writeFileSync(join(SAMPLE, "report-lekman.pdf"), readFileSync(pdf));
+  }
+};
+
+/** Scenario 22: the plain theme, an invalid theme, and flags over the theme. */
+const runReportTheme = async (): Promise<void> => {
+  const common = [
+    "--protocol",
+    join(FIXTURES, "report.protocol.yaml"),
+    "--title",
+    "Conformance report",
+    "--document-id",
+    "CONF-RPT-001",
+  ];
+  // Run A: the plain theme.
+  const a = report([...common, "--theme", "plain"]);
+  assert(
+    a.exec.status === 0,
+    `run A exited ${a.exec.status}, expected 0\n${a.exec.output}`,
+  );
+  const plain = (
+    await checkReport(
+      a.pdf,
+      "report-plain.outline.txt",
+      "Conformance report",
+      "Conformance report",
+    )
+  ).join("\n");
+  for (const absent of ["lekman.com", "Classification", "Internal"]) {
+    assert(!plain.includes(absent), `the plain report holds "${absent}"`);
+  }
+  if (SAMPLE !== undefined)
+    writeFileSync(join(SAMPLE, "report-plain.pdf"), readFileSync(a.pdf));
+
+  // Run B: an unknown token.
+  const b = report(["--theme", join(FIXTURES, "bad-theme", "theme.json")]);
+  assert(b.exec.status === 2, `run B exited ${b.exec.status}, expected 2`);
+  assert(
+    b.exec.output.includes("{nope}"),
+    "run B's error does not name {nope}",
+  );
+  assert(!existsSync(b.pdf), "run B wrote a PDF");
+
+  // Run C: classification and signatures from flags.
+  const c = report([
+    "--theme",
+    "lekman",
+    "--classification",
+    "Commercial in confidence",
+    "--no-signatures",
+  ]);
+  assert(
+    c.exec.status === 0,
+    `run C exited ${c.exec.status}, expected 0\n${c.exec.output}`,
+  );
+  const { lines, pageLines } = await extractPdf(
+    new Uint8Array(readFileSync(c.pdf)),
+  );
+  assert(
+    (pageLines[0] as string[]).some((l) =>
+      l.includes("Commercial in confidence"),
+    ),
+    "the cover lacks the classification",
+  );
+  assert(
+    (pageLines[1] as string[])[0] ===
+      "Qualification report Commercial in confidence",
+    "the page 2 header lacks the classification",
+  );
+  for (const role of ["Prepared by", "Reviewed by", "Approved by"]) {
     assert(
-      result.status === 1,
-      `vitest exited ${result.status}, expected 1\n${result.output.slice(-2000)}`,
+      !lines.some((l) => l.includes(role)),
+      `run C holds the signature role ${role}`,
     );
-    const merge = cli(["merge", "--evidence-dir", dir]);
-    assert(merge.status === 1, `merge exited ${merge.status}, expected 1`);
-    const runFile = join(dir, "test-evidence.json");
-    const pdfPath = join(dir, "report.pdf");
-    const report = cli(
-      [
-        "report",
-        runFile,
-        "--pdf",
-        pdfPath,
-        "--protocol",
-        join(FIXTURES, "report.protocol.yaml"),
-        "--title",
-        "Conformance report",
-        "--document-id",
-        "CONF-RPT-001",
-      ],
-      { ...scenarioEnv(dir), QUALIFY_REPORT_TIME: "2026-01-02T03:04:05.006Z" },
-    );
-    assert(
-      report.status === 0,
-      `report exited ${report.status}, expected 0\n${report.output}`,
-    );
-    const bytes = new Uint8Array(readFileSync(pdfPath));
-    const { info, lines, pages } = await extractPdf(bytes);
-    const outline = readFileSync(join(EXPECTED, "report.outline.txt"), "utf8")
-      .split("\n")
-      .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter((line) => line.length > 0);
-    const missing = missingFromOutline(lines, outline);
-    assert(
-      missing === undefined,
-      `the report text does not hold "${missing}" in order`,
-    );
-    const digest = sha256(readFileSync(runFile));
-    assert(
-      info.Title === "Conformance report",
-      `Title is ${String(info.Title)}`,
-    );
-    assert(info.Subject === RUN_ID, `Subject is ${String(info.Subject)}`);
-    assert(
-      String(info.Keywords).includes(`sha256:${digest}`),
-      `Keywords is ${String(info.Keywords)}`,
-    );
-    assert(
-      String(info.CreationDate).startsWith("D:20260102030405"),
-      `CreationDate is ${String(info.CreationDate)}`,
-    );
-    for (let n = 1; n <= pages; n++) {
-      assert(
-        lines.some(
-          (line) =>
-            line.includes(`Page ${n} of ${pages}`) &&
-            line.includes("CONF-RPT-001") &&
-            line.includes(digest.slice(0, 12)),
-        ),
-        `page ${n} has no footer`,
-      );
-    }
-    if (SAMPLE !== undefined) {
-      mkdirSync(SAMPLE, { recursive: true });
-      writeFileSync(join(SAMPLE, "report.pdf"), bytes);
-    }
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
   }
 };
 
@@ -1050,6 +1172,9 @@ for (const scenario of SCENARIOS) {
 }
 await attempt("parallel-determinism", "vitest", runParallel);
 await attempt("report", "vitest", runReport);
+await attempt("report-theme", "vitest", runReportTheme);
+if (reportRunDir !== undefined)
+  rmSync(reportRunDir, { recursive: true, force: true });
 if (!UPDATE) {
   for (const runner of ["vitest", "node:test", "bun"] as const) {
     await attempt("shared-run-id", runner, () => runSharedRunId(runner));

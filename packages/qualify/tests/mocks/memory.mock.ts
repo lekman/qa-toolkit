@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import type { ICliIO } from "../../src/cli";
 import type { GitFacts, IGitProbe } from "../../src/envelope";
 import type { IEvidenceWriter } from "../../src/evidence";
-import type { ReportFonts } from "../../src/report";
+
+const REPO = resolve(import.meta.dir, "../../../..");
 
 /** Keeps written files in memory. */
 export class MemoryWriter implements IEvidenceWriter {
@@ -77,15 +78,6 @@ export class MemoryCliIO implements ICliIO {
     return "/work";
   }
 
-  /** The bundled fonts, read from the package. */
-  async fonts(): Promise<ReportFonts> {
-    const dir = join(import.meta.dir, "../../fonts");
-    return {
-      regular: new Uint8Array(readFileSync(join(dir, "NotoSans-Regular.ttf"))),
-      bold: new Uint8Array(readFileSync(join(dir, "NotoSans-Bold.ttf"))),
-    };
-  }
-
   /** Names directly inside a directory. */
   async list(dir: string): Promise<string[] | undefined> {
     const prefix = `${dir}/`;
@@ -104,7 +96,11 @@ export class MemoryCliIO implements ICliIO {
   /** A file's bytes, or ENOENT. */
   async readBytes(path: string): Promise<Uint8Array> {
     const content = this.files.get(path);
-    if (content === undefined) throw new Error(`ENOENT: ${path}`);
+    if (content === undefined) {
+      // Theme files live on disk: the bundled themes and the spec's fixtures.
+      if (path.startsWith(REPO)) return new Uint8Array(readFileSync(path));
+      throw new Error(`ENOENT: ${path}`);
+    }
     return typeof content === "string"
       ? new Uint8Array(Buffer.from(content))
       : content;
@@ -132,6 +128,11 @@ export class MemoryCliIO implements ICliIO {
     return typeof content === "string"
       ? content
       : Buffer.from(content).toString("utf8");
+  }
+
+  /** The package's real bundled themes. */
+  themesDir(): string {
+    return join(import.meta.dir, "../../themes");
   }
 
   /** Collect warnings with standard error. */

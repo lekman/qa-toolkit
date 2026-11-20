@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 
 import type { RunFile } from "../../src/evidence";
 import type { TraceFile } from "../../src/trace";
@@ -16,6 +17,7 @@ import {
   testRecord,
 } from "../mocks/evidence.mock";
 import { MemoryCliIO } from "../mocks/memory.mock";
+import { FIXTURES } from "../mocks/theme.mock";
 
 const DIR = "/work/qualification/evidence";
 
@@ -290,7 +292,7 @@ describe("Commands: report", () => {
     return io;
   };
 
-  test("writes a PDF and exits 0 although the run failed", async () => {
+  test("writes a PDF with the default theme and exits 0 although the run failed", async () => {
     const io = await setup({ QUALIFY_REPORT_TIME: "2026-01-02T03:04:05.006Z" });
     const code = await Commands.run(
       [
@@ -303,9 +305,13 @@ describe("Commands: report", () => {
         "--map",
         "trace.yaml",
         "--title",
-        "T",
+        "T {not a token}",
+        "--subtitle",
+        "Sub",
         "--document-id",
         "D-1",
+        "--classification",
+        "Secret",
         "--signatures",
         "Owner; QA",
       ],
@@ -315,13 +321,17 @@ describe("Commands: report", () => {
     const pdf = await extractPdf(
       io.files.get("/work/out/report.pdf") as Uint8Array,
     );
-    expect(pdf.info.Title).toBe("T");
+    expect(pdf.info.Title).toBe("T {not a token}");
     expect(String(pdf.info.CreationDate)).toStartWith("D:20260102030405");
     expect(
       missingFromOutline(pdf.lines, [
-        "T",
+        "lekman.com",
+        "T {not a token}",
+        "Sub",
         "D-1",
         "Failed",
+        "Secret",
+        "T {not a token} Secret",
         "R1 (code)",
         "R2 (map)",
         "Not run",
@@ -330,20 +340,54 @@ describe("Commands: report", () => {
         "QA",
       ]),
     ).toBeUndefined();
-    expect(io.out.join("")).toContain("run verdict fail");
+    expect(io.out.join("")).toContain("with theme lekman; run verdict fail");
   });
 
-  test("--no-signatures and the current time", async () => {
-    const io = await setup();
+  test("--theme wins over QUALIFY_REPORT_THEME; --no-signatures; the current time", async () => {
+    const io = await setup({ QUALIFY_REPORT_THEME: "lekman" });
     expect(
       await Commands.run(
-        ["report", "run.json", "--pdf", "r.pdf", "--no-signatures"],
+        [
+          "report",
+          "run.json",
+          "--pdf",
+          "r.pdf",
+          "--theme",
+          "plain",
+          "--no-signatures",
+        ],
         io,
       ),
     ).toBe(0);
     const pdf = await extractPdf(io.files.get("/work/r.pdf") as Uint8Array);
-    expect(pdf.lines.join("\n")).not.toContain("Prepared by");
-    expect(pdf.lines.join("\n")).toContain("2026-01-02 03:04:05 UTC");
+    const text = pdf.lines.join("\n");
+    expect(text).not.toContain("lekman.com");
+    expect(text).not.toContain("Prepared by");
+    expect(text).toContain("2026-01-02 03:04:05 UTC");
+    const fromEnv = await setup({ QUALIFY_REPORT_THEME: "plain" });
+    expect(
+      await Commands.run(["report", "run.json", "--pdf", "r.pdf"], fromEnv),
+    ).toBe(0);
+    expect(fromEnv.out.join("")).toContain("with theme plain");
+  });
+
+  test("an invalid theme exits 2 and writes no PDF", async () => {
+    const io = await setup();
+    const bad = join(FIXTURES, "bad-theme", "theme.json");
+    expect(
+      await Commands.run(
+        ["report", "run.json", "--pdf", "r.pdf", "--theme", bad],
+        io,
+      ),
+    ).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("{nope}");
+    expect(io.files.has("/work/r.pdf")).toBe(false);
+    expect(
+      await Commands.run(
+        ["report", "run.json", "--pdf", "r.pdf", "--theme", "missing"],
+        io,
+      ),
+    ).toBe(EXIT.invalid);
   });
 
   test.each([
@@ -363,6 +407,7 @@ describe("Commands: report", () => {
     ],
     [["report", "run.json", "--pdf", "r.pdf", "--signatures", " ; "]],
     [["report", "run.json", "--pdf", "r.pdf", "--title", " "]],
+    [["report", "run.json", "--pdf", "r.pdf", "--theme", ""]],
   ])("%p is a usage error", async (argv) => {
     const io = await setup();
     expect(await Commands.run(argv, io)).toBe(EXIT.usage);

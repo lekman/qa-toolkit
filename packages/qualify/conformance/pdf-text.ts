@@ -12,7 +12,9 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 /** The extracted text and document information of a PDF. */
 export interface PdfText {
   info: Record<string, unknown>;
+  /** Every page's lines, in page order. */
   lines: string[];
+  pageLines: string[][];
   pages: number;
 }
 
@@ -25,8 +27,10 @@ interface Item {
 export async function extractPdf(bytes: Uint8Array): Promise<PdfText> {
   const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
   const pdf = await task.promise;
-  const lines: string[] = [];
+  const pageLines: string[][] = [];
   for (let n = 1; n <= pdf.numPages; n++) {
+    const lines: string[] = [];
+    pageLines.push(lines);
     const page = await pdf.getPage(n);
     const content = await page.getTextContent();
     const rows = new Map<number, Item[]>();
@@ -48,7 +52,12 @@ export async function extractPdf(bytes: Uint8Array): Promise<PdfText> {
   const { info } = await pdf.getMetadata();
   const pages = pdf.numPages;
   await task.destroy();
-  return { info: info as Record<string, unknown>, lines, pages };
+  return {
+    info: info as Record<string, unknown>,
+    lines: pageLines.flat(),
+    pageLines,
+    pages,
+  };
 }
 
 /**
