@@ -194,8 +194,11 @@ void bankFileKeepsAmounts(QualifyContext ctx) {
 
 - `@IQ`, `@OQ`, `@PQ` and `@IU` are composed annotations, meta-annotated with
   `@Test`, `@Tag` for the level, and `@ExtendWith(QualifyExtension.class)`.
-  Gradle `includeTags("OQ")` and Maven `-Dgroups=OQ` select by level. Declared
-  `tags` are added as JUnit tags at discovery.
+  Gradle `includeTags("OQ")` and Maven `-Dgroups=OQ` select by level. JUnit
+  reads tags only from `@Tag` annotations and cannot add one at discovery, so a
+  value in `tags` is recorded but cannot be selected. The record's `tags` also
+  hold every JUnit tag of the test except its level's, so `@Tag("export")` on
+  the method or its class both selects and records `export`.
 - `QualifyExtension` resolves the `QualifyContext` parameter, starts the record
   before execution, reads `getExecutionException()` after execution for `fail`
   or `error`, and records aborted tests (assumption failures and `ctx.skip`) as
