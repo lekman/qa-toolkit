@@ -46,10 +46,11 @@ repositories {
     mavenCentral()
 }
 
-val conformance by sourceSets.creating {
-    compileClasspath += sourceSets.main.get().output
-    runtimeClasspath += sourceSets.main.get().output
-}
+val conformance =
+    sourceSets.create("conformance") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
 
 configurations[conformance.implementationConfigurationName].extendsFrom(
     configurations.implementation.get(),
@@ -59,9 +60,10 @@ configurations[conformance.runtimeOnlyConfigurationName].extendsFrom(configurati
 
 // Silences SLF4J's "no provider" notice in the CLI only; library users keep
 // their own logging.
-val cliLogging by configurations.creating {
-    isCanBeConsumed = false
-}
+val cliLogging =
+    configurations.create("cliLogging") {
+        isCanBeConsumed = false
+    }
 
 dependencies {
     // The JUnit 5 API users already have. 5.13 is the oldest with the
@@ -132,22 +134,23 @@ tasks.jar {
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") { enabled = false }
 
 // The CLI as one runnable jar: java -jar qualify-<version>-cli.jar merge ...
-val cliJar by tasks.registering(com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar::class) {
-    group = "build"
-    description = "Builds the runnable CLI jar with its dependencies."
-    archiveClassifier = "cli"
-    from(sourceSets.main.get().output)
-    configurations = listOf(project.configurations.runtimeClasspath.get(), cliLogging)
-    manifest { attributes("Main-Class" to "com.lekman.qualify.cli.Main") }
-    mergeServiceFiles()
-    exclude(
-        "META-INF/*.SF",
-        "META-INF/*.DSA",
-        "META-INF/*.RSA",
-        "META-INF/versions/*/module-info.class",
-        "module-info.class",
-    )
-}
+val cliJar =
+    tasks.register<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("cliJar") {
+        group = "build"
+        description = "Builds the runnable CLI jar with its dependencies."
+        archiveClassifier = "cli"
+        from(sourceSets.main.get().output)
+        configurations = listOf(project.configurations.runtimeClasspath.get(), cliLogging)
+        manifest { attributes("Main-Class" to "com.lekman.qualify.cli.Main") }
+        mergeServiceFiles()
+        exclude(
+            "META-INF/*.SF",
+            "META-INF/*.DSA",
+            "META-INF/*.RSA",
+            "META-INF/versions/*/module-info.class",
+            "module-info.class",
+        )
+    }
 tasks.assemble { dependsOn(cliJar) }
 
 tasks.test {
@@ -156,6 +159,10 @@ tasks.test {
     // Fixture classes run through the JUnit testkit inside the tests, never
     // on their own.
     exclude("**/fixtures/**")
+    // A QUALIFY_* variable of the shell would override the settings the tests
+    // pass as configuration parameters.
+    setEnvironment(System.getenv().filterKeys { !it.startsWith("QUALIFY_") })
+    systemProperty("qualify.repoRoot", repoRoot.asFile.path)
     systemProperty(
         "qualify.evidenceDir",
         layout.buildDirectory
