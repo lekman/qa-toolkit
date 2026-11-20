@@ -72,6 +72,7 @@ dependencies {
     implementation("tools.jackson.core:jackson-databind:3.2.4")
     implementation("tools.jackson.dataformat:jackson-dataformat-yaml:3.2.4")
     implementation("com.networknt:json-schema-validator:3.0.9")
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
 
     errorprone("com.google.errorprone:error_prone_core:2.52.0")
     errorprone("com.uber.nullaway:nullaway:0.14.3")
@@ -92,10 +93,14 @@ dependencies {
 }
 
 tasks.processResources {
-    // The schemas are read from spec/qualify, their one hand-written source.
+    // The schemas and the report themes are read from spec/qualify, their one
+    // hand-written source, and bundled byte for byte.
     from(specDir) {
-        include("evidence.schema.json", "trace.schema.json")
+        include("evidence.schema.json", "trace.schema.json", "report-theme.schema.json")
         into("com/lekman/qualify/schema")
+    }
+    from(specDir.dir("report/themes")) {
+        into("com/lekman/qualify/themes")
     }
     val props = mapOf("version" to project.version.toString())
     inputs.properties(props)
@@ -274,4 +279,22 @@ tasks.register<JavaExec>("conformance") {
             .executablePath.asFile.path,
     )
     args(providers.gradleProperty("only").map { listOf("--only", it) }.getOrElse(emptyList()))
+    args(providers.gradleProperty("sample").map { listOf("--sample", it) }.getOrElse(emptyList()))
+}
+
+// Renders the first pages of a report to PNG, for the README images:
+//   ./gradlew renderPages -Ppdf=report.pdf -Pout=docs -Pprefix=report-lekman
+tasks.register<JavaExec>("renderPages") {
+    group = "documentation"
+    description = "Renders pages 1 to 3 of a PDF to PNG with PDFBox."
+    classpath = conformance.runtimeClasspath
+    mainClass = "com.lekman.qualify.conformance.harness.RenderPages"
+    javaLauncher = java17
+    systemProperty("java.awt.headless", "true")
+    args(
+        providers.gradleProperty("pdf").getOrElse("report.pdf"),
+        providers.gradleProperty("out").getOrElse("docs"),
+        providers.gradleProperty("prefix").getOrElse("report"),
+        providers.gradleProperty("pages").getOrElse("3"),
+    )
 }

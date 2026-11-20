@@ -13,6 +13,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -92,6 +93,9 @@ public final class Harness {
   private final String java;
   private final Path tsCli;
   private final Path tsFixtures;
+  private final Path fixtures;
+  private Path sample;
+  private Path reportRunDir;
 
   private Harness() {
     repo = Path.of(System.getProperty("qualify.conformance.repoRoot")).toAbsolutePath().normalize();
@@ -101,6 +105,7 @@ public final class Harness {
     java = System.getProperty("qualify.conformance.java");
     tsCli = repo.resolve("packages/qualify/dist/cli.js");
     tsFixtures = repo.resolve("packages/qualify/conformance/fixtures");
+    fixtures = repo.resolve("spec/qualify/conformance/fixtures");
   }
 
   /** A scenario failed. */
@@ -166,10 +171,17 @@ public final class Harness {
   /** Run the scenarios and exit 1 when any failed. */
   public static void main(String[] args) {
     Set<String> only = null;
-    if (args.length == 2 && args[0].equals("--only")) {
-      only = Set.of(args[1].split(","));
+    Path sample = null;
+    for (int i = 0; i + 1 < args.length; i += 2) {
+      if (args[i].equals("--only")) {
+        only = Set.of(args[i + 1].split(",", -1));
+      } else if (args[i].equals("--sample")) {
+        sample = Path.of(args[i + 1]);
+      }
     }
-    new Harness().runAll(only);
+    Harness harness = new Harness();
+    harness.sample = sample;
+    harness.runAll(only);
   }
 
   private void runAll(Set<String> only) {
@@ -186,6 +198,12 @@ public final class Harness {
     if (only == null || only.contains("shared-run-id")) {
       results.add(attempt("shared-run-id", this::runSharedRunId));
     }
+    if (only == null || only.contains("report")) {
+      results.add(attempt("report", this::runReport));
+    }
+    if (only == null || only.contains("report-theme")) {
+      results.add(attempt("report-theme", this::runReportTheme));
+    }
     int width = results.stream().mapToInt(r -> r[0].length()).max().orElse(0);
     int failed = 0;
     for (String[] result : results) {
@@ -196,6 +214,9 @@ public final class Harness {
         failed++;
         System.out.println("FAIL  " + name + "\n      " + result[1].replace("\n", "\n      "));
       }
+    }
+    if (reportRunDir != null) {
+      delete(reportRunDir);
     }
     System.out.printf("%n%d passed, %d failed%n", results.size() - failed, failed);
     System.exit(failed == 0 ? 0 : 1);
@@ -678,6 +699,212 @@ public final class Harness {
       check(ids.size() == 1 && !ids.contains(RUN_ID), "the files used " + ids.size() + " run IDs");
     } finally {
       delete(dir);
+    }
+  }
+
+  // ------------------------------------------------------------------ report
+
+  private static final String REPORT_TIME = "2026-01-02T03:04:05.006Z";
+  private static final List<String> ROLES = List.of("Prepared by", "Reviewed by", "Approved by");
+
+  /** Scenarios 1, 2 and 6 as one run, merged once and shared by the report scenarios. */
+  private Path reportRun() {
+    if (reportRunDir != null) {
+      return reportRunDir.resolve("test-evidence.json");
+    }
+    Path dir = tempDir("qualify-report-");
+    Exec result =
+        runTests(
+            Invocation.of(1, "AllPassTest", "FailingCheckStopsTest", "RuntimeSkipTest"),
+            dir,
+            false);
+    check(
+        result.status() == 1,
+        "the launcher exited " + result.status() + ", expected 1\n" + tail(result.output()));
+    Exec merge = cli(List.of("merge", "--evidence-dir", dir.toString()), dir);
+    check(merge.status() == 1, "merge exited " + merge.status() + ", expected 1");
+    reportRunDir = dir;
+    return dir.resolve("test-evidence.json");
+  }
+
+  /** Run {@code qualify report} on the shared run file; the PDF path is fresh each time. */
+  private Path report(List<String> args, List<String> exec) {
+    Path runFile = reportRun();
+    Path pdf = runFile.resolveSibling("report-" + Long.toHexString(System.nanoTime()) + ".pdf");
+    List<String> command =
+        new ArrayList<>(
+            List.of(
+                java,
+                "-jar",
+                cliJar.toString(),
+                "report",
+                runFile.toString(),
+                "--pdf",
+                pdf.toString()));
+    command.addAll(args);
+    Map<String, String> env = scenarioEnv(runFile.getParent(), Map.of());
+    env.put("QUALIFY_REPORT_TIME", REPORT_TIME);
+    Exec result = exec(command, env);
+    exec.add(String.valueOf(result.status()));
+    exec.add(result.output());
+    return pdf;
+  }
+
+  private List<String> outline(String name) {
+    return read(expected.resolve(name))
+        .lines()
+        .map(line -> line.replaceAll("\\s+", " ").trim())
+        .filter(line -> !line.isEmpty())
+        .toList();
+  }
+
+  /** The checks every rendered report shares: outline, metadata, cover and page chrome. */
+  private PdfText checkReport(Path pdf, String outlineFile, String title, String header) {
+    PdfText text;
+    try {
+      text = PdfText.extract(pdf);
+    } catch (IOException e) {
+      throw new Failure("cannot read the PDF: " + e);
+    }
+    String missing = PdfText.missingFromOutline(text.lines(), outline(outlineFile));
+    check(missing == null, "the report text does not hold \"" + missing + "\" in order");
+    String digest;
+    try {
+      digest = EvidenceFiles.sha256(Files.readAllBytes(reportRun()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    check(title.equals(text.info().get("Title")), "Title is " + text.info().get("Title"));
+    check(RUN_ID.equals(text.info().get("Subject")), "Subject is " + text.info().get("Subject"));
+    check(
+        text.info().get("Keywords").contains("sha256:" + digest),
+        "Keywords is " + text.info().get("Keywords"));
+    check(
+        text.info().get("CreationDate").startsWith("D:20260102030405"),
+        "CreationDate is " + text.info().get("CreationDate"));
+    List<String> cover = text.pages().get(0);
+    check(cover.stream().noneMatch(l -> l.matches(".*Page \\d+ of.*")), "the cover has a footer");
+    long allowed = header.equals(title) ? 1 : 0;
+    check(cover.stream().filter(header::equals).count() <= allowed, "the cover has a header");
+    int pages = text.pages().size();
+    for (int n = 2; n <= pages; n++) {
+      List<String> page = text.pages().get(n - 1);
+      check(
+          !page.isEmpty() && page.get(0).equals(header),
+          "page "
+              + n
+              + " starts with \""
+              + (page.isEmpty() ? "" : page.get(0))
+              + "\", not the header \""
+              + header
+              + "\"");
+      String footer = "Page " + n + " of " + pages;
+      check(
+          page.stream().anyMatch(l -> l.contains(footer) && l.contains(digest.substring(0, 12))),
+          "page " + n + " has no footer");
+    }
+    return text;
+  }
+
+  /** Scenario 21: the default theme. */
+  private void runReport() {
+    List<String> exec = new ArrayList<>();
+    Path pdf =
+        report(
+            List.of(
+                "--protocol",
+                fixtures.resolve("report.protocol.yaml").toString(),
+                "--title",
+                "Conformance report",
+                "--document-id",
+                "CONF-RPT-001"),
+            exec);
+    check(exec.get(0).equals("0"), "report exited " + exec.get(0) + ", expected 0\n" + exec.get(1));
+    PdfText text =
+        checkReport(pdf, "report.outline.txt", "Conformance report", "Conformance report Internal");
+    check(
+        text.pages().get(1).stream().anyMatch(l -> l.startsWith("CONF-RPT-001 Page 2 of")),
+        "page 2 has no footer CONF-RPT-001 Page 2 of");
+    keep(pdf, "report-lekman.pdf");
+  }
+
+  /** Scenario 22: the plain theme, an invalid theme, and flags over the theme. */
+  private void runReportTheme() {
+    List<String> common =
+        List.of(
+            "--protocol",
+            fixtures.resolve("report.protocol.yaml").toString(),
+            "--title",
+            "Conformance report",
+            "--document-id",
+            "CONF-RPT-001");
+    // Run A: the plain theme.
+    List<String> a = new ArrayList<>();
+    List<String> argsA = new ArrayList<>(common);
+    argsA.addAll(List.of("--theme", "plain"));
+    Path pdfA = report(argsA, a);
+    check(a.get(0).equals("0"), "run A exited " + a.get(0) + ", expected 0\n" + a.get(1));
+    String plain =
+        String.join(
+            "\n",
+            checkReport(
+                    pdfA, "report-plain.outline.txt", "Conformance report", "Conformance report")
+                .lines());
+    for (String absent : List.of("lekman.com", "Classification", "Internal")) {
+      check(!plain.contains(absent), "the plain report holds \"" + absent + "\"");
+    }
+    keep(pdfA, "report-plain.pdf");
+
+    // Run B: an unknown token.
+    List<String> b = new ArrayList<>();
+    Path pdfB =
+        report(
+            List.of("--theme", fixtures.resolve("bad-theme").resolve("theme.json").toString()), b);
+    check(b.get(0).equals("2"), "run B exited " + b.get(0) + ", expected 2\n" + b.get(1));
+    check(b.get(1).contains("{nope}"), "run B's error does not name {nope}");
+    check(!Files.exists(pdfB), "run B wrote a PDF");
+
+    // Run C: classification and signatures from flags.
+    List<String> c = new ArrayList<>();
+    Path pdfC =
+        report(
+            List.of(
+                "--theme",
+                "lekman",
+                "--classification",
+                "Commercial in confidence",
+                "--no-signatures"),
+            c);
+    check(c.get(0).equals("0"), "run C exited " + c.get(0) + ", expected 0\n" + c.get(1));
+    PdfText text;
+    try {
+      text = PdfText.extract(pdfC);
+    } catch (IOException e) {
+      throw new Failure("cannot read the PDF: " + e);
+    }
+    check(
+        text.pages().get(0).stream().anyMatch(l -> l.contains("Commercial in confidence")),
+        "the cover lacks the classification");
+    check(
+        text.pages().get(1).get(0).equals("Qualification report Commercial in confidence"),
+        "the page 2 header lacks the classification: " + text.pages().get(1).get(0));
+    for (String role : ROLES) {
+      check(
+          text.lines().stream().noneMatch(l -> l.contains(role)),
+          "run C holds the signature role " + role);
+    }
+  }
+
+  /** With {@code --sample DIR}, keep a rendered PDF for the README images. */
+  private void keep(Path pdf, String name) {
+    if (sample == null) {
+      return;
+    }
+    try {
+      Files.createDirectories(sample);
+      Files.copy(pdf, sample.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 

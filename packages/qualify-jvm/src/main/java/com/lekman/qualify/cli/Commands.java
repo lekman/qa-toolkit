@@ -8,21 +8,35 @@ import com.lekman.qualify.internal.execution.Tool;
 import com.lekman.qualify.internal.json.Json;
 import com.lekman.qualify.internal.json.JsonFormatException;
 import com.lekman.qualify.internal.merge.Merge;
+import com.lekman.qualify.internal.report.PdfRenderer;
+import com.lekman.qualify.internal.report.ReportContent;
+import com.lekman.qualify.internal.report.ReportDocument;
 import com.lekman.qualify.internal.schema.Schemas;
 import com.lekman.qualify.internal.settings.Policy;
 import com.lekman.qualify.internal.settings.Settings;
 import com.lekman.qualify.internal.settings.SettingsResolver;
+import com.lekman.qualify.internal.theme.Theme;
+import com.lekman.qualify.internal.theme.ThemeError;
+import com.lekman.qualify.internal.theme.ThemeLoader;
+import com.lekman.qualify.internal.trace.ProtocolEntry;
+import com.lekman.qualify.internal.trace.Trace;
+import com.lekman.qualify.internal.trace.TraceInputError;
+import com.lekman.qualify.internal.trace.TraceInputs;
 import com.lekman.qualify.internal.ulid.Ulid;
 import com.lekman.qualify.internal.values.Values;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /** The {@code qualify} commands of the Java package, with all I/O through {@link CliIO}. */
@@ -43,12 +57,19 @@ public final class Commands {
   /** A usage error. */
   public static final int USAGE = 64;
 
+  private static final Pattern REPORT_TIME =
+      Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$");
+
   /** The usage text. */
   public static final String USAGE_TEXT =
       """
       Usage:
         qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
         qualify validate FILE...
+        qualify report   RUNFILE --pdf FILE [--theme NAME|PATH] [--protocol protocol.yaml]
+                         [--map trace.yaml] [--title TEXT] [--subtitle TEXT]
+                         [--document-id TEXT] [--classification TEXT]
+                         [--signatures ROLE;ROLE;...] [--no-signatures]
         qualify --help | --version
 
       qualify trace is in the TypeScript package: npx @lekman/qualify trace ...
@@ -77,6 +98,7 @@ public final class Commands {
         }
         case "merge" -> merge(rest, io);
         case "validate" -> validate(rest, io);
+        case "report" -> report(rest, io);
         case "trace" -> {
           io.stderr(
               "qualify: trace is part of the TypeScript package; run npx @lekman/qualify trace "
@@ -89,7 +111,7 @@ public final class Commands {
     } catch (UsageError e) {
       io.stderr("qualify: " + e.getMessage() + "\n\n" + USAGE_TEXT);
       return USAGE;
-    } catch (InputError | ConfigurationError e) {
+    } catch (InputError | ConfigurationError | ThemeError | TraceInputError e) {
       io.stderr("qualify: " + e.getMessage() + "\n");
       return INVALID;
     }
@@ -202,6 +224,135 @@ public final class Commands {
             + out
             + "\n");
     return result.exitCode();
+  }
+
+  private static int report(List<String> argv, CliIO io) {
+    Args args =
+        Args.parse(
+            argv,
+            Set.of(
+                "classification",
+                "document-id",
+                "map",
+                "pdf",
+                "protocol",
+                "signatures",
+                "subtitle",
+                "theme",
+                "title"),
+            Set.of("no-signatures"));
+    if (args.positionals().size() != 1) {
+      throw new UsageError("report takes exactly one run file");
+    }
+    String pdf = args.value("pdf");
+    if (pdf == null) {
+      throw new UsageError("report needs --pdf FILE");
+    }
+    if (args.flag("no-signatures") && args.value("signatures") != null) {
+      throw new UsageError("--signatures and --no-signatures exclude each other");
+    }
+    List<String> signatures = null;
+    if (args.flag("no-signatures")) {
+      signatures = List.of();
+    } else if (args.value("signatures") != null) {
+      signatures =
+          Arrays.stream(String.valueOf(args.value("signatures")).split(";", -1))
+              .map(String::trim)
+              .filter(r -> !r.isEmpty())
+              .toList();
+      if (signatures.isEmpty()) {
+        throw new UsageError("--signatures names no role");
+      }
+    }
+    for (String flag : List.of("title", "document-id", "theme")) {
+      String value = args.value(flag);
+      if (value != null && value.isBlank()) {
+        throw new UsageError("--" + flag + " must not be empty");
+      }
+    }
+    Instant generatedAt = reportTime(io);
+    String reference = args.value("theme");
+    if (reference == null) {
+      String fromEnv = io.env().get("QUALIFY_REPORT_THEME");
+      reference = fromEnv == null || fromEnv.isEmpty() ? ThemeLoader.DEFAULT : fromEnv;
+    }
+    Theme theme = ThemeLoader.load(reference, io.cwd());
+
+    String runPath = args.positionals().get(0);
+    byte[] runBytes = read(io, runPath);
+    sidecar(io, runPath, runBytes);
+    JsonNode node;
+    try {
+      node = Json.parseNode(new String(runBytes, StandardCharsets.UTF_8));
+    } catch (JsonFormatException e) {
+      throw new InputError(runPath + ": not valid JSON (" + e.getMessage() + ")");
+    }
+    List<String> problems = Schemas.evidence(node);
+    if (!problems.isEmpty()) {
+      throw new InputError(runPath + ": " + String.join("; ", problems));
+    }
+    if (!"run".equals(node.path("kind").stringValue(""))) {
+      throw new InputError(runPath + ": expected a run file; run qualify merge first");
+    }
+    @SuppressWarnings("unchecked")
+    Map<String, Object> runFile = (Map<String, Object>) Objects.requireNonNull(Json.fromNode(node));
+    String protocolPath = args.value("protocol");
+    List<ProtocolEntry> protocol =
+        protocolPath == null
+            ? List.of()
+            : TraceInputs.protocol(
+                new String(read(io, protocolPath), StandardCharsets.UTF_8), protocolPath);
+    String mapPath = args.value("map");
+    Map<String, List<String>> map =
+        mapPath == null
+            ? Map.of()
+            : TraceInputs.map(new String(read(io, mapPath), StandardCharsets.UTF_8), mapPath);
+    ReportDocument document =
+        ReportContent.build(
+            runFile,
+            EvidenceFiles.sha256(runBytes),
+            Trace.build(runFile, protocol, map),
+            theme,
+            Tool.NAME + " " + Tool.version(),
+            new ReportContent.Options(
+                generatedAt,
+                args.value("title"),
+                args.value("subtitle"),
+                args.value("document-id"),
+                args.value("classification"),
+                signatures));
+    byte[] bytes = PdfRenderer.render(document, theme);
+    Path out = io.cwd().resolve(pdf);
+    try {
+      io.write(out, bytes);
+    } catch (IOException e) {
+      throw new InputError("cannot write " + out + ": " + e.getMessage());
+    }
+    @SuppressWarnings("unchecked")
+    Map<String, Object> summary =
+        (Map<String, Object>) Objects.requireNonNull(runFile.get("summary"));
+    io.stdout("qualify report: wrote " + out + "; run verdict " + summary.get("verdict") + "\n");
+    return OK;
+  }
+
+  /** The generation time: {@code QUALIFY_REPORT_TIME} when set, else now. */
+  private static Instant reportTime(CliIO io) {
+    String value = io.env().get("QUALIFY_REPORT_TIME");
+    if (value == null || value.isEmpty()) {
+      return io.now();
+    }
+    if (!REPORT_TIME.matcher(value).matches()) {
+      throw new InputError(
+          "QUALIFY_REPORT_TIME must be a UTC instant such as 2026-01-02T03:04:05.006Z, got "
+              + value);
+    }
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException e) {
+      throw new InputError(
+          "QUALIFY_REPORT_TIME must be a UTC instant such as 2026-01-02T03:04:05.006Z, got "
+              + value);
+    }
   }
 
   private static byte[] read(CliIO io, String path) {

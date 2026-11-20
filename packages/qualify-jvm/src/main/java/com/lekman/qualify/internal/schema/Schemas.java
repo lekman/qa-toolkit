@@ -22,6 +22,7 @@ public final class Schemas {
 
   private static final Schema EVIDENCE = load("evidence.schema.json");
   private static final Schema TRACE = load("trace.schema.json");
+  private static final Schema THEME = load("report-theme.schema.json");
 
   private Schemas() {}
 
@@ -38,6 +39,11 @@ public final class Schemas {
   /** Problems with a trace file; empty when valid. */
   public static List<String> trace(JsonNode file) {
     return problems(TRACE, file);
+  }
+
+  /** Problems with a report theme file; empty when valid. */
+  public static List<String> theme(JsonNode file) {
+    return problems(THEME, file);
   }
 
   private static Schema load(String name) {
