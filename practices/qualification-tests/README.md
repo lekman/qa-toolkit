@@ -1,8 +1,9 @@
 # Qualification Tests
 
 The reasoning behind qualify: the
-[specification](../../spec/qualify/README.md) and the TypeScript package
-[@lekman/qualify](../../packages/qualify/README.md), with Python and Java
+[specification](../../spec/qualify/README.md), the TypeScript package
+[@lekman/qualify](../../packages/qualify/README.md) and the JUnit 5 extension
+[com.lekman:qualify](../../packages/qualify-jvm/README.md), with Python and C#
 packages to follow.
 
 ## The Problem
