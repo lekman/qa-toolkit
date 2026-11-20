@@ -10,24 +10,25 @@ rules in [docs/CONTRIBUTING.md](../../docs/CONTRIBUTING.md).
 One folder per domain, following
 [.claude/rules/clean-architecture.md](../../.claude/rules/clean-architecture.md).
 
-| Folder            | Holds                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `src/declaration` | `Declarations.validate`: fields, IDs and levels, sections 2.1 and 4.                    |
-| `src/checks`      | `TestContext`, the matchers, `CheckFailed`, `SkipSignal` and the other errors.          |
-| `src/outcome`     | `Outcomes.classify`: pass, fail, error or skip, section 3.3.                            |
-| `src/values`      | Normalisation (7.1) and `JsonText`, the writer every evidence file goes through.        |
-| `src/redaction`   | Registered values, pattern rules, JSON keys and bytes, section 7.2.                     |
-| `src/settings`    | `SettingsResolver` (variables and options) and `Policy` (write protection, rules).      |
-| `src/envelope`    | `Envelope`: source, actor and target. `envelope.system.ts` runs git.                    |
-| `src/evidence`    | File names, key order, types. `evidence.system.ts` writes files atomically.             |
-| `src/execution`   | `Execution`, the one test lifecycle every adapter shares, and `Runtime`, per process.   |
-| `src/merge`       | `Merge.build`: records and markers to a run file, section 6.5.                          |
-| `src/trace`       | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                            |
-| `src/schema`      | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                    |
-| `src/cli`         | `Commands` (covered) and `cli.ts` (wiring only, not covered).                           |
-| `src/adapters`    | vitest, `node:test` and bun glue, and their setup modules. Covered by conformance runs. |
-| `conformance/`    | The scenario test files per runner, fixtures, and the harness `run.ts`.                 |
-| `tests/`          | Unit tests, mirroring `src/`, with in-memory mocks in `tests/mocks/`.                   |
+| Folder            | Holds                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| `src/declaration` | `Declarations.validate`: fields, IDs and levels, sections 2.1 and 4.                         |
+| `src/checks`      | `TestContext`, the matchers, `CheckFailed`, `SkipSignal` and the other errors.               |
+| `src/outcome`     | `Outcomes.classify`: pass, fail, error or skip, section 3.3.                                 |
+| `src/values`      | Normalisation (7.1) and `JsonText`, the writer every evidence file goes through.             |
+| `src/redaction`   | Registered values, pattern rules, JSON keys and bytes, section 7.2.                          |
+| `src/settings`    | `SettingsResolver` (variables and options) and `Policy` (write protection, rules).           |
+| `src/envelope`    | `Envelope`: source, actor and target. `envelope.system.ts` runs git.                         |
+| `src/evidence`    | File names, key order, types. `evidence.system.ts` writes files atomically.                  |
+| `src/execution`   | `Execution`, the one test lifecycle every adapter shares, and `Runtime`, per process.        |
+| `src/merge`       | `Merge.build`: records and markers to a run file, section 6.5.                               |
+| `src/trace`       | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                                 |
+| `src/report`      | The PDF report: `ReportContent` (pure), `Layout` (pure, over `ITextMetrics`), `PdfRenderer`. |
+| `src/schema`      | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                         |
+| `src/cli`         | `Commands` (covered) and `cli.ts` (wiring only, not covered).                                |
+| `src/adapters`    | vitest, `node:test` and bun glue, and their setup modules. Covered by conformance runs.      |
+| `conformance/`    | The scenario test files per runner, fixtures, and the harness `run.ts`.                      |
+| `tests/`          | Unit tests, mirroring `src/`, with in-memory mocks in `tests/mocks/`.                        |
 
 An adapter only registers the test under `[<ID>] <title>` and maps the result
 back to its runner. Everything else, from the started marker to the redacted
@@ -78,6 +79,25 @@ Test sources that need a secret-shaped value (a PEM block, a JWT, an access
 key ID) build it from two parts at runtime, so secret scanners do not flag the
 source.
 
+## The PDF Report
+
+`ReportContent` decides what the report says, `Layout` places it on A4 pages
+through the `ITextMetrics` port, and `PdfRenderer` draws it with `pdf-lib`.
+Only `report.system.ts` reads files: the fonts in `fonts/`.
+
+Text extraction alone does not prove a PDF renders: a broken font subset
+still extracts the right text. After a change to the renderer or the fonts,
+look at the pages:
+
+```bash
+bun run conformance/run.ts --only report --sample docs
+bun run scripts/render-pages.ts docs/report.pdf docs 2
+mv docs/report.pdf docs/sample-report.pdf
+```
+
+`scripts/render-pages.ts` uses `pdfjs-dist` and `@napi-rs/canvas`, both dev
+dependencies. The PNGs in `docs/` are the README images.
+
 ## Build
 
 ```bash
@@ -85,6 +105,7 @@ bun run build      # dist/index.js, cli.js, the adapters and dist/chunks/
 ```
 
 `scripts/build.ts` bundles `src/` with code splitting and keeps every package
-import external: `ajv` and `yaml` are runtime dependencies, `vitest` is the
-consumer's copy, and `bun:test` exists only under Bun. The `bun` and `types`
-export conditions point at `src/`, as in the other packages.
+import external: `ajv`, `yaml`, `pdf-lib` and `@pdf-lib/fontkit` are runtime
+dependencies, `vitest` is the consumer's copy, and `bun:test` exists only
+under Bun. The fonts stay files in `fonts/`, read at runtime. The `bun` and
+`types` export conditions point at `src/`, as in the other packages.

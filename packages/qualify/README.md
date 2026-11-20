@@ -192,6 +192,9 @@ qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
 qualify validate FILE...
 qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                  [--md trace.md] [--json trace.json] [--fail-on-skip]
+qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
+                 [--title TEXT] [--document-id TEXT]
+                 [--signatures ROLE;ROLE;...] [--no-signatures]
 ```
 
 ```bash
@@ -203,20 +206,61 @@ npx qualify trace qualification/evidence/test-evidence.json \
 
 Exit codes: 0 pass, 1 a test failed or errored, 2 invalid input (no file
 written), 3 incomplete (no records, or a protocol ID with no record), 64 usage
-error. `protocol.yaml` and `trace.yaml` are described in section 8 of the
+error. `report` exits 0 whenever it writes the PDF, because a failed run needs
+its report too. `protocol.yaml` and `trace.yaml` are described in section 8 of the
 specification. `trace` without `--md` or `--json` prints the Markdown.
+
+## The PDF Report
+
+```bash
+npx qualify report qualification/evidence/test-evidence.json --pdf report.pdf \
+  --protocol protocol.yaml --title "Export qualification" --document-id PROJ-123-OQ
+```
+
+`report` renders a run file as an A4 PDF a reviewer can read, sign and file
+without the code: a cover page with the verdict and the run file's SHA-256,
+the summary and trace table, one section per test with its narrative, checks
+and attachments, and blank signature lines (`Prepared by`, `Reviewed by`,
+`Approved by` by default). Every page carries the document ID, the page number
+and the start of the digest. Set `QUALIFY_REPORT_TIME` to an ISO 8601 UTC
+instant to reproduce a report with a fixed generation time.
+
+The first two pages of [a sample report](docs/sample-report.pdf), rendered from
+the conformance run of scenarios 1, 2 and 6:
+
+![Cover page of a sample qualification report](docs/report-page-1.png)
+
+![Summary, trace table and the first test of a sample qualification report](docs/report-page-2.png)
 
 ## What It Costs
 
-- **Two runtime dependencies.** `ajv` 8 (with four small dependencies of its
-  own: `fast-deep-equal`, `fast-uri`, `json-schema-traverse`,
-  `require-from-string`) validates files against the draft 2020-12 schema in
-  `merge`, `validate` and `trace`. Writing a correct draft 2020-12 validator
-  for `unevaluatedProperties`, `$ref` and `if`/`then` is not worth doing again.
-  `yaml` 2, with no dependencies, reads `protocol.yaml` and `trace.yaml`. Both
-  stay external to the build rather than bundled, because the `bun` and
-  `types` entry points serve `src/` directly and import them; bundling would
-  install a second copy. The adapters never load either.
+- **Four runtime dependencies, about 34 MB installed.** The adapters load
+  none of them; only the CLI and the core entry do.
+
+  | Package            | Installed | For                                                                                                                 |
+  | ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------- |
+  | `pdf-lib` 1.17     | 25.7 MB   | Writing the PDF. With `@pdf-lib/standard-fonts`, `@pdf-lib/upng`, `pako` and `tslib`.                               |
+  | `@pdf-lib/fontkit` | 4.2 MB    | Embedding the TrueType font as a subset.                                                                            |
+  | `ajv` 8            | 2.8 MB    | Draft 2020-12 schema validation, with `fast-deep-equal`, `fast-uri`, `json-schema-traverse`, `require-from-string`. |
+  | `yaml` 2           | 1.3 MB    | Reading `protocol.yaml` and `trace.yaml`. No dependencies.                                                          |
+
+  Most of `pdf-lib`'s size is its several builds and source maps; the code
+  that runs is small. All four stay external to the build rather than bundled,
+  because the `bun` and `types` entry points serve `src/` directly and import
+  them, and bundling would install a second copy. A correct draft 2020-12
+  validator and a PDF writer with font subsetting are not worth writing again.
+
+- **A bundled font, 1.2 MB.** Noto Sans 2.015, regular (616 KB) and bold
+  (620 KB), under the SIL Open Font License ([fonts/OFL.txt](fonts/OFL.txt)).
+  It covers Latin, Greek and Cyrillic; any other character is drawn as `?` in
+  the PDF, while the evidence keeps the exact text. A report embeds only the
+  glyphs it uses, so a short report is about 20 KB. The npm tarball is about
+  700 KB, most of it the font.
+- **A workaround inside the font embedding.** `@pdf-lib/fontkit` 1.1.1 writes
+  subsets of fonts with odd-length glyph records, such as Noto Sans, with
+  glyphs at the wrong offsets: the text still extracts, but pages render with
+  letters missing. `src/report/subset-fix.ts` pads each record, and a test
+  fails as soon as fontkit no longer needs it.
 - **Node 20 or later** for the library, the adapters and the CLI. Running this
   package's own conformance suite needs Node 22.18 or later, which loads the
   `node:test` scenario files as TypeScript.
