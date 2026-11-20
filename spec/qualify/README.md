@@ -523,7 +523,8 @@ qualify validate FILE...
 qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                  [--md trace.md] [--json trace.json] [--fail-on-skip]
 qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
-                 [--title TEXT] [--document-id TEXT]
+                 [--theme NAME|PATH] [--title TEXT] [--subtitle TEXT]
+                 [--document-id TEXT] [--classification TEXT]
                  [--signatures ROLE;ROLE;...] [--no-signatures]
 ```
 
@@ -577,8 +578,8 @@ The test run itself keeps the native runner's exit code.
 ## 9. The Qualification Report
 
 `qualify report` renders a run file as a PDF that a reviewer can read, sign and
-file without the code or the JSON. Every package renders it with a library
-written in its own language, so no system libraries are needed:
+file without the code or the JSON. Every package draws it with a library written
+in its own language, so no system libraries and no browser are needed:
 
 | Package    | Library                           | Licence    |
 | ---------- | --------------------------------- | ---------- |
@@ -587,24 +588,49 @@ written in its own language, so no system libraries are needed:
 | Java       | Apache PDFBox                     | Apache-2.0 |
 | C#         | PDFsharp 6                        | MIT        |
 
-The PDFs do not look identical. They hold the same sections, in the same
-order, with the same values, and conformance checks that by extracting the text
-(section 10).
+How the report looks comes from a theme (section 9.3): logo, fonts, colours and
+texts. The layout below is fixed. The PDFs from different languages are not
+pixel-identical; they hold the same text, in the same order, drawn with the same
+theme, and conformance checks that by extracting the text (section 10).
 
 ### 9.1 Contents
 
 In this order:
 
-1. **Cover page.** The title (default `Qualification report`), the document ID
-   (default `QR-<environment>-<run start date as YYYYMMDD>`), the verdict in
-   words (`Passed`, `Failed` or `Incomplete`), the summary counts written as
-   `<total> tests: <pass> pass, <fail> fail, <error> error, <skip> skip`, the
-   environment, the run ID, the run start and end, the source commit and branch,
-   the name and version of the tool that wrote the evidence (`run.tool`), the
-   generation time, and the SHA-256 of the run file exactly as read. Any merged
-   run IDs and production write overrides are listed here too, because a
-   reviewer must see them first.
-2. **Summary and traceability.** Counts per level and outcome. The trace table:
+1. **Cover page.** No header or footer. From the top:
+   - the logo, `brand.logoHeightMm` high, at the top-left margin, with
+     `brand.name` beside it, vertically centred, in the heading font and the
+     `muted` colour. Either may be absent;
+   - the title, at 40% of the page height, in the heading font at 30 pt in the
+     `title` colour, wrapped to the text width;
+   - a rule in the `accent` colour, 30 mm long and 1.5 pt thick, 6 mm below the
+     title;
+   - the subtitle, 6 mm below the rule, in the body font at 13 pt in the
+     `muted` colour;
+   - at the bottom margin, a hairline in the `rule` colour across the text
+     width, then one row per entry in `cover.fields`: the label in the bold body
+     font at 9 pt, and the value in the body font at 9 pt in the `muted`
+     colour. A `classification` row is left out when the classification is
+     empty.
+
+   | Field            | Label            | Value                                                                 |
+   | ---------------- | ---------------- | --------------------------------------------------------------------- |
+   | `documentId`     | `Document ID`    | the document ID                                                       |
+   | `date`           | `Date`           | the generation date, `YYYY-MM-DD`                                     |
+   | `verdict`        | `Verdict`        | `Passed`, `Failed` or `Incomplete`                                    |
+   | `tests`          | `Tests`          | `<total> tests: <pass> pass, <fail> fail, <error> error, <skip> skip` |
+   | `environment`    | `Environment`    | `run.environment`                                                     |
+   | `version`        | `Version`        | `run.target.version`, or `-`                                          |
+   | `commit`         | `Commit`         | the first 12 characters of `run.source.commit`, or `-`                |
+   | `classification` | `Classification` | the classification text                                               |
+
+2. **Run details,** starting page 2: the title again as a level 1 heading, then
+   a `Run details` table of the run ID, run start and end, source commit and
+   branch, the name and version of the tool that wrote the evidence
+   (`run.tool`), the generation time, the SHA-256 of the run file exactly as
+   read, merged run IDs, and production write overrides. Merged runs and
+   overrides are listed here, early, because a reviewer must see them first.
+3. **Summary and traceability.** Counts per level and outcome. The trace table:
    requirement, test ID, level, title, risk and outcome, with the same rows and
    link sources as `trace`. A requirement cell holds the requirement and its
    sources, for example `EXPORT-003 (code, map)`, and an outcome is the JSON
@@ -612,41 +638,94 @@ In this order:
    headings `Not run` (protocol IDs with no record, each with its title) and
    `Requirements without a passing test`, each holding the line `None` when
    empty.
-3. **One section per test,** sorted by ID: the heading `<ID> <title>`; level,
-   outcome (the JSON value), risk, scope, requirements, tags and `controls`; the skip reason, or
-   the error type and message; the narrative (`Given`, `When`, `Then`, and each
-   `And`); a checks table with number (`seq` plus 1), context, description,
-   matcher, expected, actual, result (`Pass` or `Fail`) and `soft` when set;
-   attachments by file name, content type, size and SHA-256 (the content itself
-   is not rendered); and the names in `secretsUsed`.
-4. **Signature block,** unless `--no-signatures`. One row per role from
-   `--signatures`, default `Prepared by;Reviewed by;Approved by`, each with
-   blank lines for name, signature and date.
-
-Every page has a footer with the document ID, `Page <n> of <N>`, and the first
-12 characters of the run file's SHA-256.
+4. **One section per test,** sorted by ID: the heading `<ID> <title>`; level,
+   outcome (the JSON value), risk, scope, requirements, tags and `controls`;
+   the skip reason, or the error type and message; the narrative (`Given`,
+   `When`, `Then`, and each `And`); a checks table with number (`seq` plus 1),
+   context, description, matcher, expected, actual, result (`Pass` or `Fail`)
+   and `soft` when set; attachments by file name, content type, size and
+   SHA-256 (the content itself is not rendered); and the names in
+   `secretsUsed`.
+5. **Signature block,** when the theme or `--signatures` names any roles. One
+   row per role, each with blank lines for name, signature and date.
 
 ### 9.2 Rendering Rules
 
-- A4 portrait, 20 mm margins. Tables wrap their cells; a row never splits
-  across pages unless it is taller than a page.
-- The package bundles one font family with Latin, Greek and Cyrillic coverage
-  (Noto Sans, under the SIL Open Font License) and embeds the subset it uses. A
-  character the font cannot draw is drawn as `?`. The evidence file stays the
-  record of the exact text.
-- `expected` and `actual` are rendered as compact JSON: no spaces, keys sorted.
-  A value longer than 200 characters (code points) is cut and ends with
-  `… (<n> more characters)`.
-- A missing value, such as no risk, no commit or an empty list, is drawn as
-  `-`.
+- Page size and margins come from the theme. Tables wrap their cells; a row
+  never splits across pages unless it is taller than a page, and a table's
+  header row repeats on each page it continues on.
+- **Header,** every page after the cover: the `header` text on the left and
+  the classification on the right, in the body font at 8.5 pt in the `muted`
+  colour, with a hairline in the `rule` colour below.
+- **Footer,** every page after the cover: a hairline in the `rule` colour, then
+  the `footer` text, right-aligned, in the body font at 8.5 pt in the `muted`
+  colour. Pages are counted from the cover, so the first footer says page 2.
+- **Headings:** the level 1 heading in the heading font at 20 pt in the
+  `title` colour, with a rule in the `accent` colour across the text width
+  below it; level 2 headings (`Run details`, `Summary`, `Traceability`, the
+  test headings) at 14 pt in the `heading` colour; level 3 headings (`Not run`,
+  `Requirements without a passing test`, `Checks`, `Attachments`) at 11 pt in
+  the `heading` colour.
+- **Tables:** a header row filled with `tableHeader`, its text in the bold body
+  font in `tableHeaderText`; body rows in the body font at 9 pt in the `text`
+  colour; every second body row filled with `tableStripe`; a hairline in the
+  `rule` colour under each row. Field lists (label and value, as in run details
+  and each test's fields) have no fill: the label in the bold body font, the
+  value in the body font.
+- **Values:** `expected`, `actual`, IDs, digests and the run ID are drawn in the
+  mono font. `expected` and `actual` are rendered as compact JSON: no spaces,
+  keys sorted. A value longer than 200 characters (code points) is cut and ends
+  with `… (<n> more characters)`. A missing value, such as no risk, no commit or
+  an empty list, is drawn as `-`.
+- **Fonts** are embedded as subsets. A character the theme's font cannot draw is
+  drawn as `?`. The evidence file stays the record of the exact text.
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
   `sha256:<run file digest>`, `Producer` the name and version of the package
   that wrote the PDF, and `CreationDate` the generation time.
 - The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
   (an ISO 8601 UTC instant), so a report can be reproduced.
-- `report` reads only the run file and the optional protocol and map files. It
-  never re-runs or alters evidence.
+- `report` reads only the run file, the theme and the optional protocol and map
+  files. It never re-runs or alters evidence.
+
+### 9.3 Themes
+
+A theme is a JSON file defined by
+[report-theme.schema.json](report-theme.schema.json), with its logo and font
+files beside it; paths in it are relative to the theme file. Two themes ship in
+[report/themes/](report/README.md), and every package bundles both, byte for
+byte:
+
+- `lekman`, the default: the lekman.com logo and name, Geist fonts, and
+  the lekman.com colours.
+- `plain`: no logo, black on white, Noto Sans for Latin, Greek and Cyrillic
+  coverage.
+
+`--theme <name|path>` picks a bundled theme by name or a theme file by path.
+`QUALIFY_REPORT_THEME` does the same; the flag wins. An invalid theme (schema
+violation, a missing file, an unknown token) is an input error: exit 2, no PDF.
+
+The `texts` are templates. They may use these tokens, and nothing else in
+braces; `{{` and `}}` print a literal brace:
+
+| Token               | Value                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `{title}`           | the resolved title                                                                                       |
+| `{documentId}`      | the resolved document ID                                                                                 |
+| `{classification}`  | the resolved classification                                                                              |
+| `{environment}`     | `run.environment`                                                                                        |
+| `{levels}`          | the levels present in the run, in the order IQ, OQ, PQ, IU, joined as `IQ`, `IQ and OQ`, `IQ, OQ and PQ` |
+| `{date}`            | the generation date, `YYYY-MM-DD`                                                                        |
+| `{version}`         | `run.target.version`, or `-`                                                                             |
+| `{verdict}`         | `Passed`, `Failed` or `Incomplete`                                                                       |
+| `{runId}`           | `run.id`                                                                                                 |
+| `{sha12}`           | the first 12 characters of the run file's SHA-256                                                        |
+| `{page}`, `{pages}` | the page number and the page count (header and footer only)                                              |
+
+Flags override the theme for one report: `--title`, `--subtitle`,
+`--document-id`, `--classification`, `--signatures` (roles separated by `;`) and
+`--no-signatures`. A flag's value is used as written, without tokens. The
+document ID defaults to `QR-<environment>-<run start date as YYYYMMDD>`.
 
 ## 10. Keeping the Languages in Step
 
