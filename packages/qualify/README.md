@@ -214,23 +214,56 @@ specification. `trace` without `--md` or `--json` prints the Markdown.
 
 ```bash
 npx qualify report qualification/evidence/test-evidence.json --pdf report.pdf \
-  --protocol protocol.yaml --title "Export qualification" --document-id PROJ-123-OQ
+  --protocol protocol.yaml --title "Export qualification" --document-id PROJ-123-OQ \
+  --theme plain --classification "Internal"
 ```
 
-`report` renders a run file as an A4 PDF a reviewer can read, sign and file
-without the code: a cover page with the verdict and the run file's SHA-256,
-the summary and trace table, one section per test with its narrative, checks
-and attachments, and blank signature lines (`Prepared by`, `Reviewed by`,
-`Approved by` by default). Every page carries the document ID, the page number
-and the start of the digest. Set `QUALIFY_REPORT_TIME` to an ISO 8601 UTC
-instant to reproduce a report with a fixed generation time.
+`report` renders a run file as a PDF a reviewer can read, sign and file without
+the code: a cover page with the title, the verdict and the document details;
+the run details with the run file's SHA-256; the summary and trace table; one
+section per test with its narrative, checks and attachments; and blank
+signature lines. Every page after the cover has a header with the title and
+classification, and a footer with the document ID, the page number and the
+start of the digest. Set `QUALIFY_REPORT_TIME` to an ISO 8601 UTC instant to
+reproduce a report with a fixed generation time.
 
-The first two pages of [a sample report](docs/sample-report.pdf), rendered from
-the conformance run of scenarios 1, 2 and 6:
+| Flag                     | Does                                                         |
+| ------------------------ | ------------------------------------------------------------ |
+| `--theme NAME\|PATH`     | `lekman` (default) or `plain`, or a `theme.json` of your own |
+| `--title`, `--subtitle`  | Replace the theme's texts for this report, used as written   |
+| `--document-id`          | Default `QR-<environment>-<run start date>`                  |
+| `--classification`       | Shown on the cover and in every header; empty leaves it out  |
+| `--signatures ROLE;ROLE` | Signature roles; `--no-signatures` leaves the block out      |
+| `--protocol`, `--map`    | The same files as `trace`, for the trace table               |
 
-![Cover page of a sample qualification report](docs/report-page-1.png)
+`QUALIFY_REPORT_THEME` picks the theme too; `--theme` wins. A theme that fails
+its schema, names a missing file or uses an unknown token exits 2 and writes
+no PDF.
 
-![Summary, trace table and the first test of a sample qualification report](docs/report-page-2.png)
+The first pages of the sample reports, rendered from the conformance run of
+scenarios 1, 2 and 6 with the [default theme](docs/sample-report-lekman.pdf)
+and the [plain theme](docs/sample-report-plain.pdf):
+
+| `lekman` (default)                                            | `plain`                                                     |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| ![Cover, lekman theme](docs/report-lekman-page-1.png)         | ![Cover, plain theme](docs/report-plain-page-1.png)         |
+| ![Run details, lekman theme](docs/report-lekman-page-2.png)   | ![Run details, plain theme](docs/report-plain-page-2.png)   |
+| ![Test sections, lekman theme](docs/report-lekman-page-3.png) | ![Test sections, plain theme](docs/report-plain-page-3.png) |
+
+### Make Your Own Theme
+
+A theme is a `theme.json` with its logo and fonts beside it: page size and
+margin, logo and brand name, four font files, nine colours, the title,
+subtitle, classification, header and footer texts with tokens such as
+`{documentId}` and `{page}`, the cover rows and the signature roles. Copy
+`themes/plain/` from this package, change it, and pass it with
+`--theme path/to/theme.json`. The format and the tokens are described in
+[spec/qualify/report/README.md](../../spec/qualify/report/README.md), and the
+same theme works for the Python, Java and C# packages.
+
+The `lekman` theme's logo and the name lekman.com are the author's marks, not
+covered by this package's MIT licence. Use the `plain` theme, or your own, for
+your reports.
 
 ## What It Costs
 
@@ -250,14 +283,17 @@ the conformance run of scenarios 1, 2 and 6:
   them, and bundling would install a second copy. A correct draft 2020-12
   validator and a PDF writer with font subsetting are not worth writing again.
 
-- **A bundled font, 1.2 MB.** Noto Sans 2.015, regular (616 KB) and bold
-  (620 KB), under the SIL Open Font License ([fonts/OFL.txt](fonts/OFL.txt)).
-  It covers Latin, Greek and Cyrillic; any other character is drawn as `?` in
-  the PDF, while the evidence keeps the exact text. A report embeds only the
-  glyphs it uses, so a short report is about 20 KB. The npm tarball is about
-  700 KB, most of it the font.
+- **Two bundled themes, 1.7 MB.** `lekman`: Geist regular, semibold and
+  mono (400 KB) and the logo (13 KB). `plain`: Noto Sans 2.015 regular and
+  bold (1.2 MB). Both fonts are under the SIL Open Font License; each
+  `themes/*/fonts/` folder carries its `OFL.txt`. Geist covers Latin; Noto
+  Sans adds Greek and Cyrillic. A character the theme's font cannot draw is
+  drawn as `?` in the PDF, while the evidence keeps the exact text. A report
+  embeds only the glyphs it uses: the sample is 63 KB with `lekman`, most of
+  it the logo, and 22 KB with `plain`. The npm tarball is about 930 KB.
 - **A workaround inside the font embedding.** `@pdf-lib/fontkit` 1.1.1 writes
-  subsets of fonts with odd-length glyph records, such as Noto Sans, with
+  subsets of fonts with odd-length glyph records, such as Noto Sans (Geist has
+  none), with
   glyphs at the wrong offsets: the text still extracts, but pages render with
   letters missing. `src/report/subset-fix.ts` pads each record, and a test
   fails as soon as fontkit no longer needs it.

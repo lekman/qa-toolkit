@@ -24,6 +24,7 @@ One folder per domain, following
 | `src/merge`       | `Merge.build`: records and markers to a run file, section 6.5.                               |
 | `src/trace`       | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                                 |
 | `src/report`      | The PDF report: `ReportContent` (pure), `Layout` (pure, over `ITextMetrics`), `PdfRenderer`. |
+| `src/theme`       | `ThemeLoader` and `Template`: report themes and their tokens, section 9.3.                   |
 | `src/schema`      | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                         |
 | `src/cli`         | `Commands` (covered) and `cli.ts` (wiring only, not covered).                                |
 | `src/adapters`    | vitest, `node:test` and bun glue, and their setup modules. Covered by conformance runs.      |
@@ -83,16 +84,23 @@ source.
 
 `ReportContent` decides what the report says, `Layout` places it on A4 pages
 through the `ITextMetrics` port, and `PdfRenderer` draws it with `pdf-lib`.
-Only `report.system.ts` reads files: the fonts in `fonts/`.
+`src/theme` loads a theme by bundled name or path, validates it against
+`report-theme.schema.json`, checks the tokens in its texts, and reads its
+files through the `IThemeFiles` port; `theme.system.ts` only finds the
+bundled `themes/` folder. `tests/theme/theme-loader.test.ts` fails when a
+file in `themes/` differs from `spec/qualify/report/themes/`; copy the
+specification's folder after a change there.
 
 Text extraction alone does not prove a PDF renders: a broken font subset
 still extracts the right text. After a change to the renderer or the fonts,
 look at the pages:
 
 ```bash
-bun run conformance/run.ts --only report --sample docs
-bun run scripts/render-pages.ts docs/report.pdf docs 2
-mv docs/report.pdf docs/sample-report.pdf
+bun run conformance/run.ts --only report,report-theme --sample docs
+for t in lekman plain; do
+  mv docs/report-$t.pdf docs/sample-report-$t.pdf
+  bun run scripts/render-pages.ts docs/sample-report-$t.pdf docs 3 report-$t
+done
 ```
 
 `scripts/render-pages.ts` uses `pdfjs-dist` and `@napi-rs/canvas`, both dev
@@ -107,5 +115,5 @@ bun run build      # dist/index.js, cli.js, the adapters and dist/chunks/
 `scripts/build.ts` bundles `src/` with code splitting and keeps every package
 import external: `ajv`, `yaml`, `pdf-lib` and `@pdf-lib/fontkit` are runtime
 dependencies, `vitest` is the consumer's copy, and `bun:test` exists only
-under Bun. The fonts stay files in `fonts/`, read at runtime. The `bun` and
+under Bun. The themes stay files in `themes/`, read at runtime. The `bun` and
 `types` export conditions point at `src/`, as in the other packages.
