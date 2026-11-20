@@ -57,7 +57,7 @@ public static class PdfReportRenderer
             page.Width = XUnit.FromPoint(g.Width);
             page.Height = XUnit.FromPoint(g.Height);
             using var graphics = XGraphics.FromPdfPage(page);
-            foreach (var op in ops)
+            foreach (var op in ReportLayout.DrawOrder(ops))
             {
                 Draw(graphics, op, g, palette, metrics, logo);
             }

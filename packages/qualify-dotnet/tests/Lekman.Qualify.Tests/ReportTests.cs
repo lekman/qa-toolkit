@@ -303,6 +303,53 @@ public class ReportTests
     }
 
     [Fact]
+    public void PagesDrawFillsFirstAndTextLast()
+    {
+        List<DrawOp> page =
+        [
+            new TextOp("t", 0, 0, 1, FontSlot.Body, ColourName.Text),
+            new LineOp(0, 0, 1, 1, 1, ColourName.Rule),
+            new FillOp(0, 0, 1, 1, ColourName.TableStripe),
+            new ImageOp(0, 0, 1, 1),
+            new FillOp(1, 1, 1, 1, ColourName.TableHeader),
+        ];
+        Assert.Equal(["FillOp", "FillOp", "ImageOp", "LineOp", "TextOp"], ReportLayout.DrawOrder(page).Select(op => op.GetType().Name));
+        Assert.Equal(ColourName.TableStripe, ((FillOp)ReportLayout.DrawOrder(page)[0]).Colour);
+    }
+
+    [Theory]
+    [InlineData("signatures")]
+    [InlineData("table")]
+    [InlineData("list")]
+    public void AHeadingStaysWithTheStartOfWhatFollows(string kind)
+    {
+        var metrics = new FixedMetrics();
+        var g = new Geometry(200, 500, 20);
+        Block next = kind switch
+        {
+            "signatures" => new SignaturesBlock(["Prepared by", "Reviewed by", "Approved by"]),
+            "table" => new TableBlock([new Column("A", 1)], [["first row"]]),
+            _ => new ListBlock(["first item"]),
+        };
+
+        // Fill the first page until a heading with two body lines would
+        // still fit but the start of the next block would not.
+        for (var filler = 0; filler < 60; filler++)
+        {
+            var blocks = Enumerable.Range(0, filler).Select(_ => (Block)new ParagraphBlock("x")).Append(new HeadingBlock(2, "Heading")).Append(next).ToList();
+            var pages = ReportLayout.Paginate(blocks, metrics, g);
+            var headingPage = pages.FindIndex(p => p.OfType<TextOp>().Any(t => t.Text == "Heading"));
+            var firstPage = kind switch
+            {
+                "signatures" => pages.FindIndex(p => p.OfType<TextOp>().Any(t => t.Text == "Prepared by")),
+                "table" => pages.FindIndex(p => p.OfType<TextOp>().Any(t => t.Text == "first row")),
+                _ => pages.FindIndex(p => p.OfType<TextOp>().Any(t => t.Text == "first item")),
+            };
+            Assert.Equal(headingPage, firstPage);
+        }
+    }
+
+    [Fact]
     public void FontCoverageReadsTheCmap()
     {
         var noto = FontCoverage.Read(BundledThemes.Read("plain/fonts/NotoSans-Regular.ttf")!);

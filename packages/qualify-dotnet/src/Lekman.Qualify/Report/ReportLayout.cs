@@ -216,6 +216,23 @@ public static class ReportLayout
         return ops;
     }
 
+    /// <summary>
+    /// The order to draw a page in: fills first, then images, lines and text,
+    /// so a row's fill never covers the hairline of the row above it.
+    /// </summary>
+    public static List<DrawOp> DrawOrder(IEnumerable<DrawOp> page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        static int Rank(DrawOp op) => op switch
+        {
+            FillOp => 0,
+            ImageOp => 1,
+            LineOp => 2,
+            _ => 3,
+        };
+        return [.. page.OrderBy(Rank)];
+    }
+
     /// <summary>Shorten text to a width, ending it with <c>…</c> when it had to be cut.</summary>
     public static string Fit(string text, double width, double size, FontSlot font, ITextMetrics metrics)
     {
@@ -321,11 +338,13 @@ public static class ReportLayout
                     var before = heading.Level switch { 1 => 0, 2 => 16, _ => 9 };
                     var after = heading.Level == 1 ? 18 : 4;
 
-                    // Keep a heading with at least two lines of what follows,
-                    // or with a whole field list that fits on a page.
-                    var follow = next is FieldsBlock fields
-                        ? Math.Min(FieldsHeight(cursor, fields.Fields), cursor.Top - cursor.Bottom - (2 * LineHeight(size)))
-                        : (2 * LineHeight(Body)) + (2 * PadY);
+                    // Keep a heading with the start of what follows: a whole
+                    // field list, a table's header and first row, a list's
+                    // first item, or the first three signature roles, as far
+                    // as that fits on a page.
+                    var follow = Math.Min(
+                        LeadHeight(cursor, next),
+                        cursor.Top - cursor.Bottom - before - (lines.Count * LineHeight(size)) - after);
                     var needed = before + (lines.Count * LineHeight(size)) + after + follow;
                     if (cursor.Room < needed)
                     {
@@ -440,6 +459,49 @@ public static class ReportLayout
             return (Math.Max(label.Count, value.Count) * LineHeight(Body)) + 2;
         });
 
+    /// <summary>The height of what a heading must keep with: the start of the next block.</summary>
+    private static double LeadHeight(Cursor cursor, Block? next)
+    {
+        var lh = LineHeight(Body);
+        double HeightOf(List<List<string>> cells) => (Math.Max(1, cells.Max(c => c.Count)) * lh) + (2 * PadY);
+        switch (next)
+        {
+            case FieldsBlock fields:
+                return FieldsHeight(cursor, fields.Fields);
+            case TableBlock table:
+                {
+                    var (_, _, header, wrapped) = TableCells(cursor, table.Columns, [.. table.Rows.Take(1)]);
+                    return HeightOf(header) + (wrapped.Count > 0 ? HeightOf(wrapped[0]) : 0);
+                }
+
+            case ListBlock list:
+                return Wrap(Clean(cursor.Metrics, list.Items.Count > 0 ? list.Items[0] : string.Empty, FontSlot.Body), cursor.Width - 12, Body, FontSlot.Body, cursor.Metrics).Count * lh;
+            case SignaturesBlock signatures:
+                return SignatureHeight() * Math.Min(signatures.Roles.Count, 3);
+            default:
+                return (2 * lh) + (2 * PadY);
+        }
+    }
+
+    /// <summary>The height one signature role takes.</summary>
+    private static double SignatureHeight() => LineHeight(H3) + (3 * (LineHeight(Body) + 14)) + 12;
+
+    /// <summary>A table's column widths and fonts, and its header and rows wrapped to them.</summary>
+    private static (List<double> Widths, List<FontSlot> Fonts, List<List<string>> Header, List<List<List<string>>> Wrapped) TableCells(
+        Cursor cursor,
+        IReadOnlyList<Column> columns,
+        IReadOnlyList<IReadOnlyList<string>> rows)
+    {
+        var metrics = cursor.Metrics;
+        var widths = columns.Select(c => c.Width * cursor.Width).ToList();
+        var fonts = columns.Select(c => c.Mono ? FontSlot.Mono : FontSlot.Body).ToList();
+        List<List<string>> WrapRow(IReadOnlyList<string> cells, Func<int, FontSlot> font) =>
+            [.. cells.Select((cell, column) => Wrap(Clean(metrics, cell, font(column)), widths[column] - (2 * PadX), SizeOf(font(column)), font(column), metrics))];
+        var header = WrapRow([.. columns.Select(c => c.Header)], _ => FontSlot.BodyBold);
+        var wrapped = rows.Select(row => WrapRow(row, column => fonts[column])).ToList();
+        return (widths, fonts, header, wrapped);
+    }
+
     /// <summary>Draw one table row, filled or not, splitting it only when it is taller than a page.</summary>
     private static void Row(
         Cursor cursor,
@@ -496,7 +558,7 @@ public static class ReportLayout
     private static void Signatures(Cursor cursor, IReadOnlyList<string> roles)
     {
         var lh = LineHeight(Body);
-        var perRole = LineHeight(H3) + (3 * (lh + 14)) + 12;
+        var perRole = SignatureHeight();
         if (cursor.Room < perRole * Math.Min(roles.Count, 3))
         {
             cursor.NewPage();
@@ -525,19 +587,12 @@ public static class ReportLayout
 
     private static void Table(Cursor cursor, IReadOnlyList<Column> columns, IReadOnlyList<IReadOnlyList<string>> rows)
     {
-        var metrics = cursor.Metrics;
-        var widths = columns.Select(c => c.Width * cursor.Width).ToList();
-        var fonts = columns.Select(c => c.Mono ? FontSlot.Mono : FontSlot.Body).ToList();
-        List<List<string>> WrapRow(IReadOnlyList<string> cells, Func<int, FontSlot> font) =>
-            [.. cells.Select((cell, column) => Wrap(Clean(metrics, cell, font(column)), widths[column] - (2 * PadX), SizeOf(font(column)), font(column), metrics))];
+        var (widths, fonts, header, wrapped) = TableCells(cursor, columns, rows);
         double HeightOf(List<List<string>> cells) => (Math.Max(1, cells.Max(c => c.Count)) * LineHeight(Body)) + (2 * PadY);
 
-        var header = WrapRow([.. columns.Select(c => c.Header)], _ => FontSlot.BodyBold);
         var headerStyles = columns.Select(_ => (FontSlot.BodyBold, ColourName.TableHeaderText)).ToList();
         var bodyStyles = fonts.Select(font => (font, ColourName.Text)).ToList();
         void DrawHeader() => Row(cursor, widths, header, headerStyles, ColourName.TableHeader, () => { });
-
-        var wrapped = rows.Select(row => WrapRow(row, column => fonts[column])).ToList();
 
         // Keep the header with the first row.
         if (cursor.Room < HeightOf(header) + (wrapped.Count > 0 ? HeightOf(wrapped[0]) : 0))
