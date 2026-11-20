@@ -1,4 +1,4 @@
-"""The ``qualify`` command (specification section 8): ``merge`` and ``validate``.
+"""The ``qualify`` command (specification section 8): ``merge``, ``validate`` and ``report``.
 
 ``trace`` is in the TypeScript package only; this command points to it.
 """
@@ -7,13 +7,15 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
+import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NoReturn, TextIO
+from typing import Any, NoReturn, TextIO
 
 from qualify import envelope, schema
 from qualify.evidence import RECORDS, RUN_FILE, sidecar, write_atomic
@@ -28,6 +30,10 @@ USAGE_TEXT = """\
 Usage:
   qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
   qualify validate FILE...
+  qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
+                   [--theme NAME|PATH] [--title TEXT] [--subtitle TEXT]
+                   [--document-id TEXT] [--classification TEXT]
+                   [--signatures ROLE;ROLE;...] [--no-signatures]
   qualify --help | --version
 
 qualify trace is in the TypeScript package: npx @lekman/qualify trace ...
@@ -204,6 +210,126 @@ def _validate(args: list[str], io: IO) -> int:
     return OK if invalid == 0 else INVALID
 
 
+_INSTANT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+
+
+def _report_time(io: IO) -> dt.datetime:
+    """The generation time: ``QUALIFY_REPORT_TIME`` when set, else now."""
+    value = io.env.get("QUALIFY_REPORT_TIME", "")
+    if not value:
+        return io.now()
+    try:
+        if not _INSTANT.match(value):
+            raise ValueError(value)
+        return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise InputError(
+            "QUALIFY_REPORT_TIME must be a UTC instant such as 2026-01-02T03:04:05.006Z, "
+            f"got {value}"
+        ) from error
+
+
+def _run_file(io: IO, path: str) -> tuple[dict[str, Any], str]:
+    """A run file's validated content and the SHA-256 of its bytes as read."""
+    data = _read(io, path)
+    _check_sidecar(io, path, data)
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as error:
+        raise InputError(f"{path}: not valid JSON ({error})") from error
+    problems = schema.evidence(parsed)
+    if problems:
+        raise InputError(f"{path}: {'; '.join(problems)}")
+    if parsed["kind"] != "run":
+        raise InputError(f"{path}: expected a run file; run qualify merge first")
+    return parsed, hashlib.sha256(data).hexdigest()
+
+
+def _report(args: list[str], io: IO) -> int:
+    from qualify import theme as themes
+    from qualify import trace
+    from qualify.report import content, pdf
+
+    parser = _Parser(prog="qualify report", add_help=False)
+    parser.add_argument("run_file", nargs="*")
+    for name in (
+        "--pdf",
+        "--protocol",
+        "--map",
+        "--theme",
+        "--title",
+        "--subtitle",
+        "--document-id",
+        "--classification",
+        "--signatures",
+    ):
+        parser.add_argument(name)
+    parser.add_argument("--no-signatures", action="store_true")
+    options = parser.parse_args(args)
+    if len(options.run_file) != 1:
+        raise UsageError("report takes exactly one run file")
+    if options.pdf is None:
+        raise UsageError("report needs --pdf FILE")
+    if options.no_signatures and options.signatures is not None:
+        raise UsageError("--signatures and --no-signatures exclude each other")
+    for flag in ("title", "document_id", "theme"):
+        value = getattr(options, flag)
+        if value is not None and not value.strip():
+            raise UsageError(f"--{flag.replace('_', '-')} must not be empty")
+    roles: tuple[str, ...] | None = None
+    if options.no_signatures:
+        roles = ()
+    elif options.signatures is not None:
+        roles = tuple(r.strip() for r in options.signatures.split(";") if r.strip())
+        if not roles:
+            raise UsageError("--signatures names no role")
+
+    generated = _report_time(io)
+    reference = options.theme or io.env.get("QUALIFY_REPORT_THEME") or themes.DEFAULT
+    try:
+        theme = themes.load(reference, io.cwd())
+    except themes.ThemeError as error:
+        raise InputError(str(error)) from error
+    run, digest = _run_file(io, options.run_file[0])
+    try:
+        protocol = (
+            trace.read_protocol(_read(io, options.protocol).decode("utf-8"), options.protocol)
+            if options.protocol
+            else []
+        )
+        mapped = (
+            trace.read_map(_read(io, options.map).decode("utf-8"), options.map)
+            if options.map
+            else {}
+        )
+    except (trace.TraceInputError, UnicodeDecodeError) as error:
+        raise InputError(str(error)) from error
+    producer = f"{envelope.TOOL_NAME} {envelope.tool_version()}"
+    report = content.build(
+        run,
+        digest,
+        trace.build(run, protocol, mapped),
+        theme.spec,
+        content.Options(
+            generated_at=generated,
+            title=options.title,
+            subtitle=options.subtitle,
+            document_id=options.document_id,
+            classification=options.classification,
+            signatures=roles,
+        ),
+        producer,
+    )
+    target = _path(io, options.pdf)
+    write_atomic(target, pdf.render(report, theme, producer))
+    print(
+        f"qualify report: wrote {target} with theme {theme.spec['name']}; "
+        f"run verdict {run['summary']['verdict']}",
+        file=io.stdout,
+    )
+    return OK
+
+
 def run(argv: Sequence[str], io: IO | None = None) -> int:
     """Run the command with its arguments (without the program name). Returns the exit code."""
     io = io or IO()
@@ -219,6 +345,8 @@ def run(argv: Sequence[str], io: IO | None = None) -> int:
             return _merge(rest, io)
         if command == "validate":
             return _validate(rest, io)
+        if command == "report":
+            return _report(rest, io)
         if command == "trace":
             io.stderr.write(TRACE_TEXT)
             return USAGE

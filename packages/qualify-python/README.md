@@ -1,7 +1,7 @@
 # lekman-qualify
 
 > Qualification tests (IQ, OQ, PQ, intended use) for pytest that leave redacted
-> JSON evidence a reviewer can read without the code.
+> JSON evidence and a PDF report a reviewer can read without the code.
 
 This is the Python implementation of the
 [qualify specification](../../spec/qualify/README.md), as a pytest plugin. It
@@ -17,7 +17,7 @@ cannot be read six months later without the code. A qualification test here is
 an ordinary pytest test with an ID, a narrative (given, when, then) and
 recorded checks. When it runs, the process that ran it writes one JSON record,
 with secrets already removed. `qualify merge` builds one run file from the
-records.
+records, and `qualify report` renders it as a PDF to read, sign and file.
 
 pytest still runs the tests. There is no wrapper command: select tests with
 pytest's own `-k` and `-m`.
@@ -168,12 +168,17 @@ two workers, twice, and checks both run files are identical.
 ```text
 qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
 qualify validate FILE...
+qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
+                 [--theme NAME|PATH] [--title TEXT] [--subtitle TEXT]
+                 [--document-id TEXT] [--classification TEXT]
+                 [--signatures ROLE;ROLE;...] [--no-signatures]
 ```
 
 `python -m qualify` is the same command. Exit codes are those of section 8 of
 the specification: 0 pass, 1 a test failed or errored, 2 invalid input (no
 file written), 3 incomplete, 64 usage error. `merge` writes
-`test-evidence.json` and its `.sha256` sidecar.
+`test-evidence.json` and its `.sha256` sidecar. `report` exits 0 whenever it
+writes the PDF, because a failed run needs its report too.
 
 `qualify trace` is in the TypeScript package only. The Python command prints
 where to find it and exits 64:
@@ -183,17 +188,64 @@ npx @lekman/qualify trace qualification/evidence/test-evidence.json \
   --protocol protocol.yaml --md trace.md --json trace.json
 ```
 
-The PDF report (`qualify report`, section 9 of the specification) is not in
-this version yet.
+## The PDF Report
+
+```bash
+qualify report qualification/evidence/test-evidence.json --pdf report.pdf \
+  --protocol protocol.yaml --theme plain --document-id PROJ-123-OQ
+```
+
+`report` renders a run file as a PDF a reviewer can read, sign and file
+without the code: a cover page with the verdict and the counts, the run
+details with the run file's SHA-256, the summary and trace table, one section
+per test with its narrative, checks and attachments, and blank signature
+lines. The layout is section 9 of the specification; how it looks comes from a
+theme. Two themes ship, byte for byte the ones in
+[spec/qualify/report/](../../spec/qualify/report/README.md): `lekman`, the
+default, and `plain`, with no logo and Noto Sans. `--theme` takes a name or the
+path of your own `theme.json`, and `QUALIFY_REPORT_THEME` does the same; the
+flag wins. Set `QUALIFY_REPORT_TIME` to an ISO 8601 UTC instant to reproduce a
+report with a fixed generation time.
+
+The first three pages of [a sample report](docs/sample-report-lekman.pdf) with
+the default theme, rendered from the conformance run of scenarios 1, 2 and 6:
+
+![Cover page of a sample report, lekman theme](docs/report-lekman-page-1.png)
+
+![Run details, summary and trace table, lekman theme](docs/report-lekman-page-2.png)
+
+![The first two test sections, lekman theme](docs/report-lekman-page-3.png)
+
+The same run with `--theme plain` ([PDF](docs/sample-report-plain.pdf)):
+
+![Cover page of a sample report, plain theme](docs/report-plain-page-1.png)
+
+![Run details, summary and trace table, plain theme](docs/report-plain-page-2.png)
+
+![The first two test sections, plain theme](docs/report-plain-page-3.png)
 
 ## What It Costs
 
-- **One runtime dependency besides pytest, about 2 MB installed.**
-  `jsonschema` 4.18 or later validates against the draft 2020-12 schema, and
-  brings `attrs`, `referencing`, `jsonschema-specifications` and `rpds-py`
-  (a compiled extension, with wheels for the common platforms). A correct
-  draft 2020-12 validator is not worth writing again. The wheel itself is
-  about 50 KB.
+- **Three runtime dependencies besides pytest, about 31 MB installed.** A
+  correct draft 2020-12 validator and a PDF writer with font subsetting are not
+  worth writing again.
+
+  | Package              | Installed | For                                                                                   |
+  | -------------------- | --------- | ------------------------------------------------------------------------------------- |
+  | `fpdf2` 2.8 or later | 28 MB     | Writing the PDF. Most of it is `fontTools` (14 MB) and `Pillow` (12 MB), both needed. |
+  | `jsonschema` 4.18    | 2 MB      | Schema validation, with `attrs`, `referencing` and `rpds-py` (a compiled extension).  |
+  | `PyYAML` 6           | 0.6 MB    | Reading `protocol.yaml` and `trace.yaml`, as YAML 1.2 reads them.                     |
+
+  The plugin imports none of the report's dependencies; only `qualify report`
+  does. `fpdf2` is under the LGPL-3.0, used unmodified as a library.
+
+- **Two bundled themes, 1.7 MB.** The wheel is about 900 KB, most of it the
+  fonts: Geist for `lekman` and Noto Sans for `plain`, under the SIL Open Font
+  License. A report embeds only the glyphs it uses, so a short one is about
+  20 KB (`plain`) to 65 KB (`lekman`, with its logo). A character the theme's
+  font cannot draw prints as `?`; the evidence keeps the exact text. The
+  `lekman` logo and name are the author's marks and not under the MIT licence;
+  use `plain`, or your own theme, for your reports.
 - **The plugin loads in every pytest run** in an environment that has it
   installed. Without a qualification test it writes nothing and runs no git
   command. It still checks the `QUALIFY_*` settings when the session starts.
@@ -232,9 +284,14 @@ src/qualify/
   redaction.py    section 7.2
   merge.py        section 6.5
   schema.py       validation against schemas/, copies of spec/qualify/*.schema.json
-  cli.py          section 8: merge and validate
+  cli.py          section 8: merge, validate and report
+  trace.py        the trace rows the report shows, and protocol.yaml and trace.yaml
+  theme.py        section 9.3: loading and checking themes, and their templates
+  report/         section 9: content.py what it says, layout.py where, pdf.py drawn with fpdf2
+  themes/         the bundled themes, copies of spec/qualify/report/themes/
 tests/            unit tests, and the plugin through pytester
-conformance/      one test file per scenario, and run.py, the harness
+conformance/      one test file per scenario, run.py (the harness), and pdf_text.py
+scripts/          render_pages.py: PDF pages to PNG with pypdfium2, for the images above
 ```
 
 ```bash
@@ -250,8 +307,15 @@ The harness runs each scenario's test file through pytest in a fresh evidence
 directory, with every other `QUALIFY_*` and `PYTEST_*` variable removed, then
 runs this package's `qualify merge`, masks the run file and compares it byte
 for byte with `spec/qualify/conformance/expected/`. Scenarios 12, 19 and 20 run
-`node packages/qualify/dist/cli.js trace` on the Python run file. The harness
-never writes an expected file; they belong to the TypeScript reference.
+`node packages/qualify/dist/cli.js trace` on the Python run file. Scenarios 21
+and 22 render reports, extract their text with `pypdf`, and find every line of
+the outline files in order. The harness never writes an expected file; they
+belong to the TypeScript reference.
+
+Text extraction cannot see a glyph drawn wrong, so look at the pages too.
+`uv run python conformance/run.py --only report --sample docs` keeps the two
+sample PDFs, and `uv run python scripts/render_pages.py
+docs/sample-report-lekman.pdf docs/report-lekman` writes the page images.
 
 ## Related
 

@@ -67,6 +67,11 @@ def trace(data: object) -> list[str]:
     return _problems(_validator("trace.schema.json", None), data)
 
 
+def theme(data: object) -> list[str]:
+    """Problems with a report theme file; empty when valid."""
+    return _problems(_validator("report-theme.schema.json", None), data)
+
+
 def _levels(data: dict[str, Any]) -> list[str]:
     tests = data.get("tests") or ([data["test"]] if "test" in data else [])
     return [
