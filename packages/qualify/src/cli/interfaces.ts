@@ -1,7 +1,10 @@
 import type { IRuntimeDependencies } from "../execution";
+import type { ReportFonts } from "../report";
 
 /** What the CLI reads and writes. Implemented by the system layer. */
 export interface ICliIO extends IRuntimeDependencies {
+  /** The bundled font files for the PDF report. */
+  fonts(): Promise<ReportFonts>;
   /** File names in a directory, or `undefined` when it does not exist. */
   list(dir: string): Promise<string[] | undefined>;
   /** A file's bytes. Throws when it cannot be read. */

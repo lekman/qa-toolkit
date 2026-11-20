@@ -12,6 +12,7 @@ import { Envelope } from "../envelope";
 import { EVIDENCE_SHAPE, EvidenceFiles } from "../evidence";
 import { Runtime } from "../execution";
 import { Merge } from "../merge";
+import { PdfRenderer, ReportContent } from "../report";
 import { Schema } from "../schema";
 import { ConfigurationError, Policy, SettingsResolver } from "../settings";
 import {
@@ -39,6 +40,9 @@ export const USAGE = `Usage:
   qualify validate FILE...
   qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                    [--md trace.md] [--json trace.json] [--fail-on-skip]
+  qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
+                   [--title TEXT] [--document-id TEXT]
+                   [--signatures ROLE;ROLE;...] [--no-signatures]
   qualify --help | --version
 
 Exit codes: 0 pass, 1 fail or error, 2 invalid input, 3 incomplete, 64 usage.
@@ -97,6 +101,8 @@ export class Commands {
           return EXIT.ok;
         case "merge":
           return await Commands.merge(rest, io);
+        case "report":
+          return await Commands.report(rest, io);
         case "trace":
           return await Commands.trace(rest, io);
         case "validate":
@@ -145,6 +151,37 @@ export class Commands {
         runtime: `${io.runtime()}; qualify merge`,
       },
     });
+  }
+
+  /** Read and validate a protocol and a map file, when given. */
+  private static async inputs(
+    io: ICliIO,
+    values: Record<string, boolean | string | undefined>,
+  ): Promise<{
+    map?: TraceSource<Map<string, string[]>>;
+    protocol?: TraceSource<ProtocolEntry[]>;
+  }> {
+    const result: {
+      map?: TraceSource<Map<string, string[]>>;
+      protocol?: TraceSource<ProtocolEntry[]>;
+    } = {};
+    if (typeof values.protocol === "string") {
+      const bytes = await Commands.read(io, values.protocol);
+      result.protocol = {
+        path: values.protocol,
+        sha256: sha256(bytes),
+        content: TraceInputs.protocol(text(bytes), values.protocol),
+      };
+    }
+    if (typeof values.map === "string") {
+      const bytes = await Commands.read(io, values.map);
+      result.map = {
+        path: values.map,
+        sha256: sha256(bytes),
+        content: TraceInputs.map(text(bytes), values.map),
+      };
+    }
+    return result;
   }
 
   private static json(path: string, bytes: Uint8Array): unknown {
@@ -267,6 +304,109 @@ export class Commands {
     }
   }
 
+  private static async report(args: string[], io: ICliIO): Promise<number> {
+    const { values, positionals } = parse(args, {
+      "document-id": { type: "string" },
+      map: { type: "string" },
+      "no-signatures": { type: "boolean" },
+      pdf: { type: "string" },
+      protocol: { type: "string" },
+      signatures: { type: "string" },
+      title: { type: "string" },
+    });
+    if (positionals.length !== 1)
+      throw new UsageError("report takes exactly one run file");
+    if (typeof values.pdf !== "string")
+      throw new UsageError("report needs --pdf FILE");
+    if (values["no-signatures"] === true && values.signatures !== undefined) {
+      throw new UsageError(
+        "--signatures and --no-signatures exclude each other",
+      );
+    }
+    let signatures: null | string[] = ReportContent.DEFAULT_ROLES;
+    if (values["no-signatures"] === true) signatures = null;
+    else if (typeof values.signatures === "string") {
+      signatures = values.signatures
+        .split(";")
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0);
+      if (signatures.length === 0)
+        throw new UsageError("--signatures names no role");
+    }
+    for (const flag of ["title", "document-id"] as const) {
+      const value = values[flag];
+      if (typeof value === "string" && value.trim().length === 0) {
+        throw new UsageError(`--${flag} must not be empty`);
+      }
+    }
+    const generatedAt = Commands.reportTime(io);
+
+    const run = await Commands.runFile(io, positionals[0] as string);
+    const { protocol, map } = await Commands.inputs(io, values);
+    const trace = Trace.build({
+      evidence: [run],
+      protocol,
+      map,
+      failOnSkip: false,
+    }).trace;
+    const document = ReportContent.build({
+      run: run.content,
+      digest: run.sha256,
+      trace,
+      tool: { name: Runtime.TOOL_NAME, version: Runtime.TOOL_VERSION },
+      options: {
+        generatedAt,
+        signatures,
+        ...(typeof values.title === "string" ? { title: values.title } : {}),
+        ...(typeof values["document-id"] === "string"
+          ? { documentId: values["document-id"] }
+          : {}),
+      },
+    });
+    const pdf = await PdfRenderer.render(document, await io.fonts());
+    const out = Commands.path(io, values.pdf);
+    await io.writer.write(out, pdf);
+    io.stdout(
+      `qualify report: wrote ${out}; run verdict ${run.content.summary.verdict}\n`,
+    );
+    return EXIT.ok;
+  }
+
+  /** The generation time: `QUALIFY_REPORT_TIME` when set, else now. */
+  private static reportTime(io: ICliIO): Date {
+    const value = io.env.QUALIFY_REPORT_TIME;
+    if (value === undefined || value.length === 0) return io.now();
+    const time = new Date(value);
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(value) ||
+      Number.isNaN(time.getTime())
+    ) {
+      throw new InputError(
+        `QUALIFY_REPORT_TIME must be a UTC instant such as 2026-01-02T03:04:05.006Z, got ${value}`,
+      );
+    }
+    return time;
+  }
+
+  /** Read a run file: its bytes, its digest, and its validated content. */
+  private static async runFile(
+    io: ICliIO,
+    path: string,
+  ): Promise<TraceSource<RunFile>> {
+    const bytes = await Commands.read(io, path);
+    await Commands.sidecar(io, path, bytes);
+    const data = Commands.json(path, bytes);
+    const problems = Schema.evidence(data);
+    if (problems.length > 0)
+      throw new InputError(`${path}: ${problems.join("; ")}`);
+    if ((data as { kind: string }).kind !== "run") {
+      throw new InputError(
+        `${path}: expected a run file; run qualify merge first`,
+      );
+    }
+    return { path, sha256: sha256(bytes), content: data as RunFile };
+  }
+
   /** Check a `.sha256` sidecar next to a file, when there is one. */
   private static async sidecar(
     io: ICliIO,
@@ -301,42 +441,16 @@ export class Commands {
     const evidence: TraceSource<RunFile>[] = [];
     const runs = new Set<string>();
     for (const path of positionals) {
-      const bytes = await Commands.read(io, path);
-      await Commands.sidecar(io, path, bytes);
-      const data = Commands.json(path, bytes);
-      const problems = Schema.evidence(data);
-      if (problems.length > 0)
-        throw new InputError(`${path}: ${problems.join("; ")}`);
-      if ((data as { kind: string }).kind !== "run") {
+      const file = await Commands.runFile(io, path);
+      if (runs.has(file.content.run.id)) {
         throw new InputError(
-          `${path}: trace reads run files; run qualify merge first`,
+          `${path}: run ${file.content.run.id} is given twice`,
         );
       }
-      const file = data as RunFile;
-      if (runs.has(file.run.id))
-        throw new InputError(`${path}: run ${file.run.id} is given twice`);
-      runs.add(file.run.id);
-      evidence.push({ path, sha256: sha256(bytes), content: file });
+      runs.add(file.content.run.id);
+      evidence.push(file);
     }
-
-    let protocol: TraceSource<ProtocolEntry[]> | undefined;
-    if (typeof values.protocol === "string") {
-      const bytes = await Commands.read(io, values.protocol);
-      protocol = {
-        path: values.protocol,
-        sha256: sha256(bytes),
-        content: TraceInputs.protocol(text(bytes), values.protocol),
-      };
-    }
-    let map: TraceSource<Map<string, string[]>> | undefined;
-    if (typeof values.map === "string") {
-      const bytes = await Commands.read(io, values.map);
-      map = {
-        path: values.map,
-        sha256: sha256(bytes),
-        content: TraceInputs.map(text(bytes), values.map),
-      };
-    }
+    const { protocol, map } = await Commands.inputs(io, values);
 
     const result = Trace.build({
       evidence,

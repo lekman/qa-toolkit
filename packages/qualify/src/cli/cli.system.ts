@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import type { ICliIO } from "./interfaces";
 
 import { SystemDependencies } from "../execution";
+import { BundledFonts } from "../report";
 
 /** The CLI's view of the real process and file system. */
 export class SystemCliIO {
@@ -10,6 +11,7 @@ export class SystemCliIO {
   static create(): ICliIO {
     return {
       ...SystemDependencies.create(),
+      fonts: () => BundledFonts.load(),
       list: async (dir) => {
         try {
           return await readdir(dir);

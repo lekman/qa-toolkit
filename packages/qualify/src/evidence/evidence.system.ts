@@ -7,7 +7,7 @@ import type { IEvidenceWriter } from "./interfaces";
 /** Writes files atomically on the local file system. */
 export class AtomicFileWriter implements IEvidenceWriter {
   /** Write to a hidden temporary file, flush it, then rename it into place. */
-  async write(path: string, content: string): Promise<void> {
+  async write(path: string, content: string | Uint8Array): Promise<void> {
     const dir = dirname(path);
     await mkdir(dir, { recursive: true });
     const temporary = join(
@@ -16,7 +16,7 @@ export class AtomicFileWriter implements IEvidenceWriter {
     );
     const handle = await open(temporary, "w");
     try {
-      await handle.writeFile(content, "utf8");
+      await handle.writeFile(content);
       await handle.sync();
     } finally {
       await handle.close();

@@ -2,10 +2,11 @@
  * Build the qualify library, the three adapters, their setup modules and the
  * CLI with Bun, targeting Node.
  *
- * Every package import stays external: `ajv` and `yaml` are runtime
- * dependencies, and `vitest` is the consumer's own copy, which the adapter
- * must share. `bun:test` exists only under Bun. Everything in `src/` is
- * bundled, including the two schemas. Code shared by several entry points
+ * Every package import stays external: `ajv`, `yaml`, `pdf-lib` and
+ * `@pdf-lib/fontkit` are runtime dependencies, and `vitest` is the consumer's
+ * own copy, which the adapter must share. `bun:test` exists only under Bun.
+ * Everything in `src/` is bundled, including the two schemas; the fonts stay
+ * in `fonts/` and are read at runtime. Code shared by several entry points
  * goes into `dist/chunks/`.
  */
 

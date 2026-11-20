@@ -95,8 +95,8 @@ const files = (writer: MemoryWriter) => {
   const record = entries.find(([p]) => p.endsWith(".json"));
   return {
     names: entries.map(([p]) => p),
-    marker: marker ? (JSON.parse(marker[1]) as StartedFile) : undefined,
-    record: record ? (JSON.parse(record[1]) as RecordFile) : undefined,
+    marker: marker ? (JSON.parse(String(marker[1])) as StartedFile) : undefined,
+    record: record ? (JSON.parse(String(record[1])) as RecordFile) : undefined,
   };
 };
 

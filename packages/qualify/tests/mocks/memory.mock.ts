@@ -1,14 +1,18 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import type { ICliIO } from "../../src/cli";
 import type { GitFacts, IGitProbe } from "../../src/envelope";
 import type { IEvidenceWriter } from "../../src/evidence";
+import type { ReportFonts } from "../../src/report";
 
 /** Keeps written files in memory. */
 export class MemoryWriter implements IEvidenceWriter {
   /** Written files by path. */
-  files = new Map<string, string>();
+  files = new Map<string, string | Uint8Array>();
 
   /** Keep the content under its path. */
-  async write(path: string, content: string): Promise<void> {
+  async write(path: string, content: string | Uint8Array): Promise<void> {
     this.files.set(path, content);
   }
 }
@@ -65,12 +69,21 @@ export class MemoryCliIO implements ICliIO {
   ) {
     this.files = new Map(Object.entries(files));
     this.writer = new MemoryWriter();
-    this.writer.files = this.files as Map<string, string>;
+    this.writer.files = this.files;
   }
 
   /** Always /work. */
   cwd(): string {
     return "/work";
+  }
+
+  /** The bundled fonts, read from the package. */
+  async fonts(): Promise<ReportFonts> {
+    const dir = join(import.meta.dir, "../../fonts");
+    return {
+      regular: new Uint8Array(readFileSync(join(dir, "NotoSans-Regular.ttf"))),
+      bold: new Uint8Array(readFileSync(join(dir, "NotoSans-Bold.ttf"))),
+    };
   }
 
   /** Names directly inside a directory. */

@@ -35,9 +35,11 @@ import { EVIDENCE_SHAPE } from "../src/evidence";
 import { Schema } from "../src/schema";
 import { TRACE_SHAPE } from "../src/trace";
 import { JsonText } from "../src/values";
+import { extractPdf, missingFromOutline } from "./pdf-text";
 
 const PKG = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED = resolve(PKG, "../../spec/qualify/conformance/expected");
+const FIXTURES = resolve(PKG, "../../spec/qualify/conformance/fixtures");
 const CLI = join(PKG, "dist/cli.js");
 const VITEST = join(PKG, "node_modules/vitest/vitest.mjs");
 const RUN_ID = "01HQA1ZQJ0C0NF0RMANCE00000";
@@ -914,11 +916,104 @@ const runSharedRunId = (runner: Runner): void => {
   }
 };
 
+const sampleArg = process.argv.indexOf("--sample");
+const SAMPLE = sampleArg >= 0 ? process.argv[sampleArg + 1] : undefined;
+
+/**
+ * Scenario 21: scenarios 1, 2 and 6 as one run, merged, then rendered as a
+ * PDF. The extracted text must hold the hand-written outline in order, and
+ * the metadata must name the run and the run file's digest. With `--sample
+ * DIR`, the PDF is kept there for the README images.
+ */
+const runReport = async (): Promise<void> => {
+  const dir = mkdtempSync(join(tmpdir(), "qualify-report-"));
+  try {
+    const result = runTests(
+      "vitest",
+      { files: ["all-pass", "failing-check-stops", "runtime-skip"], status: 1 },
+      dir,
+    );
+    assert(
+      result.status === 1,
+      `vitest exited ${result.status}, expected 1\n${result.output.slice(-2000)}`,
+    );
+    const merge = cli(["merge", "--evidence-dir", dir]);
+    assert(merge.status === 1, `merge exited ${merge.status}, expected 1`);
+    const runFile = join(dir, "test-evidence.json");
+    const pdfPath = join(dir, "report.pdf");
+    const report = cli(
+      [
+        "report",
+        runFile,
+        "--pdf",
+        pdfPath,
+        "--protocol",
+        join(FIXTURES, "report.protocol.yaml"),
+        "--title",
+        "Conformance report",
+        "--document-id",
+        "CONF-RPT-001",
+      ],
+      { ...scenarioEnv(dir), QUALIFY_REPORT_TIME: "2026-01-02T03:04:05.006Z" },
+    );
+    assert(
+      report.status === 0,
+      `report exited ${report.status}, expected 0\n${report.output}`,
+    );
+    const bytes = new Uint8Array(readFileSync(pdfPath));
+    const { info, lines, pages } = await extractPdf(bytes);
+    const outline = readFileSync(join(EXPECTED, "report.outline.txt"), "utf8")
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => line.length > 0);
+    const missing = missingFromOutline(lines, outline);
+    assert(
+      missing === undefined,
+      `the report text does not hold "${missing}" in order`,
+    );
+    const digest = sha256(readFileSync(runFile));
+    assert(
+      info.Title === "Conformance report",
+      `Title is ${String(info.Title)}`,
+    );
+    assert(info.Subject === RUN_ID, `Subject is ${String(info.Subject)}`);
+    assert(
+      String(info.Keywords).includes(`sha256:${digest}`),
+      `Keywords is ${String(info.Keywords)}`,
+    );
+    assert(
+      String(info.CreationDate).startsWith("D:20260102030405"),
+      `CreationDate is ${String(info.CreationDate)}`,
+    );
+    for (let n = 1; n <= pages; n++) {
+      assert(
+        lines.some(
+          (line) =>
+            line.includes(`Page ${n} of ${pages}`) &&
+            line.includes("CONF-RPT-001") &&
+            line.includes(digest.slice(0, 12)),
+        ),
+        `page ${n} has no footer`,
+      );
+    }
+    if (SAMPLE !== undefined) {
+      mkdirSync(SAMPLE, { recursive: true });
+      writeFileSync(join(SAMPLE, "report.pdf"), bytes);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
 const results: Outcome[] = [];
-const attempt = (scenario: string, runner: Runner, fn: () => void): void => {
+const attempt = async (
+  scenario: string,
+  runner: Runner,
+  fn: () => Promise<void> | void,
+): Promise<void> => {
   if (ONLY && !ONLY.has(scenario.replace(/\.[ab]$/, ""))) return;
   try {
-    fn();
+    await fn();
     results.push({ scenario, runner });
   } catch (error) {
     results.push({
@@ -951,16 +1046,17 @@ if ((major ?? 0) < 22 || (major === 22 && (minor ?? 0) < 18)) {
 }
 
 for (const scenario of SCENARIOS) {
-  attempt(scenario.name, "vitest", () => runScenario(scenario, "vitest"));
+  await attempt(scenario.name, "vitest", () => runScenario(scenario, "vitest"));
 }
-attempt("parallel-determinism", "vitest", runParallel);
+await attempt("parallel-determinism", "vitest", runParallel);
+await attempt("report", "vitest", runReport);
 if (!UPDATE) {
   for (const runner of ["vitest", "node:test", "bun"] as const) {
-    attempt("shared-run-id", runner, () => runSharedRunId(runner));
+    await attempt("shared-run-id", runner, () => runSharedRunId(runner));
   }
   for (const scenario of SCENARIOS) {
     for (const runner of scenario.runners) {
-      attempt(scenario.name, runner, () => runScenario(scenario, runner));
+      await attempt(scenario.name, runner, () => runScenario(scenario, runner));
     }
   }
 }

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { RunFile } from "../../src/evidence";
 import type { TraceFile } from "../../src/trace";
 
+import { extractPdf, missingFromOutline } from "../../conformance/pdf-text";
 import { Commands, EXIT } from "../../src/cli";
 import { Runtime } from "../../src/execution";
 import {
@@ -263,5 +264,124 @@ describe("Commands: trace", () => {
     expect(await Commands.run(["trace", "schema-bad.json"], io)).toBe(
       EXIT.invalid,
     );
+  });
+});
+
+describe("Commands: report", () => {
+  const setup = async (
+    env: Record<string, string> = {},
+  ): Promise<MemoryCliIO> => {
+    const failed = testRecord("OQ-A1-001", {
+      requirements: ["R1"],
+      outcome: "fail",
+      error: { type: "CheckFailed", message: "c: d", site: null },
+    });
+    const source = withRecords(recordEntry(failed));
+    expect(await Commands.run(["merge"], source)).toBe(EXIT.failed);
+    const io = new MemoryCliIO(
+      {
+        "/work/run.json": source.text(`${DIR}/test-evidence.json`),
+        "/work/protocol.yaml":
+          "tests:\n  - {id: OQ-A1-002, title: Later, level: OQ}\n",
+        "/work/trace.yaml": "OQ-A1-001: R2\n",
+      },
+      env,
+    );
+    return io;
+  };
+
+  test("writes a PDF and exits 0 although the run failed", async () => {
+    const io = await setup({ QUALIFY_REPORT_TIME: "2026-01-02T03:04:05.006Z" });
+    const code = await Commands.run(
+      [
+        "report",
+        "run.json",
+        "--pdf",
+        "out/report.pdf",
+        "--protocol",
+        "protocol.yaml",
+        "--map",
+        "trace.yaml",
+        "--title",
+        "T",
+        "--document-id",
+        "D-1",
+        "--signatures",
+        "Owner; QA",
+      ],
+      io,
+    );
+    expect(code).toBe(EXIT.ok);
+    const pdf = await extractPdf(
+      io.files.get("/work/out/report.pdf") as Uint8Array,
+    );
+    expect(pdf.info.Title).toBe("T");
+    expect(String(pdf.info.CreationDate)).toStartWith("D:20260102030405");
+    expect(
+      missingFromOutline(pdf.lines, [
+        "T",
+        "D-1",
+        "Failed",
+        "R1 (code)",
+        "R2 (map)",
+        "Not run",
+        "OQ-A1-002 Later",
+        "Owner",
+        "QA",
+      ]),
+    ).toBeUndefined();
+    expect(io.out.join("")).toContain("run verdict fail");
+  });
+
+  test("--no-signatures and the current time", async () => {
+    const io = await setup();
+    expect(
+      await Commands.run(
+        ["report", "run.json", "--pdf", "r.pdf", "--no-signatures"],
+        io,
+      ),
+    ).toBe(0);
+    const pdf = await extractPdf(io.files.get("/work/r.pdf") as Uint8Array);
+    expect(pdf.lines.join("\n")).not.toContain("Prepared by");
+    expect(pdf.lines.join("\n")).toContain("2026-01-02 03:04:05 UTC");
+  });
+
+  test.each([
+    [["report", "--pdf", "r.pdf"]],
+    [["report", "a.json", "b.json", "--pdf", "r.pdf"]],
+    [["report", "run.json"]],
+    [
+      [
+        "report",
+        "run.json",
+        "--pdf",
+        "r.pdf",
+        "--signatures",
+        "A",
+        "--no-signatures",
+      ],
+    ],
+    [["report", "run.json", "--pdf", "r.pdf", "--signatures", " ; "]],
+    [["report", "run.json", "--pdf", "r.pdf", "--title", " "]],
+  ])("%p is a usage error", async (argv) => {
+    const io = await setup();
+    expect(await Commands.run(argv, io)).toBe(EXIT.usage);
+  });
+
+  test("invalid input exits 2", async () => {
+    const io = await setup({ QUALIFY_REPORT_TIME: "yesterday" });
+    expect(
+      await Commands.run(["report", "run.json", "--pdf", "r.pdf"], io),
+    ).toBe(EXIT.invalid);
+    expect(io.err.join("")).toContain("QUALIFY_REPORT_TIME");
+    const record = await setup();
+    record.files.set(
+      "/work/record.json",
+      recordEntry(testRecord("OQ-A1-001"))[1],
+    );
+    expect(
+      await Commands.run(["report", "record.json", "--pdf", "r.pdf"], record),
+    ).toBe(EXIT.invalid);
+    expect(record.files.has("/work/r.pdf")).toBe(false);
   });
 });
