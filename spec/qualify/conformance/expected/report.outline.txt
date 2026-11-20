@@ -1,8 +1,16 @@
+lekman.com
 Conformance report
+IQ and OQ qualification, local environment, 2026-01-02
 CONF-RPT-001
+2026-01-02
 Failed
 3 tests: 1 pass, 1 fail, 0 error, 1 skip
 local
+-
+Internal
+Conformance report Internal
+Conformance report
+Run details
 01HQA1ZQJ0C0NF0RMANCE00000
 2026-01-02 03:04:05 UTC
 IQ-CONF-001
