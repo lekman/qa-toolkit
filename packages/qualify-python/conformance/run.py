@@ -31,6 +31,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from pdf_text import PdfText, extract, missing_from_outline, outline
 from qualify import schema
 from qualify.jsontext import EVIDENCE_SHAPE, TRACE_SHAPE, document
 
@@ -39,6 +40,7 @@ PKG = HERE.parent
 REPO = PKG.parent.parent
 EXPECTED = REPO / "spec/qualify/conformance/expected"
 FIXTURES = HERE / "fixtures"
+SPEC_FIXTURES = REPO / "spec/qualify/conformance/fixtures"
 TS_CLI = REPO / "packages/qualify/dist/cli.js"
 RUN_ID = "01HQA1ZQJ0C0NF0RMANCE00000"
 # Built from two parts, like the scenario's other secret-shaped values.
@@ -649,9 +651,137 @@ def run_merge_option() -> None:
         check(read_run(directory)["summary"]["total"] == 2, "the run file does not hold both tests")
 
 
+REPORT_TIME = "2026-01-02T03:04:05.006Z"
+ROLES = ("Prepared by", "Reviewed by", "Approved by")
+
+
+def report(run_file: Path, pdf: Path, *flags: str) -> Exec:
+    """``qualify report`` with scenario 21's flags and the fixed generation time."""
+    env = scenario_env(run_file.parent, {"QUALIFY_REPORT_TIME": REPORT_TIME})
+    return qualify(
+        "report",
+        str(run_file),
+        "--pdf",
+        str(pdf),
+        "--protocol",
+        str(SPEC_FIXTURES / "report.protocol.yaml"),
+        "--title",
+        "Conformance report",
+        "--document-id",
+        "CONF-RPT-001",
+        *flags,
+        env=env,
+    )
+
+
+def check_outline(text: PdfText, name: str) -> None:
+    missing = missing_from_outline(text.lines, outline(EXPECTED / name))
+    check(missing is None, f'the report text does not hold "{missing}" in order ({name})')
+
+
+def check_pages(text: PdfText, header: str) -> None:
+    """The cover has no header or footer; every later page has both."""
+    cover = text.pages[0]
+    check(not any("CONF-RPT-001 Page" in line for line in cover), "the cover has a footer")
+    check(header == "Conformance report" or header not in cover, "the cover has a header")
+    # A header equal to the title cannot be told from the cover title by text,
+    # so the cover may hold that line once and no more.
+    check(cover.count("Conformance report") <= 1, "the cover holds the header line")
+    total = len(text.pages)
+    for number, lines in enumerate(text.pages[1:], start=2):
+        check(
+            any(f"CONF-RPT-001 Page {number} of {total}" in line for line in lines),
+            f"page {number} has no footer",
+        )
+        check(lines[0] == header, f"page {number} starts with {lines[0]!r}, not the header")
+
+
+def run_report(sample: Path | None) -> None:
+    """Scenarios 21 and 22: scenarios 1, 2 and 6 as one run, merged, then
+    rendered as a PDF with the default theme, the plain theme, a theme with an
+    unknown token, and flags that override the theme."""
+    with evidence_dir("report") as directory:
+        result = pytest_run(
+            Invocation(["all-pass", "failing-check-stops", "runtime-skip"], 1), directory
+        )
+        check(
+            result.status == 1,
+            f"pytest exited {result.status}, expected 1\n{result.output[-3000:]}",
+        )
+        merge = qualify("merge", "--evidence-dir", str(directory))
+        check(merge.status == 1, f"merge exited {merge.status}, expected 1")
+        run_file = directory / "test-evidence.json"
+        digest = hashlib.sha256(run_file.read_bytes()).hexdigest()
+
+        # Scenario 21: the default theme.
+        pdf = directory / "report.pdf"
+        result = report(run_file, pdf)
+        check(result.status == 0, f"report exited {result.status}, expected 0\n{result.output}")
+        text = extract(pdf)
+        check_outline(text, "report.outline.txt")
+        check_pages(text, "Conformance report Internal")
+        check(text.info.get("Title") == "Conformance report", f"Title is {text.info.get('Title')}")
+        check(text.info.get("Subject") == RUN_ID, f"Subject is {text.info.get('Subject')}")
+        check(f"sha256:{digest}" in text.info.get("Keywords", ""), "Keywords lack the digest")
+        check(
+            text.info.get("CreationDate", "").startswith("D:20260102030405"),
+            f"CreationDate is {text.info.get('CreationDate')}",
+        )
+
+        # Scenario 22 A: the plain theme.
+        plain = directory / "report-plain.pdf"
+        result = report(run_file, plain, "--theme", "plain")
+        check(result.status == 0, f"report --theme plain exited {result.status}\n{result.output}")
+        plain_text = extract(plain)
+        check_outline(plain_text, "report-plain.outline.txt")
+        check_pages(plain_text, "Conformance report")
+        check(
+            not any("lekman.com" in line for line in plain_text.lines),
+            "the plain theme shows a brand",
+        )
+
+        # Scenario 22 B: a theme with an unknown token.
+        bad = directory / "bad.pdf"
+        result = report(run_file, bad, "--theme", str(SPEC_FIXTURES / "bad-theme/theme.json"))
+        check(result.status == 2, f"report with a bad theme exited {result.status}, expected 2")
+        check("{nope}" in result.output, "the error does not name {nope}")
+        check(not bad.exists(), "a PDF was written for a bad theme")
+
+        # Scenario 22 C: flags override the theme.
+        flagged = directory / "report-flags.pdf"
+        result = report(
+            run_file,
+            flagged,
+            "--theme",
+            "lekman",
+            "--classification",
+            "Commercial in confidence",
+            "--no-signatures",
+        )
+        check(result.status == 0, f"report with flags exited {result.status}\n{result.output}")
+        flags_text = extract(flagged)
+        check(
+            any("Commercial in confidence" in line for line in flags_text.pages[0]),
+            "the cover lacks the classification",
+        )
+        check(
+            flags_text.pages[1][0] == "Conformance report Commercial in confidence",
+            "the page 2 header lacks the classification",
+        )
+        check(
+            not any(role in line for line in flags_text.lines for role in ROLES),
+            "--no-signatures left a signature role",
+        )
+        if sample is not None:
+            sample.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(pdf, sample / "sample-report-lekman.pdf")
+            shutil.copyfile(plain, sample / "sample-report-plain.pdf")
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
     parser.add_argument("--only", help="comma-separated scenario names")
+    parser.add_argument("--sample", type=Path, help="keep the report PDFs in this folder")
     options = parser.parse_args(argv)
     only = set(options.only.split(",")) if options.only else None
 
@@ -662,10 +792,12 @@ def main(argv: Sequence[str]) -> int:
         ("parallel-determinism", run_parallel),
         ("shared-run-id", run_shared_run_id),
         ("merge-option", run_merge_option),
+        ("report, report-theme", partial(run_report, options.sample)),
     ]
     results: list[tuple[str, str | None]] = []
     for name, job in jobs:
-        if only is not None and re.sub(r"\.[ab]$", "", name) not in only:
+        names = {re.sub(r"\.[ab]$", "", part) for part in name.split(", ")}
+        if only is not None and not names & only:
             continue
         try:
             job()
