@@ -116,9 +116,10 @@ and opens the pull request, so step 9's draft pull request is not opened here.
   own.
 - Runtime dependencies: `ajv` 8 (2020 build) and `yaml` 2, external to the
   build, loaded by the CLI and the core entry only, never by the adapters.
-- 192 unit tests, 99.7 % of lines. Coverage excludes the adapters, which the
+- 222 unit tests, 99.75 % of lines. Coverage excludes the adapters, which the
   conformance runs exercise.
-- `bun run conformance`: 33 runs pass, scenario 21 (`report`) included. vitest runs all 20 scenarios (21 runs,
+- `bun run conformance`: 34 runs pass, scenarios 21 (`report`) and 22
+  (`report-theme`) included. vitest runs all 20 scenarios (21 runs,
   scenario 7 has two). `node:test` and bun run scenarios 1, 2, 6 and 10
   against the same expected files. One more check per runner proves that,
   without `QUALIFY_RUN_ID`, the runner's documented setup gives every file one
@@ -155,6 +156,33 @@ and opens the pull request, so step 9's draft pull request is not opened here.
 - The README shows the first two pages of `docs/sample-report.pdf` (21 KB),
   rendered with `scripts/render-pages.ts`.
 
+### Report Themes
+
+- The report follows the rewritten section 9: a cover page (logo and brand
+  name, title at 40% of the page, accent rule, subtitle, metadata rows above
+  the bottom margin), then pages with a header and a footer counted from the
+  cover, three heading levels, tables with a filled header row repeated on
+  continued pages and zebra rows, and mono IDs, digests and values.
+- `src/theme` loads a theme by bundled name or path (`--theme`, then
+  `QUALIFY_REPORT_THEME`), validates it against `report-theme.schema.json`,
+  reads its files relative to the theme file, and checks every token. A bad
+  theme exits 2 and writes no PDF.
+- Both themes are bundled in `themes/` byte for byte, and a test fails on any
+  difference from `spec/qualify/report/themes/`. The old `fonts/` folder is
+  gone: the plain theme carries Noto Sans.
+- Geist has no odd-length glyph records (short `loca`, 0 of 975 and 1159), so
+  the fontkit subset fault only hits Noto Sans; the glyph-outline test runs
+  over all five bundled fonts.
+- Visual check, pages 1 to 3 of the sample in both themes: the cover reads as
+  intended in both. Three faults were found and fixed: a SHA-256 wrapped in
+  the mono font (mono is now 8.5 pt), a long title pushed the header into the
+  classification (header and footer are now cut with `…`), and a test's field
+  list split from its heading (a heading now keeps a field list that fits on
+  a page). A 20-word title and a two-line subtitle move up and stay clear of
+  the metadata rows.
+- The lekman logo and name are not covered by the MIT licence; the README says
+  so. `package.json` has no field where that fits.
+
 ### Specification Changes
 
 Made in their own commits, before the implementation:
@@ -182,7 +210,15 @@ Made in their own commits, before the implementation:
    code points, the cover showing `run.tool` while `Producer` names the PDF
    writer, the shared `fixtures/report.protocol.yaml`, and how an outline line
    is matched inside an extracted line.
-6. Conformance text: a fixed "one passing check", check texts for scenarios
+6. Themes, in their own commit: scenario 21's page 2 footer is checked on page
+   2 instead of in the ordered outline, because where page 2 ends differs
+   between languages; a header equal to the title may appear once on the
+   cover; scenario 22 run A uses scenario 21's flags, and its outline holds
+   the `Commit` label; title and classification may not use each other's
+   tokens; `{levels}` is `-` for a run with no tests; an over-long header or
+   footer is cut with `…`; and the signature block sits under the heading
+   `Signatures`.
+7. Conformance text: a fixed "one passing check", check texts for scenarios
    11 and 15, `<runtime error>` masking in scenario 10, two invocations in
    scenario 14, SIGKILL in scenario 18, titles in scenario 20, literal
    `<scenario>:0` site masking after a site check, `run.selection` removed in
