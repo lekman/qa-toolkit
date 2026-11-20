@@ -20,7 +20,10 @@ the serialiser and misses outcome bugs.
    environment variables the scenario lists. Nothing else from the real
    environment leaks in: the harness clears every other `QUALIFY_*` variable.
 3. The harness runs `merge`, masks the run file (below), and compares it with
-   `expected/<scenario>.json` byte for byte after formatting.
+   `expected/<scenario>.json` byte for byte after formatting. Formatting writes
+   the masked file the way section 6.3 of the specification writes evidence:
+   two-space indent, envelope keys in schema order, value keys sorted, and a
+   trailing newline.
 4. The harness also checks the exit codes the scenario lists.
 
 A scenario whose expected outcome is a declaration error checks the runner's
@@ -39,10 +42,18 @@ Before comparison, the harness replaces:
 | `run.tool`                                                   | `{"name": "<tool>", "version": "<version>", "language": "<language>", "runtime": "<runtime>"}` |
 | `run.source`                                                 | `{"commit": null, "branch": null, "dirty": null}`                                              |
 | `run.actor`                                                  | `{"name": null, "ci": null, "ciRunUrl": null}`                                                 |
-| the line number in every `site`                              | `0`, and the path reduced to `<scenario>`                                                      |
+| every `site`, also inside `error`                            | `"<scenario>:0"`, literally; a `null` site stays `null`                                        |
 | `error.type` where a scenario names a language-specific type | the placeholder the scenario gives, such as `"<runtime error>"`                                |
 | a check's `delegate` name                                    | `"<function>"`                                                                                 |
 | the `<type>` part of `"[unserialisable: <type>]"`            | `<type>`                                                                                       |
+| `run.selection`                                              | removed, because it is optional and an adapter records it only where it can read the filter    |
+
+Because masking hides the site, the harness first checks, on the unmasked run
+file, that every site points into one of the scenario's own test files.
+
+A trace output (`<scenario>.trace.json`) is masked too: every `inputs[].path`
+becomes its base name, every `inputs[].sha256` becomes `"<sha256>"`, and every
+`runs[].commit` becomes `null`.
 
 The expected files are written by the TypeScript reference implementation, then
 reviewed by hand against this document before they are committed. A later
@@ -60,6 +71,10 @@ when:   "the scenario runs"
 then:   "the evidence matches the expected file"
 scope:  read            (OQ and PQ only)
 ```
+
+Where a scenario asks for "one passing check" without writing it out, the check
+is `check("fixture", "one equals one").that(1).equals(1)`. A test the scenario
+gives no check has none.
 
 ## Scenarios
 
@@ -142,7 +157,8 @@ scope:  read            (OQ and PQ only)
   - `attach("request.json", {"url": "/x", "token": t, "note": "x " + t}, "application/json")`
   - `attach("raw.bin", <bytes 0x00 0xFF + utf8(t) + 0x00>, "application/octet-stream")`
   - then throw a plain runtime error whose message is the text `failed with`,
-    a space, and `t`
+    a space, and `t`; the harness masks `error.type` to `"<runtime error>"`,
+    as in scenario 4
 - Expect: no occurrence of `s3cr3t-value-123` anywhere in any file in the
   evidence directory, including markers; `secretsUsed` `["CONFORMANCE_TOKEN"]`;
   the JSON attachment decodes to `{"note": "x [REDACTED]", "token": "[REDACTED]", "url": "/x"}`;
@@ -154,7 +170,8 @@ in another source.
 
 ### 11. `pattern-redaction`
 
-- `OQ-CONF-012`: one check whose `actual` is a string holding, separated by
+- `OQ-CONF-012`: one check, `check("fixture", "the output holds secret shapes")`,
+  whose `actual` is a string holding, separated by
   spaces: a PEM block
   `-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----`,
   a JWT shape `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl`, and an
@@ -186,7 +203,10 @@ in another source.
 - `OQ-CONF-015`: `attach("note.txt", "hello\n", "text/plain")` and
   `attach("blob.bin", bytes 0..255, "application/octet-stream")`; one passing check.
 - `OQ-CONF-016`, environment `QUALIFY_ATTACHMENT_LIMIT=16`:
-  `attach("big.txt", 17 bytes of "a", "text/plain")`.
+  `attach("big.txt", 17 bytes of "a", "text/plain")`, and no check.
+- The limit would stop `OQ-CONF-015` too, so the harness runs the scenario
+  twice into one evidence directory: once selecting `OQ-CONF-015`, once
+  selecting `OQ-CONF-016` with the limit set. Then it runs one `merge`.
 - Expect: `OQ-CONF-015` passes with correct `sizeBytes` (6 and 256) and
   `sha256`; `OQ-CONF-016` outcome `error`, type `AttachmentTooLarge`, no
   attachment recorded.
@@ -194,7 +214,8 @@ in another source.
 ### 15. `value-normalisation`
 
 - `OQ-CONF-017`, one `equals` check per value, each comparing the value with
-  itself:
+  itself, with context `value` and the descriptions `bytes`, `instant`,
+  `big integer`, `NaN`, `map`, `set` and `cycle`, in this order:
   - bytes `0x01 0x02`
   - the instant `2026-01-02T03:04:05.006Z`
   - the integer 2^60
@@ -223,8 +244,11 @@ in another source.
 ### 18. `crash`
 
 - `OQ-CONF-019` ends its process abruptly mid-test, after its marker is written
-  (`process.exit` in TypeScript, `os._exit` in Python, `Runtime.halt` in Java),
-  in a worker or child process so the harness survives.
+  (`process.kill(process.pid, "SIGKILL")` in TypeScript, `os._exit` in Python,
+  `Runtime.halt` in Java), in a worker or child process so the harness
+  survives. TypeScript cannot use `process.exit`: vitest replaces it in its
+  workers with a function that throws, so the test would record an `error`
+  and never crash.
 - Expect: `merge` writes an `error` record with type `DidNotFinish` and message
   `test started and did not finish`; merge exit 1.
 
@@ -233,15 +257,17 @@ in another source.
 - `OQ-CONF-020` and `OQ-CONF-021`; the runner's own filter selects only
   `OQ-CONF-020`.
 - Expect: one record; `qualify trace --protocol` with a protocol listing both
-  shows `OQ-CONF-021` as not run; trace exit 3.
+  shows `OQ-CONF-021` as not run; trace exit 3. Expected trace output:
+  `deselected.trace.json` (TypeScript only).
 
 ### 20. `control-pair`
 
-- `OQ-CONF-022`: a negative test, "an unsigned call is refused".
-- `OQ-CONF-023`: its control, `controls: "OQ-CONF-022"`, "a signed call is
-  accepted".
+- `OQ-CONF-022`: a negative test, title "an unsigned call is refused".
+- `OQ-CONF-023`: its control, `controls: "OQ-CONF-022"`, title "a signed call
+  is accepted".
 - Expect: the record of `OQ-CONF-023` has `controls`; the trace matrix shows the
-  pair on adjacent rows.
+  pair on adjacent rows. Expected trace output: `control-pair.trace.json`
+  (TypeScript only).
 
 ## Exit Codes Checked
 
