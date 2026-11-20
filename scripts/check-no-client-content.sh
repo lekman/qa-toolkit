@@ -124,7 +124,10 @@ case "$MODE" in
     FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -vE "$EXCLUDE")
     for f in $FILES; do
       match=$(git show ":$f" 2>/dev/null | grep -IinE "$PATTERN" | head -3)
-      if [ -n "$match" ]; then
+      if [ -n "$match" ] && [ "$QUIET" -eq 1 ]; then
+        HITS="${HITS}${f}
+"
+      elif [ -n "$match" ]; then
         HITS="${HITS}${f}:
 $(echo "$match" | sed 's/^/    /')
 "
@@ -135,8 +138,12 @@ $(echo "$match" | sed 's/^/    /')
   *)
     FILES=$(git ls-files --cached --others --exclude-standard | grep -vE "$EXCLUDE")
     [ -z "$FILES" ] && exit 0
+    # --quiet lists the files only (-l). Without it grep prints each
+    # matching line, and the line holds the term.
+    GREP_FLAGS="-IinE"
+    [ "$QUIET" -eq 1 ] && GREP_FLAGS="-IilE"
     HITS=$(printf '%s\n' "$FILES" | tr '\n' '\0' |
-      xargs -0 grep -IinE "$PATTERN" 2>/dev/null)
+      xargs -0 grep "$GREP_FLAGS" "$PATTERN" 2>/dev/null)
     ;;
 esac
 
