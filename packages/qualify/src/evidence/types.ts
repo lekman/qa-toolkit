@@ -22,7 +22,7 @@ export type MatcherName =
 
 /** The implementation that wrote a file. */
 export interface ToolInfo {
-  language: "java" | "python" | "typescript";
+  language: "csharp" | "java" | "python" | "typescript";
   name: string;
   runtime: string;
   version: string;
