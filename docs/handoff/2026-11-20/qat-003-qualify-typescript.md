@@ -1,6 +1,6 @@
 # qat-003: qualify, TypeScript Reference
 
-> **Status:** Dispatched | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-003
+> **Status:** Consumed | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-003
 
 ## Context
 
@@ -103,4 +103,89 @@ gates qat-004 and qat-005. The package is built and tested, not published.
 
 ## Outcome
 
-_Empty at dispatch._
+2026-11-20, implementation session. Branch `feat/qualify-typescript`, stacked
+on `docs/qualify-design`. Committed locally; the coordinating session pushes
+and opens the pull request, so step 9's draft pull request is not opened here.
+
+### Result
+
+- `packages/qualify` builds for Node 20 with entry points `.`, `./vitest`,
+  `./vitest/setup`, `./node`, `./node/setup` and `./bun`, and bin `qualify`.
+  The two setup entry points are additions to the brief's list: vitest's
+  `globalSetup` and node's `--test-global-setup` each need a module of their
+  own.
+- Runtime dependencies: `ajv` 8 (2020 build) and `yaml` 2, external to the
+  build, loaded by the CLI and the core entry only, never by the adapters.
+- 166 unit tests, 99.7 % of lines. Coverage excludes the adapters, which the
+  conformance runs exercise.
+- `bun run conformance`: 32 runs pass. vitest runs all 20 scenarios (21 runs,
+  scenario 7 has two). `node:test` and bun run scenarios 1, 2, 6 and 10
+  against the same expected files. One more check per runner proves that,
+  without `QUALIFY_RUN_ID`, the runner's documented setup gives every file one
+  run ID. Changing one character of an expected file fails the run.
+- `spec/qualify/trace.schema.json` is written and `trace` output is validated
+  against it in the unit tests and in every conformance trace.
+- CI: the quality job sets up Node 22 and runs `bun run conformance` after the
+  build.
+
+### Specification Changes
+
+Made in their own commits, before the implementation:
+
+1. Record and marker names gain `__<key>`, the first 8 hex digits of the
+   SHA-256 of the declaration site. As written, two declarations of one ID
+   wrote the same file name, so scenario 17 could not be met.
+2. `source.dirty` counts tracked files only. The evidence directory sits
+   untracked in the repository, so `dirty` changed partway through a run and
+   `merge` refused the disagreeing envelopes.
+3. Bytes-level details every language must share: code point order for keys
+   and sets, a cycle makes the whole value unserialisable, string length in
+   code points, the pattern rules as regular expressions, how a JSON
+   attachment is written, the `AttachmentTooLarge` message, the
+   `run-context.json` shape, lower-cased target keys.
+4. Merge details: dot files ignored, names checked against content, which
+   file supplies `tool`, `actor` and `target`, the envelope of a run with no
+   records. The `protocol.yaml` and `trace.yaml` formats, exit-code
+   precedence, and the `merge` and `validate` exit codes.
+5. Conformance text: a fixed "one passing check", check texts for scenarios
+   11 and 15, `<runtime error>` masking in scenario 10, two invocations in
+   scenario 14, SIGKILL in scenario 18, titles in scenario 20, literal
+   `<scenario>:0` site masking after a site check, `run.selection` removed in
+   masking, trace masking, and trace expected files for scenarios 19 and 20.
+
+### Observations and Deviations
+
+- **The node setup cannot be an `--import` preload.** On Node 22, 24 and 26,
+  `node --test` loads `--import` modules in each test file's process and not
+  in the main process, so every file created its own run ID. The setup is a
+  `globalSetup` for `--test-global-setup` (Node 24 or later; it takes a file
+  path, so a project re-exports it). On Node 22, `--experimental-test-isolation=none`
+  runs one process, which creates the ID. Without either, and without
+  `QUALIFY_RUN_ID`, a test fails with that advice.
+- **`process.exit` does not crash a vitest worker.** vitest 5 replaces it with
+  a function that throws. The crash scenario uses
+  `process.kill(process.pid, "SIGKILL")` in a forked worker.
+- **Runtime skips:** vitest and `node:test` show them as skipped; bun has no
+  in-body skip and shows them as passed. The record says `skip` in all three.
+- **Bun's `expect()` throws a plain `Error`.** The bun adapter treats one whose
+  message starts with `expect(` as an assertion (`fail`).
+- **vitest fixtures from `test.extend` are not supported.** vitest refuses a
+  fixture user that does not destructure fixtures by name.
+- **A declaration error is registered as a failing test** under its
+  `[<ID>] <title>` name, so both errors of scenario 9 are reported and the
+  rest of the file still runs. No files are written for it.
+- **Prettier reflows the expected JSON** and breaks the byte comparison, so a
+  root `.prettierignore` excludes `spec/qualify/conformance/expected/`. Trunk
+  honours it.
+- `run.selection` is not recorded by the TypeScript adapters.
+- Redaction registers values per process, so a value registered in one test is
+  redacted in every later record of the same process.
+
+### Open for the Coordinator
+
+- The pull request "ci: run the devops-actions checks and a leak guard in CI"
+  was still a draft when this ran. The CI change here edits the `quality` job
+  of the current `ci.yml`. When that pull request lands first, the conflict
+  resolves by adding only the `Conformance` step after `Build all packages`:
+  its `setup-runtime` step already installs Node 22 from `mise.toml`.
+- No release-please entry for `packages/qualify`; qat-006 owns it.
