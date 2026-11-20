@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The conformance harness: one test per scenario of
+       spec/qualify/conformance/README.md. Each runs the scenario's test
+       classes in Lekman.Qualify.Conformance through the real xUnit v3 runner in
+       a child process, merges with the qualify tool, masks the run file and
+       compares it byte for byte with the shared expected file. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <RootNamespace>Lekman.Qualify.Conformance.Harness</RootNamespace>
+    <!-- Test classes are public because xUnit requires it; they are not an API. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../src/Lekman.Qualify/Lekman.Qualify.csproj" />
+    <!-- Built first, run as child processes; never loaded here. -->
+    <ProjectReference Include="../Lekman.Qualify.Conformance/Lekman.Qualify.Conformance.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Lekman.Qualify.FilterSample/Lekman.Qualify.FilterSample.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../src/Lekman.Qualify.Tool/Lekman.Qualify.Tool.csproj" ReferenceOutputAssembly="false" SetTargetFramework="TargetFramework=net11.0" />
+  </ItemGroup>
+</Project>

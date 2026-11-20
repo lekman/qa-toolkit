@@ -1,0 +1,15 @@
+<Project>
+  <!-- Central package versions. Licences are listed in README.md. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The library -->
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
+    <!-- 8.0.5 is the last MIT release; 9.x ships under a maintenance-fee EULA. -->
+    <PackageVersion Include="JsonSchema.Net" Version="8.0.5" />
+    <!-- Tests -->
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="coverlet.MTP" Version="10.1.1" />
+  </ItemGroup>
+</Project>

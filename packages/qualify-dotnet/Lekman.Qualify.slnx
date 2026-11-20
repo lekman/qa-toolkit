@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lekman.Qualify/Lekman.Qualify.csproj" />
+    <Project Path="src/Lekman.Qualify.Tool/Lekman.Qualify.Tool.csproj" />
+  </Folder>
+  <Folder Name="/conformance/">
+    <Project Path="conformance/Lekman.Qualify.Conformance/Lekman.Qualify.Conformance.csproj" />
+    <Project Path="conformance/Lekman.Qualify.FilterSample/Lekman.Qualify.FilterSample.csproj" />
+    <Project Path="conformance/Lekman.Qualify.Conformance.Harness/Lekman.Qualify.Conformance.Harness.csproj" />
+  </Folder>
+</Solution>

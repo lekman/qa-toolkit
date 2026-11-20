@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net11.0;net10.0</TargetFrameworks>
+    <RootNamespace>Lekman.Qualify</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Lekman.Qualify</PackageId>
+    <Description>Qualification tests (IQ, OQ, PQ, intended use) for xUnit v3 that write redacted JSON evidence: [IQ], [OQ], [PQ] and [IU] attributes, recorded checks, and merge and validate for the run file.</Description>
+    <PackageTags>qualification;validation;evidence;traceability;xunit;gxp</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="JsonSchema.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The normative schema, read from the specification at build time. -->
+    <EmbeddedResource Include="../../../../spec/qualify/evidence.schema.json" LogicalName="Lekman.Qualify.evidence.schema.json" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../icon.png" Pack="true" PackagePath="/" />
+    <InternalsVisibleTo Include="Lekman.Qualify.Tests" />
+  </ItemGroup>
+</Project>

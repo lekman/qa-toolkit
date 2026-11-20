@@ -1,0 +1,8 @@
+# Both tests must run; the harness selects only OQ-CONF-020.
+tests:
+  - id: OQ-CONF-020
+    title: deselected test
+    level: OQ
+  - id: OQ-CONF-021
+    title: deselected test
+    level: OQ

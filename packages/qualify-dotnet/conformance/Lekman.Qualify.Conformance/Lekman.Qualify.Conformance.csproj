@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The conformance scenarios of spec/qualify/conformance/README.md as real
+       xUnit v3 test classes. Several fail, skip or crash on purpose, so this is
+       not a test project for `dotnet test`: the harness in
+       Lekman.Qualify.Conformance.Harness runs it with a filter per scenario. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>false</IsTestProject>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <RootNamespace>Lekman.Qualify.Conformance</RootNamespace>
+    <!-- Test classes are public because xUnit requires it; they are not an API. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../src/Lekman.Qualify/Lekman.Qualify.csproj" />
+  </ItemGroup>
+</Project>

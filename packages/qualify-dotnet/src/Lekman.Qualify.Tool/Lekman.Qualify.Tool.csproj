@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net11.0;net10.0</TargetFrameworks>
+    <RootNamespace>Lekman.Qualify.Tool</RootNamespace>
+    <AssemblyName>qualify</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>qualify</ToolCommandName>
+    <PackageId>Lekman.Qualify.Tool</PackageId>
+    <Description>The qualify command for .NET: merge test records into a run file, validate evidence against the schema, and render the qualification report.</Description>
+    <PackageTags>qualification;validation;evidence;traceability;xunit;gxp</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lekman.Qualify/Lekman.Qualify.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../icon.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>
