@@ -5,8 +5,10 @@ import tseslint from "typescript-eslint";
 
 export default [
   // `.ua/` holds generated knowledge-graph data and the scratch scripts the
-  // analysis writes. Gitignored, but eslint keeps its own list.
-  { ignores: ["**/dist/", "**/node_modules/", "**/.ua/"] },
+  // analysis writes. `.venv/` is a Python package's virtual environment, which
+  // carries third-party JavaScript. Both are gitignored, but eslint keeps its
+  // own list.
+  { ignores: ["**/dist/", "**/node_modules/", "**/.ua/", "**/.venv/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
