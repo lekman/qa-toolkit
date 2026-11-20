@@ -597,17 +597,23 @@ In this order:
 
 1. **Cover page.** The title (default `Qualification report`), the document ID
    (default `QR-<environment>-<run start date as YYYYMMDD>`), the verdict in
-   words (`Passed`, `Failed` or `Incomplete`), the summary counts, the
+   words (`Passed`, `Failed` or `Incomplete`), the summary counts written as
+   `<total> tests: <pass> pass, <fail> fail, <error> error, <skip> skip`, the
    environment, the run ID, the run start and end, the source commit and branch,
-   the tool name and version, the generation time, and the SHA-256 of the run
-   file exactly as read. Any merged run IDs and production write overrides are
-   listed here too, because a reviewer must see them first.
+   the name and version of the tool that wrote the evidence (`run.tool`), the
+   generation time, and the SHA-256 of the run file exactly as read. Any merged
+   run IDs and production write overrides are listed here too, because a
+   reviewer must see them first.
 2. **Summary and traceability.** Counts per level and outcome. The trace table:
    requirement, test ID, level, title, risk and outcome, with the same rows and
-   link sources as `trace`. Protocol IDs with no record, and requirements with
-   no passing test, each as a list, or the line `None` when empty.
-3. **One section per test,** sorted by ID: the ID and title as a heading; level,
-   outcome, risk, scope, requirements, tags and `controls`; the skip reason, or
+   link sources as `trace`. A requirement cell holds the requirement and its
+   sources, for example `EXPORT-003 (code, map)`, and an outcome is the JSON
+   value, `not-run` for a protocol ID with no record. Then two lists, under the
+   headings `Not run` (protocol IDs with no record, each with its title) and
+   `Requirements without a passing test`, each holding the line `None` when
+   empty.
+3. **One section per test,** sorted by ID: the heading `<ID> <title>`; level,
+   outcome (the JSON value), risk, scope, requirements, tags and `controls`; the skip reason, or
    the error type and message; the narrative (`Given`, `When`, `Then`, and each
    `And`); a checks table with number (`seq` plus 1), context, description,
    matcher, expected, actual, result (`Pass` or `Fail`) and `soft` when set;
@@ -628,12 +634,15 @@ Every page has a footer with the document ID, `Page <n> of <N>`, and the first
   (Noto Sans, under the SIL Open Font License) and embeds the subset it uses. A
   character the font cannot draw is drawn as `?`. The evidence file stays the
   record of the exact text.
-- `expected` and `actual` are rendered as compact JSON. A value longer than 200
-  characters is cut and ends with `… (<n> more characters)`.
+- `expected` and `actual` are rendered as compact JSON: no spaces, keys sorted.
+  A value longer than 200 characters (code points) is cut and ends with
+  `… (<n> more characters)`.
+- A missing value, such as no risk, no commit or an empty list, is drawn as
+  `-`.
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
-  `sha256:<run file digest>`, `Producer` the tool name and version, and
-  `CreationDate` the generation time.
+  `sha256:<run file digest>`, `Producer` the name and version of the package
+  that wrote the PDF, and `CreationDate` the generation time.
 - The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
   (an ISO 8601 UTC instant), so a report can be reproduced.
 - `report` reads only the run file and the optional protocol and map files. It

@@ -276,12 +276,17 @@ in another source.
   `qualify report <run file> --pdf report.pdf --protocol report.protocol.yaml
 --title "Conformance report" --document-id CONF-RPT-001` with
   `QUALIFY_REPORT_TIME=2026-01-02T03:04:05.006Z`. `report.protocol.yaml` lists
-  `IQ-CONF-001`, `OQ-CONF-002`, `OQ-CONF-006` and `OQ-CONF-099`.
+  `IQ-CONF-001`, `OQ-CONF-002`, `OQ-CONF-006` and `OQ-CONF-099`; every language
+  uses the same file,
+  [fixtures/report.protocol.yaml](fixtures/report.protocol.yaml).
 - Extract the PDF's text with the language's own PDF library, collapse runs of
   whitespace to one space, and drop empty lines.
 - Expect: every line of `expected/report.outline.txt` appears in the extracted
   text, in the same order. Other lines may sit between them, so layout and
-  wrapping may differ between languages. The outline covers the cover page
+  wrapping may differ between languages. An outline line is found when it is
+  part of an extracted line, at or after the end of the previous match; several
+  outline lines may come from one extracted line, such as the cells of one
+  table row. The outline covers the cover page
   values (title, document ID, `Failed`, the counts, the environment, the run ID
   `01HQA1ZQJ0C0NF0RMANCE00000`, the generation time `2026-01-02 03:04:05 UTC`),
   the trace rows, `OQ-CONF-099` listed as not run, each test heading in ID
