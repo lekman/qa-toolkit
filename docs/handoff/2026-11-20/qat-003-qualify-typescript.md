@@ -116,9 +116,9 @@ and opens the pull request, so step 9's draft pull request is not opened here.
   own.
 - Runtime dependencies: `ajv` 8 (2020 build) and `yaml` 2, external to the
   build, loaded by the CLI and the core entry only, never by the adapters.
-- 166 unit tests, 99.7 % of lines. Coverage excludes the adapters, which the
+- 192 unit tests, 99.7 % of lines. Coverage excludes the adapters, which the
   conformance runs exercise.
-- `bun run conformance`: 32 runs pass. vitest runs all 20 scenarios (21 runs,
+- `bun run conformance`: 33 runs pass, scenario 21 (`report`) included. vitest runs all 20 scenarios (21 runs,
   scenario 7 has two). `node:test` and bun run scenarios 1, 2, 6 and 10
   against the same expected files. One more check per runner proves that,
   without `QUALIFY_RUN_ID`, the runner's documented setup gives every file one
@@ -127,6 +127,33 @@ and opens the pull request, so step 9's draft pull request is not opened here.
   against it in the unit tests and in every conformance trace.
 - CI: the quality job sets up Node 22 and runs `bun run conformance` after the
   build.
+
+### PDF Report (Step 4a)
+
+- `qualify report` is in `src/report`: `ReportContent` (pure), `Layout` (pure,
+  over a text-metrics port), `PdfRenderer` (`pdf-lib` with `@pdf-lib/fontkit`)
+  and `report.system.ts`, which reads Noto Sans 2.015 regular and bold
+  (1.2 MB, OFL in `fonts/OFL.txt`). Fonts are embedded as subsets; a short
+  report is about 20 KB.
+- **`@pdf-lib/fontkit` 1.1.1 breaks subsets of Noto Sans.** It copies glyph
+  records unpadded and writes a short `loca`, which stores offset / 2; Noto
+  Sans has 1323 odd-length records, so later glyphs are read from the wrong
+  place. Text extraction still passed while the rendered pages, in pdfjs and
+  in macOS Quartz, had most letters missing. `SubsetFix` pads each record. A
+  unit test compares every subset glyph outline with the original font, and a
+  second test fails once fontkit no longer needs the fix.
+- Scenario 21 passes: the outline in `expected/report.outline.txt`, written by
+  hand from the scenario text, is found in order; `Title`, `Subject`,
+  `Keywords` and `CreationDate` match; every page has its footer; `report`
+  exits 0 for the failed run. Changing one outline value or swapping two
+  lines fails it.
+- Runtime dependencies, installed size: `pdf-lib` 25.7 MB with its four
+  dependencies, `@pdf-lib/fontkit` 4.2 MB, `ajv` 2.8 MB, `yaml` 1.3 MB; about
+  34 MB in all, mostly `pdf-lib`'s several builds and source maps. The npm
+  tarball is about 700 KB. Dev dependencies: `pdfjs-dist` (text extraction)
+  and `@napi-rs/canvas` (page images for the README).
+- The README shows the first two pages of `docs/sample-report.pdf` (21 KB),
+  rendered with `scripts/render-pages.ts`.
 
 ### Specification Changes
 
@@ -147,7 +174,15 @@ Made in their own commits, before the implementation:
    file supplies `tool`, `actor` and `target`, the envelope of a run with no
    records. The `protocol.yaml` and `trace.yaml` formats, exit-code
    precedence, and the `merge` and `validate` exit codes.
-5. Conformance text: a fixed "one passing check", check texts for scenarios
+5. Report text the shared outline depends on, in its own commit: the summary
+   counts line, the requirement cell with its sources, outcomes as JSON values
+   (`not-run`), the list headings `Not run` and
+   `Requirements without a passing test`, the test heading `<ID> <title>`, `-`
+   for a missing value, compact JSON without spaces, the 200-character cut in
+   code points, the cover showing `run.tool` while `Producer` names the PDF
+   writer, the shared `fixtures/report.protocol.yaml`, and how an outline line
+   is matched inside an extracted line.
+6. Conformance text: a fixed "one passing check", check texts for scenarios
    11 and 15, `<runtime error>` masking in scenario 10, two invocations in
    scenario 14, SIGKILL in scenario 18, titles in scenario 20, literal
    `<scenario>:0` site masking after a site check, `run.selection` removed in
@@ -189,3 +224,9 @@ Made in their own commits, before the implementation:
   resolves by adding only the `Conformance` step after `Build all packages`:
   its `setup-runtime` step already installs Node 22 from `mise.toml`.
 - No release-please entry for `packages/qualify`; qat-006 owns it.
+- The runtime dependencies are about 34 MB installed. Bundling `pdf-lib`,
+  `@pdf-lib/fontkit`, `ajv` and `yaml` into `dist/` would make a cold `npx`
+  far lighter, but the `bun` and `types` entry points serve `src/`, which
+  imports them by name. Choosing between the two is open.
+- `spec/qualify/evidence.schema.json` now allows `csharp` in `tool.language`;
+  the package's copy and `ToolInfo` follow it in their own commit.
