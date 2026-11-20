@@ -584,12 +584,12 @@ The test run itself keeps the native runner's exit code.
 file without the code or the JSON. Every package draws it with a library written
 in its own language, so no system libraries and no browser are needed:
 
-| Package    | Library                           | Licence    |
-| ---------- | --------------------------------- | ---------- |
-| TypeScript | `pdf-lib` with `@pdf-lib/fontkit` | MIT        |
-| Python     | `fpdf2`                           | LGPL-3.0   |
-| Java       | Apache PDFBox                     | Apache-2.0 |
-| C#         | PDFsharp 6                        | MIT        |
+| Package    | Library                                                           | Licence    |
+| ---------- | ----------------------------------------------------------------- | ---------- |
+| TypeScript | `pdf-lib` with `@pdf-lib/fontkit`                                 | MIT        |
+| Python     | `fpdf2`                                                           | LGPL-3.0   |
+| Java       | Apache PDFBox                                                     | Apache-2.0 |
+| C#         | PDFsharp 6.2.4 (the last MIT release; 6.5 and later are AGPL-3.0) | MIT        |
 
 How the report looks comes from a theme (section 9.3): logo, fonts, colours and
 texts. The layout below is fixed. The PDFs from different languages are not
@@ -687,7 +687,8 @@ In this order:
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
   `sha256:<run file digest>`, `Producer` the name and version of the package
-  that wrote the PDF, and `CreationDate` the generation time.
+  that wrote the PDF, (a PDF library may add its own name to `Producer`; then
+  `Creator` holds the package name and version alone), and `CreationDate` the generation time.
 - The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
   (an ISO 8601 UTC instant), so a report can be reproduced.
 - `report` reads only the run file, the theme and the optional protocol and map
