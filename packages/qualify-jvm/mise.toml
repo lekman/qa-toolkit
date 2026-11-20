@@ -1,0 +1,4 @@
+# Java for building and testing this package. Users of the library need any
+# Java 17 or later; nothing here is a runtime requirement for them.
+[tools]
+java = "temurin-17.0.21+9"

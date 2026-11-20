@@ -1,0 +1,4 @@
+# detekt for the Kotlin test sources, on top of detekt's default rules.
+# Matches the repository's Trunk configuration: no issue is allowed.
+build:
+  maxIssues: 0
