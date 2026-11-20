@@ -388,6 +388,15 @@ export class Layout {
     return ops;
   }
 
+  /**
+   * The order to draw a page in: fills first, then images, lines and text,
+   * so a row's fill never covers the hairline of the row above it.
+   */
+  static drawOrder(page: Page): Page {
+    const rank = { fill: 0, image: 1, line: 2, text: 3 } as const;
+    return [...page].sort((a, b) => rank[a.kind] - rank[b.kind]);
+  }
+
   /** Shorten text to a width, ending it with `…` when it had to be cut. */
   static fit(
     text: string,
@@ -477,15 +486,17 @@ export class Layout {
         );
         const before = block.level === 1 ? 0 : block.level === 2 ? 16 : 9;
         const after = block.level === 1 ? 18 : 4;
-        // Keep a heading with at least two lines of what follows, or with a
-        // whole field list that fits on a page.
-        const follow =
-          next?.kind === "fields"
-            ? Math.min(
-                Layout.fieldsHeight(cursor, next.fields),
-                cursor.top - cursor.bottom - 2 * lineHeight(size),
-              )
-            : 2 * lineHeight(SIZE.body) + 2 * PAD_Y;
+        // Keep a heading with the start of what follows: a whole field list,
+        // a table's header and first row, a list's first item, or the first
+        // three signature roles, as far as that fits on a page.
+        const follow = Math.min(
+          Layout.leadHeight(cursor, next),
+          cursor.top -
+            cursor.bottom -
+            before -
+            lines.length * lineHeight(size) -
+            after,
+        );
         const needed =
           before + lines.length * lineHeight(size) + after + follow;
         if (cursor.room < needed) cursor.newPage();
@@ -631,6 +642,40 @@ export class Layout {
     }, 0);
   }
 
+  /** The height of what a heading must keep with: the start of the next block. */
+  private static leadHeight(cursor: Cursor, next: Block | undefined): number {
+    const lh = lineHeight(SIZE.body);
+    switch (next?.kind) {
+      case "fields":
+        return Layout.fieldsHeight(cursor, next.fields);
+      case "table": {
+        const { header, wrapped } = Layout.tableCells(
+          cursor,
+          next.columns,
+          next.rows.slice(0, 1),
+        );
+        const height = (cells: string[][]): number =>
+          Math.max(1, ...cells.map((c) => c.length)) * lh + 2 * PAD_Y;
+        return height(header) + (wrapped[0] ? height(wrapped[0]) : 0);
+      }
+      case "list": {
+        const first = next.items[0] ?? "";
+        const lines = Layout.wrap(
+          clean(cursor.metrics, first, "body"),
+          cursor.width - 12,
+          SIZE.body,
+          "body",
+          cursor.metrics,
+        );
+        return lines.length * lh;
+      }
+      case "signatures":
+        return Layout.signatureHeight() * Math.min(next.roles.length, 3);
+      default:
+        return 2 * lh + 2 * PAD_Y;
+    }
+  }
+
   /** Draw one table row, filled or not, splitting it only when it is taller than a page. */
   private static row(
     cursor: Cursor,
@@ -694,9 +739,14 @@ export class Layout {
     }
   }
 
+  /** The height one signature role takes. */
+  private static signatureHeight(): number {
+    return lineHeight(SIZE.h3) + 3 * (lineHeight(SIZE.body) + 14) + 12;
+  }
+
   private static signatures(cursor: Cursor, roles: readonly string[]): void {
     const lh = lineHeight(SIZE.body);
-    const perRole = lineHeight(SIZE.h3) + 3 * (lh + 14) + 12;
+    const perRole = Layout.signatureHeight();
     if (cursor.room < perRole * Math.min(roles.length, 3)) cursor.newPage();
     for (const role of roles) {
       if (cursor.room < perRole) cursor.newPage();
@@ -731,27 +781,10 @@ export class Layout {
     columns: readonly Column[],
     rows: readonly string[][],
   ): void {
-    const { metrics } = cursor;
-    const widths = columns.map((c) => c.width * cursor.width);
-    const fonts: FontSlot[] = columns.map((c) =>
-      c.mono === true ? "mono" : "body",
-    );
-    const wrap = (
-      cells: readonly string[],
-      font: (column: number) => FontSlot,
-    ): string[][] =>
-      cells.map((cell, column) =>
-        Layout.wrap(
-          clean(metrics, cell, font(column)),
-          (widths[column] as number) - 2 * PAD_X,
-          sizeOf(font(column)),
-          font(column),
-          metrics,
-        ),
-      );
-    const header = wrap(
-      columns.map((c) => c.header),
-      () => "bodyBold",
+    const { widths, fonts, header, wrapped } = Layout.tableCells(
+      cursor,
+      columns,
+      rows,
     );
     const headerStyles = columns.map((): CellStyle => ({
       font: "bodyBold",
@@ -774,9 +807,6 @@ export class Layout {
       Math.max(1, ...cells.map((c) => c.length)) * lineHeight(SIZE.body) +
       2 * PAD_Y;
 
-    const wrapped = rows.map((row) =>
-      wrap(row, (column) => fonts[column] as FontSlot),
-    );
     const first = wrapped[0];
     // Keep the header with the first row.
     if (cursor.room < heightOf(header) + (first ? heightOf(first) : 0))
@@ -792,5 +822,47 @@ export class Layout {
         drawHeader,
       );
     });
+  }
+
+  /** A table's column widths and fonts, and its header and rows wrapped to them. */
+  private static tableCells(
+    cursor: Cursor,
+    columns: readonly Column[],
+    rows: readonly string[][],
+  ): {
+    fonts: FontSlot[];
+    header: string[][];
+    widths: number[];
+    wrapped: string[][][];
+  } {
+    const { metrics } = cursor;
+    const widths = columns.map((c) => c.width * cursor.width);
+    const fonts: FontSlot[] = columns.map((c) =>
+      c.mono === true ? "mono" : "body",
+    );
+    const wrap = (
+      cells: readonly string[],
+      font: (column: number) => FontSlot,
+    ): string[][] =>
+      cells.map((cell, column) =>
+        Layout.wrap(
+          clean(metrics, cell, font(column)),
+          (widths[column] as number) - 2 * PAD_X,
+          sizeOf(font(column)),
+          font(column),
+          metrics,
+        ),
+      );
+    return {
+      widths,
+      fonts,
+      header: wrap(
+        columns.map((c) => c.header),
+        () => "bodyBold",
+      ),
+      wrapped: rows.map((row) =>
+        wrap(row, (column) => fonts[column] as FontSlot),
+      ),
+    };
   }
 }

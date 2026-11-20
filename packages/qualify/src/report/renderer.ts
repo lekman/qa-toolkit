@@ -114,7 +114,7 @@ export class PdfRenderer {
           ),
         ];
       }
-      for (const op of all) {
+      for (const op of Layout.drawOrder(all)) {
         switch (op.kind) {
           case "text":
             page.drawText(op.text, {

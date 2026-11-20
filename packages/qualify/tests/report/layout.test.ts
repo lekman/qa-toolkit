@@ -193,6 +193,78 @@ describe("Layout.paginate", () => {
   });
 });
 
+describe("Layout.drawOrder and keep-with-next", () => {
+  test("fills come first, so a stripe never covers the hairline above it", () => {
+    const rows = Array.from({ length: 4 }, (_, i) => [`r${i}`]);
+    const [page] = Layout.paginate(
+      [{ kind: "table", columns: [{ header: "H", width: 1 }], rows }],
+      metrics,
+      A4,
+    );
+    const raw = page as Page;
+    // Laid out row by row, a stripe's fill follows the line of the row above.
+    const firstStripe = raw.findIndex(
+      (op) => op.kind === "fill" && op.colour === "tableStripe",
+    );
+    expect(raw.slice(0, firstStripe).some((op) => op.kind === "line")).toBe(
+      true,
+    );
+    const ordered = Layout.drawOrder(raw);
+    const kinds = ordered.map((op) => op.kind);
+    expect(kinds.lastIndexOf("fill")).toBeLessThan(kinds.indexOf("line"));
+    expect(kinds.lastIndexOf("line")).toBeLessThan(kinds.indexOf("text"));
+    expect(ordered).toHaveLength(raw.length);
+  });
+
+  const filler = (lines: number) => ({
+    kind: "paragraph" as const,
+    text: Array.from({ length: lines }, (_, i) => `f${i}`).join("\n"),
+  });
+
+  test("a heading stays with the first three signature roles", () => {
+    const pages = Layout.paginate(
+      [
+        filler(30),
+        { kind: "heading", level: 2, text: "Signatures" },
+        { kind: "signatures", roles: ["A", "B", "C"] },
+      ],
+      metrics,
+      A4,
+    );
+    expect(pages).toHaveLength(2);
+    expect(texts(pages[1] as Page).slice(0, 2)).toEqual(["Signatures", "A"]);
+  });
+
+  test("a heading stays with a table's header and first row", () => {
+    const tall = Array.from({ length: 5 }, (_, i) => `l${i}`).join("\n");
+    const pages = Layout.paginate(
+      [
+        filler(49),
+        { kind: "heading", level: 3, text: "Checks" },
+        { kind: "table", columns: [{ header: "H", width: 1 }], rows: [[tall]] },
+      ],
+      metrics,
+      A4,
+    );
+    expect(pages).toHaveLength(2);
+    expect(texts(pages[1] as Page).slice(0, 3)).toEqual(["Checks", "H", "l0"]);
+  });
+
+  test("a heading stays with a list's first item", () => {
+    const long = Array.from({ length: 6 }, (_, i) => `item${i}`).join("\n");
+    const pages = Layout.paginate(
+      [
+        filler(51),
+        { kind: "heading", level: 3, text: "Not run" },
+        { kind: "list", items: [long] },
+      ],
+      metrics,
+      A4,
+    );
+    expect(texts(pages.at(-1) as Page)[0]).toBe("Not run");
+  });
+});
+
 describe("Layout.cover", () => {
   const fields: Field[] = [
     { label: "Document ID", value: "DOC-1" },
