@@ -1,6 +1,6 @@
 # qat-007: qualify, C#
 
-> **Status:** Dispatched | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-007
+> **Status:** Consumed | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-007
 
 ## Context
 
@@ -100,4 +100,61 @@ qat-004 and qat-005. No .NET version of this framework existed before.
 
 ## Outcome
 
-_Empty at dispatch._
+2026-11-20, implementation session, branch `feat/qualify-dotnet`, stacked on
+`origin/feat/qualify-typescript` (454c8de). Committed locally; not pushed, no
+pull request yet.
+
+**Built.** `packages/qualify-dotnet/` with `Lekman.Qualify` (net11.0 and
+net10.0), the `Lekman.Qualify.Tool` .NET tool (`qualify`), unit tests, the
+scenario classes, a filter sample, the conformance harness and a
+development-only page renderer. The SDK is pinned in the package's
+`mise.toml` (11.0.100, plus 10.0.404 for the .NET 10 runtime that runs the
+net10.0 tests) and `global.json` (11.0.100, `latestFeature`, and the
+Microsoft Testing Platform for `dotnet test`).
+
+**How the extension works.** The attributes derive from `FactAttribute` and
+name `QualifyDiscoverer`, which validates the declaration (a declaration error
+becomes an `ExecutionErrorTestCase` that fails with every problem and writes
+nothing) and returns a `QualifyTestCase`. That test case implements
+`ISelfExecutingXunitTestCase` and runs through qualify's own test case runner
+and test runner, whose context overrides `InvokeTestMethod`: marker, policy,
+`QualifyContext.Current`, the body, the outcome, the redacted record. A skip
+is an exception whose message starts with xUnit's dynamic skip token.
+
+**Evidence.** All 22 scenarios pass through the real runner in child
+processes, byte for byte against the expected files, including 16 with
+`--parallel collections --max-threads 2` (two threads logged) and 18 with
+`Environment.FailFast`. Scenarios 12, 19 and 20 run the TypeScript CLI for
+`trace`. Scenarios 21 and 22 extract text with PdfPig. `dotnet test` filters by
+level, tag and ID are proven against a sample project. Unit tests: 130 per
+target framework (one skips on purpose), line coverage 97.3% and branch 90.1%
+of `Lekman.Qualify` (coverlet.MTP, Cobertura, threshold line 80). `bun run conformance` at the
+root still passes.
+
+**Deviations and findings.**
+
+- The branch was rebased onto `origin/feat/qualify-typescript` at 454c8de,
+  and the two layout fixes there (fills drawn before lines and text; a
+  heading kept with the start of the next block) are ported, with tests.
+- No specification change was needed. The display-name filter
+  (`--filter-display-name "[OQ-EXPORT-003]*"`) selects by ID as section 2.5
+  says.
+- PDFsharp 6.2.4 and JsonSchema.Net 8.0.5 are pinned because they are the last
+  MIT releases: PDFsharp 6.5.0 is AGPL-3.0-only and JsonSchema.Net 9.x uses a
+  maintenance-fee EULA. `System.Security.Cryptography.Pkcs` 10.0.15 lifts
+  PDFsharp's 8.0.1 dependency past its advisories. YamlDotNet (MIT) reads the
+  protocol and map files.
+- PDFsharp writes its own name into `Producer`
+  (`PDFsharp 6.2.4 (Original: Lekman.Qualify 0.1.0)`); `Creator` holds
+  `Lekman.Qualify 0.1.0`. Section 9.2 asks for the package's name and version
+  only. Not covered by a scenario.
+- `dotnet test` runs a test executable in its output folder, so the default
+  evidence directory lands under `bin/`. The README tells users to set
+  `QUALIFY_EVIDENCE_DIR`.
+- The scenario classes live in
+  `packages/qualify-dotnet/conformance/Lekman.Qualify.Conformance/`, not
+  directly in `conformance/` as the conformance README's example path shows.
+- The quality gate config the dispatch mentioned is not on this base: it is in
+  pull request 9 (`ci/align-devops-actions`). The `dotnet` job is in `ci.yml`;
+  adding `"dotnet"` to that gate's `required` list is left for when the two
+  branches meet.
