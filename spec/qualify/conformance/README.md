@@ -295,9 +295,15 @@ in another source.
     `Run details` with the run ID `01HQA1ZQJ0C0NF0RMANCE00000` and the
     generation time `2026-01-02 03:04:05 UTC`;
   - the trace rows, `OQ-CONF-099` listed as not run, each test heading in ID
-    order, `fixture: second fails`, `fixture not seeded`, the three signature
-    roles, and the footer `CONF-RPT-001 Page 2 of`.
-- Expect: the cover page has no header and no footer text.
+    order, `fixture: second fails`, `fixture not seeded`, and the three
+    signature roles.
+- Expect: page 2 holds the footer `CONF-RPT-001 Page 2 of`. It is checked on
+  page 2 and is not in the outline: the footer is the last line of page 2, and
+  how much content page 2 holds differs between languages, so its place in the
+  order differs too.
+- Expect: the cover page has no header and no footer text. A header that equals
+  the title, as in the `plain` theme, cannot be told from the cover title by
+  text, so the cover may hold that line once and no more.
 - Expect: PDF metadata `Title` `Conformance report`, `Subject`
   `01HQA1ZQJ0C0NF0RMANCE00000`, and `Keywords` containing `sha256:` followed by
   the run file's digest.
@@ -306,10 +312,11 @@ in another source.
 ### 22. `report-theme`
 
 - Use the run file from scenario 21.
-- Run A: `--theme plain`. Expect: every line of
+- Run A: scenario 21's flags plus `--theme plain`. Expect: every line of
   `expected/report-plain.outline.txt` in order. That outline has the title and
-  subtitle but no `lekman.com`, no `Classification` row, and a `Commit`
-  row with `-` when the source commit is null; exit 0.
+  subtitle but no `lekman.com`, no `Classification` row, and the `Commit` row's
+  label: its value is the first 12 characters of the commit, or `-` when the
+  source commit is null, and the conformance run has a commit; exit 0.
 - Run B: `--theme fixtures/bad-theme/theme.json`, a copy of the `plain` theme
   whose `texts.footer` holds the unknown token `{nope}`. Expect: exit 2, an
   error naming `{nope}`, and no PDF written.

@@ -646,8 +646,9 @@ In this order:
    and `soft` when set; attachments by file name, content type, size and
    SHA-256 (the content itself is not rendered); and the names in
    `secretsUsed`.
-5. **Signature block,** when the theme or `--signatures` names any roles. One
-   row per role, each with blank lines for name, signature and date.
+5. **Signature block,** when the theme or `--signatures` names any roles,
+   under the level 2 heading `Signatures`. One row per role, each with blank
+   lines for name, signature and date.
 
 ### 9.2 Rendering Rules
 
@@ -660,6 +661,7 @@ In this order:
 - **Footer,** every page after the cover: a hairline in the `rule` colour, then
   the `footer` text, right-aligned, in the body font at 8.5 pt in the `muted`
   colour. Pages are counted from the cover, so the first footer says page 2.
+  A header or footer text too long for its space is cut and ends with `…`.
 - **Headings:** the level 1 heading in the heading font at 20 pt in the
   `title` colour, with a rule in the `accent` colour across the text width
   below it; level 2 headings (`Run details`, `Summary`, `Traceability`, the
@@ -708,19 +710,23 @@ violation, a missing file, an unknown token) is an input error: exit 2, no PDF.
 The `texts` are templates. They may use these tokens, and nothing else in
 braces; `{{` and `}}` print a literal brace:
 
-| Token               | Value                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| `{title}`           | the resolved title                                                                                       |
-| `{documentId}`      | the resolved document ID                                                                                 |
-| `{classification}`  | the resolved classification                                                                              |
-| `{environment}`     | `run.environment`                                                                                        |
-| `{levels}`          | the levels present in the run, in the order IQ, OQ, PQ, IU, joined as `IQ`, `IQ and OQ`, `IQ, OQ and PQ` |
-| `{date}`            | the generation date, `YYYY-MM-DD`                                                                        |
-| `{version}`         | `run.target.version`, or `-`                                                                             |
-| `{verdict}`         | `Passed`, `Failed` or `Incomplete`                                                                       |
-| `{runId}`           | `run.id`                                                                                                 |
-| `{sha12}`           | the first 12 characters of the run file's SHA-256                                                        |
-| `{page}`, `{pages}` | the page number and the page count (header and footer only)                                              |
+| Token               | Value                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `{title}`           | the resolved title                                                                                                                    |
+| `{documentId}`      | the resolved document ID                                                                                                              |
+| `{classification}`  | the resolved classification                                                                                                           |
+| `{environment}`     | `run.environment`                                                                                                                     |
+| `{levels}`          | the levels present in the run, in the order IQ, OQ, PQ, IU, joined as `IQ`, `IQ and OQ`, `IQ, OQ and PQ`; `-` for a run with no tests |
+| `{date}`            | the generation date, `YYYY-MM-DD`                                                                                                     |
+| `{version}`         | `run.target.version`, or `-`                                                                                                          |
+| `{verdict}`         | `Passed`, `Failed` or `Incomplete`                                                                                                    |
+| `{runId}`           | `run.id`                                                                                                                              |
+| `{sha12}`           | the first 12 characters of the run file's SHA-256                                                                                     |
+| `{page}`, `{pages}` | the page number and the page count (header and footer only)                                                                           |
+
+`texts.title` and `texts.classification` are resolved first, so they may not
+use `{title}` or `{classification}`; the other texts may. Using a token where it
+is not allowed is the same error as an unknown token.
 
 Flags override the theme for one report: `--title`, `--subtitle`,
 `--document-id`, `--classification`, `--signatures` (roles separated by `;`) and
