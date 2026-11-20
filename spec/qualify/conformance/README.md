@@ -141,7 +141,8 @@ scope:  read            (OQ and PQ only)
   - `check("api", "token " + t + " is used").that("Bearer " + t).contains(t)`
   - `attach("request.json", {"url": "/x", "token": t, "note": "x " + t}, "application/json")`
   - `attach("raw.bin", <bytes 0x00 0xFF + utf8(t) + 0x00>, "application/octet-stream")`
-  - then throw a plain runtime error with message `failed with ` + `t`
+  - then throw a plain runtime error whose message is the text `failed with`,
+    a space, and `t`
 - Expect: no occurrence of `s3cr3t-value-123` anywhere in any file in the
   evidence directory, including markers; `secretsUsed` `["CONFORMANCE_TOKEN"]`;
   the JSON attachment decodes to `{"note": "x [REDACTED]", "token": "[REDACTED]", "url": "/x"}`;
@@ -156,8 +157,12 @@ in another source.
 - `OQ-CONF-012`: one check whose `actual` is a string holding, separated by
   spaces: a PEM block
   `-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----`,
-  a JWT shape `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl`, and
-  `AKIAABCDEFGHIJKLMNOP`; matcher `isNotNull`.
+  a JWT shape `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl`, and an
+  access-key-ID shape made of `AKIA` followed by `ABCDEFGHIJKLMNOP`; matcher
+  `isNotNull`.
+- Build each of the three values at runtime by joining two parts, for example
+  `"AK" + "IA" + "ABCDEFGHIJKLMNOP"`. Written whole, they look like real secrets
+  to secret scanners such as gitleaks, which then fail CI on the test source.
 - Expect: `actual` is `"[REDACTED] [REDACTED] [REDACTED]"`; outcome `pass`.
 
 ### 12. `several-requirements`
