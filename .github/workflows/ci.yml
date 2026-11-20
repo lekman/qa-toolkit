@@ -429,6 +429,23 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/check-no-client-content.sh --messages "$BASE_SHA..$HEAD_SHA" --quiet
 
+      # A squash merge writes a new message on main, and a direct push skips
+      # the pull request scan, so a push scans the commits it added too.
+      - name: Scan the pushed commit messages
+        if: steps.terms.outputs.present == 'true' && github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # A push that creates the branch has no earlier commit, so scan all
+          # of its history.
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            bash scripts/check-no-client-content.sh --messages "$AFTER_SHA" --quiet
+          else
+            bash scripts/check-no-client-content.sh --messages "$BEFORE_SHA..$AFTER_SHA" --quiet
+          fi
+
   # ── Quality gate (single consolidated writer for the PR comment) ────────
   quality-gate:
     name: Quality Gate
