@@ -1,0 +1,4 @@
+[*.cs]
+# Tests pass literal arrays once per test case. CA1861 asks to cache constant
+# arrays for code that runs repeatedly, which a test is not.
+dotnet_diagnostic.CA1861.severity = none

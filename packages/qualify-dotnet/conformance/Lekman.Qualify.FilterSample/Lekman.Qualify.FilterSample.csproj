@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Qualification tests of every level with tags, for the harness to prove
+       that `dotnet test` filters select by level, by tag and by ID. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <RootNamespace>Lekman.Qualify.FilterSample</RootNamespace>
+    <!-- Test classes are public because xUnit requires it; they are not an API. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../src/Lekman.Qualify/Lekman.Qualify.csproj" />
+  </ItemGroup>
+</Project>

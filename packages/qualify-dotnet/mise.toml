@@ -1,0 +1,8 @@
+# The .NET SDK that builds this package, pinned for this folder only.
+#
+#   mise trust && mise install
+#
+# 11.0.100 builds the package. 10.0.404 is here for its .NET 10 runtime, which
+# runs the net10.0 build of the tests. global.json picks the 11 SDK.
+[tools]
+dotnet = ["11.0.100", "10.0.404"]

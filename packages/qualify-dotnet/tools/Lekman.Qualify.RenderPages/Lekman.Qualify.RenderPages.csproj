@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Development only, never packed: renders report pages to PNG so a person
+       can look at them, and for the README images. PDFtoImage (MIT) draws
+       with PDFium (Apache-2.0) and SkiaSharp (MIT). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Lekman.Qualify.RenderPages</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PDFtoImage" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,22 @@
+<Project>
+  <!-- Central package versions. Licences are listed in README.md. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The library -->
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
+    <!-- 8.0.5 is the last MIT release; 9.x ships under a maintenance-fee EULA. -->
+    <PackageVersion Include="JsonSchema.Net" Version="8.0.5" />
+    <!-- 6.2.4 is the last MIT release; 6.5.0 ships under AGPL-3.0-only. -->
+    <PackageVersion Include="PDFsharp" Version="6.2.4" />
+    <!-- PDFsharp 6.2.4 asks for 8.0.1, which has known advisories; this lifts it. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+    <PackageVersion Include="YamlDotNet" Version="18.1.0" />
+    <!-- Tests -->
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="coverlet.MTP" Version="10.1.1" />
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+    <PackageVersion Include="PDFtoImage" Version="5.4.0" />
+  </ItemGroup>
+</Project>

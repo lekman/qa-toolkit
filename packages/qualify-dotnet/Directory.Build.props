@@ -1,0 +1,29 @@
+<Project>
+  <!-- Shared by every project in this folder: one version, one language level,
+       nullable reference types on, and warnings as errors. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Needed in every project so IDE0005 (unused usings) runs in the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <Authors>Tobias Lekman</Authors>
+    <Copyright>Copyright (c) Tobias Lekman</Copyright>
+    <RepositoryUrl>https://github.com/lekman/qa-toolkit</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-dotnet</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- CI builds map source paths to /_/, so sites and stack traces do not
+       carry the runner's checkout folder. -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>
