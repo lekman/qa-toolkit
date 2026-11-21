@@ -192,22 +192,47 @@ specific to it.
 
 ### Releasing
 
-Releases are cut by release-please and published by CI, with no npm token
-anywhere:
+Releases are cut by release-please and published by CI from
+[cd.yml](../.github/workflows/cd.yml). Each package has its own version and
+its own tag (`qualify@v0.2.0`, `qualify-python@v0.2.0`, and so on), set in
+[release-config.json](../.github/release-config.json) and
+[release-manifest.json](../.github/release-manifest.json).
 
 1. A `feat` or `fix` commit lands on `main`. `cd.yml` runs release-please,
-   which opens or updates the release pull request with the version bump and
-   changelog.
-2. Merging that pull request creates the tag and the GitHub release. The same
-   workflow run then publishes every released package with npm
-   [trusted publishing](https://docs.npmjs.com/trusted-publishers/): the job's
-   OIDC token proves it is `cd.yml` in this repository, which is the publisher
-   configured on the package at npmjs.com, and npm attaches provenance on its
-   own.
+   which opens or updates the release pull request with the version bumps and
+   changelogs.
+2. Merging that pull request creates the tags and the GitHub releases. The
+   same workflow run then publishes each released package to its registry:
 
-The trusted publisher is bound to the workflow filename. Renaming `cd.yml`
-stops publishing until the connection is deleted and recreated on npmjs.com.
+| Package                   | Registry      | Version lives in               | Credential                               |
+| ------------------------- | ------------- | ------------------------------ | ---------------------------------------- |
+| `packages/data-sampler`   | npm           | `package.json`                 | npm trusted publishing (OIDC), no token  |
+| `packages/qualify`        | npm           | `package.json`                 | npm trusted publishing (OIDC), no token  |
+| `packages/qualify-python` | PyPI          | `pyproject.toml` and `uv.lock` | PyPI trusted publishing (OIDC), no token |
+| `packages/qualify-jvm`    | Maven Central | `gradle.properties`            | Central Portal user token and a GPG key  |
+| `packages/qualify-dotnet` | nuget.org     | `Directory.Build.props`        | nuget.org trusted publishing (OIDC)      |
 
-`scripts/release.ts` remains for a publish from a maintainer's machine with
-browser-based `npm login`, for example to recover a tag that was created but
-never published. A laptop cannot produce provenance, so prefer the CI path.
+release-please changes every version file in the table, so never edit a
+version by hand. In `gradle.properties` and `Directory.Build.props` it changes
+only the line next to its `x-release-please` marker.
+
+The npm, PyPI and nuget.org trusted publishers are bound to the workflow file
+name. Renaming `cd.yml` stops publishing until each connection is deleted and
+recreated on the registry. PyPI and nuget.org are also bound to the GitHub
+environment of their job (`pypi`, `nuget`); Maven Central's secrets live on the
+`maven-central` environment.
+
+To check a package before a release, without publishing:
+
+```bash
+cd packages/qualify && npm publish --dry-run
+cd packages/qualify-python && uv build && uvx twine check --strict dist/*
+cd packages/qualify-jvm && ./gradlew publishToMavenLocal   # unsigned without a key
+cd packages/qualify-dotnet && dotnet pack src/Lekman.Qualify -c Release -o artifacts
+```
+
+`scripts/release.ts` remains for an npm publish from a maintainer's machine
+with browser-based `npm login`, for example to recover a tag that was created
+but never published, or to publish the first version of a new npm package
+(npm only accepts a trusted publisher for a package that already exists). A
+laptop cannot produce provenance, so prefer the CI path.
