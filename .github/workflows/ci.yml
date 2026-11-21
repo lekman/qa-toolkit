@@ -1,15 +1,43 @@
-# Thin native CI: lint, typecheck, test, build across the Bun workspace,
-# plus trunk hold-the-line on pull requests.
+# Continuous Integration.
 #
-# Deliberately self-contained — no reusable-workflow dependency. Once
-# lekman/devops-toolkit is generalised (org-neutral, hosted-runner
-# compatible, public), this file collapses to a single `uses:` call.
+# Mirrors the CI jobs of lekman/devops-toolkit that apply to this repository.
+# That workflow is private, and a public repository cannot call a private
+# repository's reusable workflow. So this file repeats its jobs here and calls
+# the same composite actions from the public lekman/devops-actions repository.
+# Every composite is pinned to a full-length commit SHA, and a public
+# repository needs no token to use them.
+#
+# Jobs:
+#   detect          which tools and languages the repository declares
+#   quality         lint, typecheck, test and build across the Bun workspace,
+#                   plus Python checks when a pyproject.toml exists (none yet)
+#   security        Semgrep SAST and, when present on the runner, Gitleaks
+#   trunk-check     Trunk linters on the pull request diff
+#   audit           dependency advisories, Python only (skips until there is
+#                   Python)
+#   leak-guard      the client-name guard, as a backstop to the local hooks
+#   quality-gate    one verdict and one pull request comment for all of them
+#
+# The leak guard reads its term list from the CLIENT_TERMS repository secret.
+# The secret holds the same newline-separated regex list as the gitignored
+# scripts/client-terms.txt. The owner sets it with:
+#
+#   gh secret set CLIENT_TERMS -R lekman/qa-toolkit < scripts/client-terms.txt
+#
+# Logs of a public repository are public, so the guard runs with --quiet. It
+# reports file paths and commit SHAs, never a term or the line that matched.
+#
+# Left out of the devops-toolkit original: infrastructure preview and apply,
+# Function publish, and container deliver, deploy and verify, because this
+# repository has none of those to build. The post-merge branch update is left
+# out too, because it needs a GitHub App token.
 
 name: Continuous Integration
 
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
@@ -17,31 +45,184 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Lint, typecheck, test, build
+  # ── Quality gate placeholder (posts early "IN PROGRESS" PR comment) ─────
+  quality-gate-start:
+    name: Quality Gate (start)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 2
+    # Skip the "IN PROGRESS" comment on bot-authored pull requests
+    # (release-please and Dependabot). The comment is noise there.
+    if: >-
+      github.event_name == 'pull_request'
+      && !startsWith(github.head_ref, 'release-please--')
+      && !startsWith(github.head_ref, 'dependabot/')
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: lekman/devops-actions/.github/actions/quality-gate@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          mode: start
+          results: >-
+            {
+              "required": ["quality", "security", "leak-guard"],
+              "conditional": ["trunk-check", "audit"],
+              "groups": { "Security Gate": ["security", "audit", "leak-guard"] },
+              "results": {}
+            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.pull_request.number }}
+          timezone: Europe/Stockholm
+
+  # ── Branch freshness check ───────────────────────────────────────────────
+  branch-check:
+    name: "Check: Branch Status"
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # Bot-authored branches (release-please, Dependabot) are regenerated
+    # from current main, so they cannot be stale.
+    if: >-
+      github.event_name == 'pull_request'
+      && !startsWith(github.head_ref, 'release-please--')
+      && !startsWith(github.head_ref, 'dependabot/')
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # A pull request from a fork gets a read-only token, so the comment and
+      # the branch update can fail there. Both report a warning instead of
+      # failing the job.
+      - name: Check branch status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+
+          # Check for merge conflicts
+          if ! git merge-tree "$(git merge-base HEAD "origin/$BASE_REF")" HEAD "origin/$BASE_REF" > /dev/null 2>&1; then
+            echo "::warning::PR #$PR_NUMBER has merge conflicts with $BASE_REF"
+            body="⚠️ **Merge conflict detected.** This pull request has conflicts with \`$BASE_REF\`. Rebase it, or merge \`$BASE_REF\` into the branch."
+            gh pr comment "$PR_NUMBER" --body "$body" --edit-last 2>/dev/null \
+              || gh pr comment "$PR_NUMBER" --body "$body" \
+              || echo "::warning::Could not comment on PR #$PR_NUMBER"
+            exit 0
+          fi
+
+          # Check if behind base (no conflicts but not up to date)
+          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_REF")
+          if [ "$BEHIND" -gt 0 ]; then
+            echo "::notice::PR #$PR_NUMBER is $BEHIND commit(s) behind $BASE_REF, updating the branch"
+            gh pr update-branch "$PR_NUMBER" || echo "::warning::Could not update branch"
+            # The update triggers new CI, so this run's results will be stale
+            gh run cancel "$GITHUB_RUN_ID" 2>/dev/null || true
+          else
+            echo "Branch is up to date with $BASE_REF"
+          fi
+
+  # ── Pre-flight: detect which tools are configured ────────────────────────
+  detect:
+    name: "Detect: Configuration and Changes"
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read # dorny/paths-filter needs this to read PR diff
+    outputs:
+      has-trunk: ${{ steps.check.outputs.has-trunk }}
+      has-package-json: ${{ steps.check.outputs.has-package-json }}
+      has-toolchain: ${{ steps.check.outputs.has-toolchain }}
+      languages: ${{ steps.language.outputs.languages }}
+      has-python: ${{ steps.language.outputs.has-python }}
+      python-pm: ${{ steps.language.outputs.python-pm }}
+      python-version: ${{ steps.language.outputs.python-version }}
+      python-has-test: ${{ steps.language.outputs.python-has-test }}
+      python-has-typecheck: ${{ steps.language.outputs.python-has-typecheck }}
+      python-lint-tools: ${{ steps.language.outputs.python-lint-tools }}
+      service-changed: ${{ steps.changes.outputs.service }}
+      package-changed: ${{ steps.changes.outputs.package }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: 1.3.14
+      - name: Check tool configuration
+        id: check
+        shell: bash
+        run: |
+          check() { [ -f "$1" ] && echo "true" || echo "false"; }
+          echo "has-trunk=$(check .trunk/trunk.yaml)" >> "$GITHUB_OUTPUT"
+          echo "has-package-json=$(check package.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Install (frozen lockfile)
+          # Whether the repository pins its own toolchain in a file the
+          # setup-runtime action reads. Same list as that action, so the
+          # quality job only calls it when it has something to install.
+          has_toolchain=false
+          for f in mise.toml .mise.toml mise/config.toml .tool-versions .node-version; do
+            if [ -f "$f" ]; then has_toolchain=true; fi
+          done
+          if [ -f package.json ] && grep -q '"packageManager"' package.json; then
+            has_toolchain=true
+          fi
+          echo "has-toolchain=$has_toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Detect languages
+        id: language
+        uses: lekman/devops-actions/.github/actions/detect-language@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+
+      # On a pull request the filter compares against the base branch; on a
+      # push it compares against the commit before the push. Uses the
+      # action's default filters.
+      - name: Detect file changes
+        uses: lekman/devops-actions/.github/actions/change-detection@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        id: changes
+
+  # ── Quality: build, lint, typecheck, test ────────────────────────────────
+  # Runs on push as well as pull_request. quality-gate requires this job and
+  # runs with `if: always()`, so a skip here would read as a failure on every
+  # push to main.
+  quality:
+    name: "QA: Build, Lint, Typecheck, Test"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [detect]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node and Bun come from mise.toml, so CI runs the versions the
+      # repository pins for itself. mise.toml also lists trunk, which only
+      # the trunk-check job uses, and that job brings its own.
+      - name: Setup Node toolchain
+        if: needs.detect.outputs.has-package-json == 'true' && needs.detect.outputs.has-toolchain == 'true'
+        uses: lekman/devops-actions/.github/actions/setup-runtime@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          install-args: node bun
+
+      - name: Install dependencies (frozen lockfile)
+        if: needs.detect.outputs.has-package-json == 'true'
         run: bun install --frozen-lockfile
 
       - name: ESLint
+        if: needs.detect.outputs.has-package-json == 'true'
         run: bun run lint
 
       - name: Typecheck all packages
+        if: needs.detect.outputs.has-package-json == 'true'
         run: bun run typecheck
 
       - name: Test all packages
+        if: needs.detect.outputs.has-package-json == 'true'
+        shell: bash
         run: |
           for pkg in packages/*/package.json; do
             dir=$(dirname "$pkg")
@@ -52,12 +233,15 @@ jobs:
           done
 
       - name: Build all packages
+        if: needs.detect.outputs.has-package-json == 'true'
         run: bun run build
 
       # The node:test conformance files are TypeScript that Node loads
       # directly, which needs Node 22.18 or later. Node 22 is what
       # mise.toml pins for development.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Node for conformance
+        if: needs.detect.outputs.has-package-json == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
 
@@ -65,26 +249,253 @@ jobs:
       # shared scenarios through vitest, node:test and bun, diffed against
       # spec/qualify/conformance/expected/. Any difference fails the job.
       - name: Conformance
+        if: needs.detect.outputs.has-package-json == 'true'
         run: bun run conformance
 
-  trunk:
-    name: Trunk hold-the-line
+      # ── Python path ───────────────────────────────────────────────────
+      # Skipped until the repository has a pyproject.toml or setup.py.
+      # `!cancelled()` lets a polyglot repository report both languages from
+      # one run: a failing Node step does not hide the Python findings. Each
+      # step still needs the one before it, since there is nothing to install
+      # without an interpreter and nothing to lint without dependencies.
+      - name: Setup Python toolchain
+        id: py-setup
+        if: ${{ !cancelled() && needs.detect.outputs.has-python == 'true' }}
+        uses: lekman/devops-actions/.github/actions/setup-runtime@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          python-version: ${{ needs.detect.outputs.python-version }}
+
+      - name: Install Python dependencies
+        id: py-deps
+        if: ${{ !cancelled() && steps.py-setup.outcome == 'success' }}
+        uses: lekman/devops-actions/.github/actions/python-deps@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          package-manager: ${{ needs.detect.outputs.python-pm }}
+          # The audit job installs pip-audit for itself.
+          install-pip-audit: "false"
+
+      - name: Python lint + typecheck + test
+        if: ${{ !cancelled() && steps.py-deps.outcome == 'success' }}
+        uses: lekman/devops-actions/.github/actions/python-quality@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          package-manager: ${{ needs.detect.outputs.python-pm }}
+          lint-tools: ${{ needs.detect.outputs.python-lint-tools }}
+          run-typecheck: ${{ needs.detect.outputs.python-has-typecheck }}
+          run-test: ${{ needs.detect.outputs.python-has-test }}
+          findings-dir: ${{ runner.temp }}/findings-raw
+
+  # ── Security: Semgrep SAST ──────────────────────────────────────────────
+  # Runs on push as well as pull_request, for the same reason as quality.
+  security:
+    name: "Security: SAST"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'pull_request'
+    needs: [detect]
     permissions:
-      checks: write # composite posts inline annotations via the Checks API
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: lekman/devops-actions/.github/actions/security@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          semgrep-json-output: ${{ runner.temp }}/semgrep-results.json
+          gitleaks-json-output: ${{ runner.temp }}/gitleaks-results.json
+          languages: ${{ needs.detect.outputs.languages }}
+      - name: Generate security findings
+        if: always()
+        uses: lekman/devops-actions/.github/actions/findings-security@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          semgrep-json-path: ${{ runner.temp }}/semgrep-results.json
+          gitleaks-json-path: ${{ runner.temp }}/gitleaks-results.json
+          out-path: ${{ runner.temp }}/findings/security.md
+      - name: Upload security findings artifact
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: findings-security
+          path: ${{ runner.temp }}/findings/security.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Trunk: linters (conditional) ────────────────────────────────────────
+  # Pull requests only, and skipped on bot-authored pull requests
+  # (release-please, Dependabot), which carry no source changes for the
+  # linters to judge. 20 minutes, because a cold run downloads every linter.
+  trunk-check:
+    name: "QA: Lint + Format + SAST"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [detect]
+    if: >-
+      needs.detect.outputs.has-trunk == 'true'
+      && github.event_name == 'pull_request'
+      && !startsWith(github.head_ref, 'release-please--')
+      && !startsWith(github.head_ref, 'dependabot/')
+    permissions:
+      contents: read
+      checks: write # inline annotations through the Checks API
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # trunk diffs against the pull request base
+      - uses: lekman/devops-actions/.github/actions/trunk@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          check-mode: ${{ github.event_name == 'pull_request' && 'pull_request' || 'push' }}
+
+  # ── Audit: dependency advisories (conditional on Python) ────────────────
+  # Its own job rather than a step inside `quality`, so a slow advisory
+  # lookup does not delay the test results and a red audit does not hide
+  # them.
+  audit:
+    name: "Security: Dependency Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [detect]
+    if: needs.detect.outputs.has-python == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Python toolchain
+        uses: lekman/devops-actions/.github/actions/setup-runtime@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          python-version: ${{ needs.detect.outputs.python-version }}
+
+      - name: Install Python dependencies
+        uses: lekman/devops-actions/.github/actions/python-deps@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          package-manager: ${{ needs.detect.outputs.python-pm }}
+
+      - name: Audit dependencies
+        if: always()
+        uses: lekman/devops-actions/.github/actions/python-audit@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          package-manager: ${{ needs.detect.outputs.python-pm }}
+          out-path: ${{ runner.temp }}/findings/audit.md
+
+      - name: Upload audit findings artifact
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: findings-audit
+          path: ${{ runner.temp }}/findings/audit.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Leak guard: no client-identifying content ───────────────────────────
+  # The backstop for the local pre-commit and commit-msg hooks, which a
+  # contributor can skip or never install. It scans the checked-out tree and,
+  # on a pull request, the message of every commit the pull request adds.
+  #
+  # The term list comes from the CLIENT_TERMS secret. Secrets are not passed
+  # to runs from a fork or to runs Dependabot starts. Those runs warn and
+  # pass, and the next push to main scans the merged tree. Any other run with
+  # no secret fails, because a guard with nothing to match reports clean
+  # while checking nothing.
+  leak-guard:
+    name: "Security: Leak Guard"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # composite prerequisite: trunk diffs against the PR base
+          fetch-depth: 0 # the message scan reads every commit since the base
 
-      # Direct action for now. The devops-toolkit trunk composite cannot be
-      # referenced from a public repo (private-action sharing is
-      # private-caller-only — verified empirically 2026-08-09). Swap to the
-      # composite via GitHub App token + checkout once TOOLKIT_APP_ID /
-      # TOOLKIT_APP_PRIVATE_KEY secrets exist.
-      - uses: trunk-io/trunk-action@e1234e67a86010d61ddac8d8ebf4b783e2ffd2fa # v2.0.0
+      - name: Write the term list
+        id: terms
+        shell: bash
+        env:
+          CLIENT_TERMS: ${{ secrets.CLIENT_TERMS }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CLIENT_TERMS" ]; then
+            # The file is gitignored and excluded from the scan itself.
+            printf '%s\n' "$CLIENT_TERMS" > scripts/client-terms.txt
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "present=false" >> "$GITHUB_OUTPUT"
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::warning title=Leak guard::CLIENT_TERMS is not available to runs Dependabot starts. The guard did not run."
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$REPOSITORY" ]; then
+            echo "::warning title=Leak guard::CLIENT_TERMS is not available to pull requests from a fork. The guard did not run."
+            exit 0
+          fi
+          echo "::error title=Leak guard::The CLIENT_TERMS secret is empty or not set. The owner sets it with: gh secret set CLIENT_TERMS -R lekman/qa-toolkit < scripts/client-terms.txt"
+          exit 1
+
+      # --quiet reports file paths and commit SHAs only. Without it the
+      # report quotes the matched line, and this repository's logs are public.
+      - name: Scan the working tree
+        if: steps.terms.outputs.present == 'true'
+        run: bash scripts/check-no-client-content.sh --quiet
+
+      - name: Scan the pull request's commit messages
+        if: steps.terms.outputs.present == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/check-no-client-content.sh --messages "$BASE_SHA..$HEAD_SHA" --quiet
+
+      # A squash merge writes a new message on main, and a direct push skips
+      # the pull request scan, so a push scans the commits it added too.
+      - name: Scan the pushed commit messages
+        if: steps.terms.outputs.present == 'true' && github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # A push that creates the branch has no earlier commit, so scan all
+          # of its history.
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            bash scripts/check-no-client-content.sh --messages "$AFTER_SHA" --quiet
+          else
+            bash scripts/check-no-client-content.sh --messages "$BEFORE_SHA..$AFTER_SHA" --quiet
+          fi
+
+  # ── Quality gate (single consolidated writer for the PR comment) ────────
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: [quality, security, audit, trunk-check, leak-guard]
+    if: always()
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download per-job findings artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
         with:
-          check-mode: pull_request
+          pattern: findings-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/findings
+      - uses: lekman/devops-actions/.github/actions/quality-gate@bf452e60eacfab7884b3a20e74d0c64eff204415 # main
+        with:
+          results: >-
+            {
+              "required": ["quality", "security", "leak-guard"],
+              "conditional": ["trunk-check", "audit"],
+              "groups": { "Security Gate": ["security", "audit", "leak-guard"] },
+              "results": {
+                "quality": "${{ needs.quality.result }}",
+                "security": "${{ needs.security.result }}",
+                "audit": "${{ needs.audit.result }}",
+                "trunk-check": "${{ needs.trunk-check.result }}",
+                "leak-guard": "${{ needs.leak-guard.result }}"
+              }
+            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.pull_request.number }}
+          timezone: Europe/Stockholm
+          findings-dir: ${{ runner.temp }}/findings

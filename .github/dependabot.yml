@@ -1,13 +1,13 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: npm
+    directory: /
     schedule:
-      interval: "daily"
+      interval: daily
     commit-message:
       # Conventional prefix so Release Please files these under Fixes rather
       # than ignoring them.
-      prefix: "fix(dependabot)"
+      prefix: fix(dependabot)
     ignore:
       # typescript-eslint refuses to load under TypeScript 7 — not degraded
       # linting, no linting at all:
@@ -25,14 +25,14 @@ updates:
       # deliberately not ignored — its next release is what lifts this. Remove
       # this entry once it supports TypeScript >= 7.1:
       # https://github.com/typescript-eslint/typescript-eslint/issues/10940
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "sunday"
+      interval: weekly
+      day: sunday
       time: "16:00"
     groups:
       # One pull request for all actions rather than one per action: the
@@ -40,4 +40,4 @@ updates:
       all-actions:
         patterns: ["*"]
     commit-message:
-      prefix: "fix(dependabot)"
+      prefix: fix(dependabot)
