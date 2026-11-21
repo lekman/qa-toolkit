@@ -4,7 +4,13 @@
 //                            unit and Kotlin tests, coverage gate, CLI jar
 //   ./gradlew conformance    every scenario in spec/qualify/conformance/README.md
 //   ./gradlew spotlessApply  format the Java and Kotlin sources
+//   ./gradlew publishToMavenLocal
+//                            the jar, sources, Javadoc and POM into ~/.m2, signed
+//                            when a signing key is configured
 
+import com.vanniktech.maven.publish.JavaLibrary
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.SourcesJar
 import io.gitlab.arturbosch.detekt.Detekt
 import net.ltgt.gradle.errorprone.CheckSeverity
 import net.ltgt.gradle.errorprone.errorprone
@@ -18,10 +24,11 @@ plugins {
     id("com.diffplug.spotless") version "8.11.0"
     id("net.ltgt.errorprone") version "5.2.0"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
+// The version is in gradle.properties, where release-please updates it.
 group = "com.lekman"
-version = "0.1.0"
 
 val repoRoot = layout.projectDirectory.dir("../..")
 val specDir = repoRoot.dir("spec/qualify")
@@ -132,6 +139,64 @@ tasks.jar {
 }
 
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") { enabled = false }
+
+// Shadow adds the shaded jar to the published component by default. The
+// library publishes the plain jar only, so its dependencies resolve normally.
+shadow {
+    addShadowVariantIntoJavaComponent = false
+}
+
+// The Javadoc jar documents what is there; a missing comment is not a warning.
+tasks.javadoc {
+    (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:all,-missing", "-quiet")
+}
+
+// Maven Central through the Central Portal. The cd.yml workflow runs
+// publishToMavenCentral with the credentials and the signing key as
+// ORG_GRADLE_PROJECT_* variables. automaticRelease publishes the deployment
+// once the portal has validated it, with no manual step on the portal.
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = true)
+    // Signing needs the key that cd.yml passes in. Without one, a local
+    // publishToMavenLocal still runs, unsigned. Maven Central rejects an
+    // unsigned upload, and cd.yml stops before the upload when the key is missing.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
+    coordinates("com.lekman", "qualify", version.toString())
+    configure(JavaLibrary(javadocJar = JavadocJar.Javadoc(), sourcesJar = SourcesJar.Sources()))
+    pom {
+        name = "qualify"
+        description =
+            "Qualification tests (IQ, OQ, PQ, intended use) for JUnit 5 that write redacted JSON " +
+            "evidence and a PDF report."
+        inceptionYear = "2026"
+        url = "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-jvm"
+        licenses {
+            license {
+                name = "MIT License"
+                url = "https://opensource.org/license/mit"
+                distribution = "repo"
+            }
+        }
+        developers {
+            developer {
+                id = "lekman"
+                name = "Tobias Lekman"
+                url = "https://github.com/lekman"
+            }
+        }
+        scm {
+            url = "https://github.com/lekman/qa-toolkit"
+            connection = "scm:git:https://github.com/lekman/qa-toolkit.git"
+            developerConnection = "scm:git:ssh://git@github.com/lekman/qa-toolkit.git"
+        }
+        issueManagement {
+            system = "GitHub"
+            url = "https://github.com/lekman/qa-toolkit/issues"
+        }
+    }
+}
 
 // The CLI as one runnable jar: java -jar qualify-<version>-cli.jar merge ...
 val cliJar =
