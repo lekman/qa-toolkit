@@ -60,3 +60,25 @@ describe("Site", () => {
     );
   });
 });
+
+describe("Site.frames with query and hash suffixes", () => {
+  test("drops a query or hash suffix that holds no colon", () => {
+    const stack = [
+      "Error: x",
+      "    at f (file:///w/a.test.ts?v=1:3:5)",
+      "    at g (file:///w/b.test.ts#h:4:6)",
+      "    at h (/w/c?d.test.ts:5:7)",
+    ].join("\n");
+    expect(Site.frames(stack)).toEqual([
+      { path: "/w/a.test.ts", line: 3 },
+      { path: "/w/b.test.ts", line: 4 },
+      { path: "/w/c", line: 5 },
+    ]);
+  });
+
+  test("is fast on many hash characters", () => {
+    const started = performance.now();
+    Site.frames(`    at f (/w/${"#".repeat(200_000)}:1:1)`);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});

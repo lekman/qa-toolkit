@@ -3,19 +3,120 @@ import type { JsonObject, JsonValue } from "../values";
 const REPLACEMENT = "[REDACTED]";
 
 /**
- * Pattern rules from section 7.2, applied without registration. Each regular
- * expression is global and stateless between calls because `replace` resets
- * `lastIndex`.
+ * Pattern rules from section 7.2. The PEM and JWT rules are written as
+ * scanners, not regular expressions, so their cost grows with the length of
+ * the text and not with its square. Each returns the same matches as the
+ * expression in its comment would with a global `replace`.
  */
-const PATTERNS: readonly RegExp[] = [
-  // A PEM private key block, to the matching END line or, when the block is
-  // cut short, to the end of the text.
-  /-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----(?:[\s\S]*?-----END \1PRIVATE KEY-----|[\s\S]*$)/g,
-  // A JWT shape: three base64url segments, the first starting with eyJ.
-  /eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
-  // An access-key-ID shape.
-  /(?:AKIA|ASIA)[A-Z0-9]{16}/g,
-];
+
+const BEGIN = "-----BEGIN ";
+const KEY_TAIL = "PRIVATE KEY-----";
+
+const isLabelChar = (code: number): boolean =>
+  (code >= 65 && code <= 90) || (code >= 48 && code <= 57);
+
+const isBase64UrlChar = (code: number): boolean =>
+  (code >= 65 && code <= 90) ||
+  (code >= 97 && code <= 122) ||
+  (code >= 48 && code <= 57) ||
+  code === 95 ||
+  code === 45;
+
+const runEnd = (
+  text: string,
+  from: number,
+  accepts: (code: number) => boolean,
+): number => {
+  let end = from;
+  while (end < text.length && accepts(text.charCodeAt(end))) end++;
+  return end;
+};
+
+type Range = readonly [start: number, end: number];
+
+/**
+ * `-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----(?:[\s\S]*?-----END \1PRIVATE KEY-----|[\s\S]*$)`:
+ * a PEM private key block, to the matching END line or, when the block is
+ * cut short, to the end of the text.
+ */
+const pemBlocks = (text: string): Range[] => {
+  const ranges: Range[] = [];
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf(BEGIN, from);
+    if (start < 0) return ranges;
+    const labelStart = start + BEGIN.length;
+    // Each `[A-Z0-9]+ ` word may end the label. The expression takes the
+    // longest label that is followed by PRIVATE KEY-----.
+    const wordEnds = [labelStart];
+    for (let at = labelStart; ;) {
+      const end = runEnd(text, at, isLabelChar);
+      if (end === at || text.charCodeAt(end) !== 32) break;
+      at = end + 1;
+      wordEnds.push(at);
+    }
+    let labelEnd = -1;
+    for (let i = wordEnds.length - 1; i >= 0; i--) {
+      if (text.startsWith(KEY_TAIL, wordEnds[i])) {
+        labelEnd = wordEnds[i] as number;
+        break;
+      }
+    }
+    if (labelEnd < 0) {
+      from = start + 1;
+      continue;
+    }
+    const footer = `-----END ${text.slice(labelStart, labelEnd)}${KEY_TAIL}`;
+    const footerAt = text.indexOf(footer, labelEnd + KEY_TAIL.length);
+    const end = footerAt < 0 ? text.length : footerAt + footer.length;
+    ranges.push([start, end]);
+    from = end;
+  }
+};
+
+/**
+ * `eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`: a JWT shape, three
+ * base64url segments with the first starting with eyJ. The segments cannot
+ * hold a dot, so every start inside one first segment ends that segment at
+ * the same place and fails the same way. A failed start skips to that place.
+ */
+const jwtShapes = (text: string): Range[] => {
+  const ranges: Range[] = [];
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf("eyJ", from);
+    if (start < 0) return ranges;
+    const first = runEnd(text, start + 3, isBase64UrlChar);
+    const second =
+      text.charCodeAt(first) === 46
+        ? runEnd(text, first + 1, isBase64UrlChar)
+        : -1;
+    const third =
+      second > first + 1 && text.charCodeAt(second) === 46
+        ? runEnd(text, second + 1, isBase64UrlChar)
+        : -1;
+    if (third > second + 1) {
+      ranges.push([start, third]);
+      from = third;
+    } else {
+      from = first;
+    }
+  }
+};
+
+/** `(?:AKIA|ASIA)[A-Z0-9]{16}`: an access-key-ID shape. */
+const ACCESS_KEY_ID = /(?:AKIA|ASIA)[A-Z0-9]{16}/g;
+
+const replaceRanges = (text: string, ranges: readonly Range[]): string => {
+  if (ranges.length === 0) return text;
+  let result = "";
+  let at = 0;
+  for (const [start, end] of ranges) {
+    result += text.slice(at, start) + REPLACEMENT;
+    at = end;
+  }
+  return result + text.slice(at);
+};
 
 const SENSITIVE_KEYS = new Set([
   "api_key",
@@ -86,10 +187,9 @@ export class Redaction {
 
   /** Apply the pattern rules only. */
   static patterns(text: string): string {
-    let result = text;
-    for (const pattern of PATTERNS)
-      result = result.replace(pattern, REPLACEMENT);
-    return result;
+    const withoutKeys = replaceRanges(text, pemBlocks(text));
+    const withoutTokens = replaceRanges(withoutKeys, jwtShapes(withoutKeys));
+    return withoutTokens.replace(ACCESS_KEY_ID, REPLACEMENT);
   }
 
   /** Redact one string: registered values first, longest first, then patterns. */
