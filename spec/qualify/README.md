@@ -194,8 +194,11 @@ void bankFileKeepsAmounts(QualifyContext ctx) {
 
 - `@IQ`, `@OQ`, `@PQ` and `@IU` are composed annotations, meta-annotated with
   `@Test`, `@Tag` for the level, and `@ExtendWith(QualifyExtension.class)`.
-  Gradle `includeTags("OQ")` and Maven `-Dgroups=OQ` select by level. Declared
-  `tags` are added as JUnit tags at discovery.
+  Gradle `includeTags("OQ")` and Maven `-Dgroups=OQ` select by level. JUnit
+  reads tags only from `@Tag` annotations and cannot add one at discovery, so a
+  value in `tags` is recorded but cannot be selected. The record's `tags` also
+  hold every JUnit tag of the test except its level's, so `@Tag("export")` on
+  the method or its class both selects and records `export`.
 - `QualifyExtension` resolves the `QualifyContext` parameter, starts the record
   before execution, reads `getExecutionException()` after execution for `fail`
   or `error`, and records aborted tests (assumption failures and `ctx.skip`) as
@@ -581,12 +584,12 @@ The test run itself keeps the native runner's exit code.
 file without the code or the JSON. Every package draws it with a library written
 in its own language, so no system libraries and no browser are needed:
 
-| Package    | Library                           | Licence    |
-| ---------- | --------------------------------- | ---------- |
-| TypeScript | `pdf-lib` with `@pdf-lib/fontkit` | MIT        |
-| Python     | `fpdf2`                           | LGPL-3.0   |
-| Java       | Apache PDFBox                     | Apache-2.0 |
-| C#         | PDFsharp 6                        | MIT        |
+| Package    | Library                                                           | Licence    |
+| ---------- | ----------------------------------------------------------------- | ---------- |
+| TypeScript | `pdf-lib` with `@pdf-lib/fontkit`                                 | MIT        |
+| Python     | `fpdf2`                                                           | LGPL-3.0   |
+| Java       | Apache PDFBox                                                     | Apache-2.0 |
+| C#         | PDFsharp 6.2.4 (the last MIT release; 6.5 and later are AGPL-3.0) | MIT        |
 
 How the report looks comes from a theme (section 9.3): logo, fonts, colours and
 texts. The layout below is fixed. The PDFs from different languages are not
@@ -684,7 +687,9 @@ In this order:
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
   `sha256:<run file digest>`, `Producer` the name and version of the package
-  that wrote the PDF, and `CreationDate` the generation time.
+  that wrote the PDF (a PDF library may add its own name to `Producer`; then
+  `Creator` holds the package name and version alone), and `CreationDate` the
+  generation time.
 - The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
   (an ISO 8601 UTC instant), so a report can be reproduced.
 - `report` reads only the run file, the theme and the optional protocol and map
