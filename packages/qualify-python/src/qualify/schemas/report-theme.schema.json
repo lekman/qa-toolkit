@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lekman/qa-toolkit/blob/main/spec/qualify/report-theme.schema.json",
+  "title": "qualify report theme",
+  "description": "How a qualification report looks: page, brand, fonts, colours and texts. File paths are relative to the theme file. Every implementation reads the same theme file and validates it against this schema. See section 9.3 of spec/qualify/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "name",
+    "page",
+    "brand",
+    "fonts",
+    "colours",
+    "texts",
+    "cover",
+    "signatures"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "name": {
+      "description": "Short theme name, shown nowhere in the report.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "marginMm"],
+      "properties": {
+        "size": { "enum": ["A4", "Letter"] },
+        "marginMm": { "type": "number", "minimum": 5, "maximum": 40 }
+      }
+    },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logo", "logoHeightMm", "name"],
+      "properties": {
+        "logo": {
+          "description": "PNG or JPEG file, or null for no logo. SVG is not supported, because not every PDF library can draw it.",
+          "oneOf": [
+            { "type": "string", "pattern": "\\.(png|jpe?g)$" },
+            { "type": "null" }
+          ]
+        },
+        "logoHeightMm": { "type": "number", "minimum": 4, "maximum": 40 },
+        "name": {
+          "description": "Text drawn beside the logo on the cover, or null for none.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body", "bodyBold", "heading", "mono"],
+      "properties": {
+        "body": { "$ref": "#/$defs/fontFile" },
+        "bodyBold": { "$ref": "#/$defs/fontFile" },
+        "heading": { "$ref": "#/$defs/fontFile" },
+        "mono": { "$ref": "#/$defs/fontFile" }
+      }
+    },
+    "colours": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "muted",
+        "title",
+        "heading",
+        "accent",
+        "rule",
+        "tableHeader",
+        "tableHeaderText",
+        "tableStripe"
+      ],
+      "properties": {
+        "text": { "$ref": "#/$defs/colour" },
+        "muted": { "$ref": "#/$defs/colour" },
+        "title": { "$ref": "#/$defs/colour" },
+        "heading": { "$ref": "#/$defs/colour" },
+        "accent": {
+          "description": "The short rule under the cover title and the rule under each section heading.",
+          "$ref": "#/$defs/colour"
+        },
+        "rule": {
+          "description": "Hairlines: table rows, the header and footer lines, the cover's metadata line.",
+          "$ref": "#/$defs/colour"
+        },
+        "tableHeader": { "$ref": "#/$defs/colour" },
+        "tableHeaderText": { "$ref": "#/$defs/colour" },
+        "tableStripe": {
+          "description": "Background of every second table row, starting with the second.",
+          "$ref": "#/$defs/colour"
+        }
+      }
+    },
+    "texts": {
+      "description": "Templates. Each may use the tokens listed in section 9.3; any other text in braces is an error.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "subtitle", "classification", "header", "footer"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "subtitle": { "type": "string" },
+        "classification": { "type": "string" },
+        "header": { "type": "string" },
+        "footer": { "type": "string" }
+      }
+    },
+    "cover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "description": "Rows of the cover's metadata block, in order.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "documentId",
+              "date",
+              "verdict",
+              "tests",
+              "environment",
+              "version",
+              "commit",
+              "classification"
+            ]
+          }
+        }
+      }
+    },
+    "signatures": {
+      "description": "Roles in the signature block, in order. An empty list leaves the block out.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "colour": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+    "fontFile": {
+      "description": "A static TrueType or OpenType font file. Variable fonts are not supported.",
+      "type": "string",
+      "pattern": "\\.(ttf|otf)$"
+    }
+  }
+}
