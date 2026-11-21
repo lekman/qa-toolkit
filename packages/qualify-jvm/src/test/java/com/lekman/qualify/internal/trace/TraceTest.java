@@ -85,7 +85,8 @@ class TraceTest {
             "tests: [{id: OQ-TR-001, title: t, level: PQ}]",
             "tests: [{id: OQ-TR-001, title: ' ', level: OQ}]",
             "tests: [{id: OQ-TR-001, title: t, level: OQ, risk: huge}]",
-            "tests: [{id: OQ-TR-001, title: t, level: OQ}, {id: OQ-TR-001, title: t, level: OQ}]")) {
+            "tests: [{id: OQ-TR-001, title: t, level: OQ}, {id: OQ-TR-001, title: t, level:"
+                + " OQ}]")) {
       TraceInputError error =
           assertThrows(TraceInputError.class, () -> TraceInputs.protocol(bad, "p"), bad);
       assertTrue(error.getMessage().startsWith("p"));

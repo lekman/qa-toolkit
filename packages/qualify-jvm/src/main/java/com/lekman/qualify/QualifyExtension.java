@@ -180,7 +180,8 @@ public final class QualifyExtension
       throw new DeclarationError(
           name,
           List.of(
-              "parametrised qualification tests are refused in v1, because one ID would map to several records"));
+              "parametrised qualification tests are refused in v1, because one ID would map to"
+                  + " several records"));
     }
     Annotation annotation = found.get(0);
     if (annotation instanceof IQ a) {

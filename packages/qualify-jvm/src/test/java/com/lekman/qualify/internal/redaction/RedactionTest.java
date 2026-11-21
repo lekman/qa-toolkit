@@ -53,7 +53,8 @@ class RedactionTest {
                 "Token", Map.of("a", 1), "list", List.of("x secret1"), "apiKey", "k", "plain", 2L),
             List.of("secret1"));
     assertEquals(
-        "{\"Token\":\"[REDACTED]\",\"apiKey\":\"[REDACTED]\",\"list\":[\"x [REDACTED]\"],\"plain\":2}",
+        "{\"Token\":\"[REDACTED]\",\"apiKey\":\"[REDACTED]\",\"list\":[\"x"
+            + " [REDACTED]\"],\"plain\":2}",
         Json.compact(redacted));
     assertEquals(
         "{\"[REDACTED]\":[\"[REDACTED]\"]}",

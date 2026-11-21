@@ -31,7 +31,8 @@ public final class Redaction {
           // A PEM private key block, to the matching END line or, when the
           // block is cut short, to the end of the text.
           Pattern.compile(
-              "-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----(?:[\\s\\S]*?-----END \\1PRIVATE KEY-----|[\\s\\S]*\\z)"),
+              "-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----(?:[\\s\\S]*?-----END \\1PRIVATE"
+                  + " KEY-----|[\\s\\S]*\\z)"),
           // A JWT shape: three base64url segments, the first starting with eyJ.
           Pattern.compile("eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"),
           // An access-key-ID shape.

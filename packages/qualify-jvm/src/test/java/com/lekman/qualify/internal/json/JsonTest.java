@@ -64,7 +64,8 @@ class JsonTest {
   void parsingKeepsIntegersAsLongsAndRejectsBadText() throws JsonFormatException {
     Object parsed =
         Json.parse(
-            "{\"a\": 1, \"b\": 1.0, \"c\": 1.5, \"d\": 99999999999999999999, \"e\": [null, false]}");
+            "{\"a\": 1, \"b\": 1.0, \"c\": 1.5, \"d\": 99999999999999999999, \"e\": [null,"
+                + " false]}");
     Map<?, ?> map = (Map<?, ?>) parsed;
     assertEquals(1L, map.get("a"));
     assertEquals(1L, map.get("b"));
