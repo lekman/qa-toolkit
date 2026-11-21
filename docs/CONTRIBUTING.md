@@ -194,7 +194,7 @@ specific to it.
 
 Releases are cut by release-please and published by CI from
 [cd.yml](../.github/workflows/cd.yml). Each package has its own version and
-its own tag (`qualify@v0.2.0`, `qualify-python@v0.2.0`, and so on), set in
+its own tag (`qualify@v0.1.0`, `qualify-python@v0.1.0`, and so on), set in
 [release-config.json](../.github/release-config.json) and
 [release-manifest.json](../.github/release-manifest.json).
 
