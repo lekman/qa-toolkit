@@ -1,12 +1,12 @@
-name: "GitHub Advanced Security"
+name: GitHub Advanced Security
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
   schedule:
-    - cron: "0 0 * * *" # every day at midnight on 'main'
+    - cron: 0 0 * * * # every day at midnight on 'main'
 
 permissions:
   security-events: write
@@ -17,7 +17,7 @@ permissions:
 jobs:
   analyze-nodejs:
     name: Analyze Actions
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
       security-events: write
@@ -40,4 +40,4 @@ jobs:
         if: always()
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:actions"
+          category: /language:actions
