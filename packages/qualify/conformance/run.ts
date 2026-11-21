@@ -632,7 +632,7 @@ const SCENARIOS: Scenario[] = [
       const big = testById(merged, "OQ-CONF-016");
       assert(
         big.outcome === "error" && big.error?.type === "AttachmentTooLarge",
-        "OQ-CONF-016 is not AttachmentTooLarge",
+        `OQ-CONF-016 is not AttachmentTooLarge: outcome ${big.outcome}, error ${JSON.stringify(big.error)}`,
       );
       assert(
         big.attachments.length === 0,
