@@ -110,13 +110,13 @@ packages are published.
 
 ### Dry runs (2026-11-21, macOS)
 
-| Check                                                          | Result                                                                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `uv build` and `uvx twine check --strict` (twine 7.0.0)        | Passed for the sdist and the wheel. Metadata 2.5 with `License-Expression: MIT`, project URLs and classifiers.                 |
-| `./gradlew publishToMavenLocal` (JDK 21 and 17 from mise)      | Passed. Jar, sources jar, Javadoc jar, POM and module file. POM has name, description, URL, MIT licence, developer, SCM.        |
-| Signing                                                        | Not run. No signing key on this machine, and a throwaway GPG key could not be made in the sandbox. CI is the first signed run. |
-| `dotnet pack` (SDK 11.0.100)                                   | Passed for both packages, each with a `.snupkg`. The nuspec has the MIT expression, README, icon and repository commit.        |
-| `npm publish --dry-run` in `packages/qualify` (npm 11.17.0)    | Passed. `prepublishOnly` ran typecheck, 230 tests and the build. 111 files, 937 kB.                                            |
+| Check                                                       | Result                                                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `uv build` and `uvx twine check --strict` (twine 7.0.0)     | Passed for the sdist and the wheel. Metadata 2.5 with `License-Expression: MIT`, project URLs and classifiers.                 |
+| `./gradlew publishToMavenLocal` (JDK 21 and 17 from mise)   | Passed. Jar, sources jar, Javadoc jar, POM and module file. POM has name, description, URL, MIT licence, developer, SCM.       |
+| Signing                                                     | Not run. No signing key on this machine, and a throwaway GPG key could not be made in the sandbox. CI is the first signed run. |
+| `dotnet pack` (SDK 11.0.100)                                | Passed for both packages, each with a `.snupkg`. The nuspec has the MIT expression, README, icon and repository commit.        |
+| `npm publish --dry-run` in `packages/qualify` (npm 11.17.0) | Passed. `prepublishOnly` ran typecheck, 230 tests and the build. 111 files, 937 kB.                                            |
 
 ### Left open
 
