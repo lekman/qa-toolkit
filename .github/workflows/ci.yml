@@ -236,6 +236,22 @@ jobs:
         if: needs.detect.outputs.has-package-json == 'true'
         run: bun run build
 
+      # The node:test conformance files are TypeScript that Node loads
+      # directly, which needs Node 22.18 or later. Node 22 is what
+      # mise.toml pins for development.
+      - name: Setup Node for conformance
+        if: needs.detect.outputs.has-package-json == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      # Every package with a `conformance` script runs it: for qualify, the
+      # shared scenarios through vitest, node:test and bun, diffed against
+      # spec/qualify/conformance/expected/. Any difference fails the job.
+      - name: Conformance
+        if: needs.detect.outputs.has-package-json == 'true'
+        run: bun run conformance
+
       # ── Python path ───────────────────────────────────────────────────
       # Skipped until the repository has a pyproject.toml or setup.py.
       # `!cancelled()` lets a polyglot repository report both languages from

@@ -687,8 +687,9 @@ In this order:
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
   `sha256:<run file digest>`, `Producer` the name and version of the package
-  that wrote the PDF, (a PDF library may add its own name to `Producer`; then
-  `Creator` holds the package name and version alone), and `CreationDate` the generation time.
+  that wrote the PDF (a PDF library may add its own name to `Producer`; then
+  `Creator` holds the package name and version alone), and `CreationDate` the
+  generation time.
 - The generation time is the current time, or `QUALIFY_REPORT_TIME` when set
   (an ISO 8601 UTC instant), so a report can be reproduced.
 - `report` reads only the run file, the theme and the optional protocol and map

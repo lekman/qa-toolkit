@@ -1,0 +1,4 @@
+# The bun conformance runs start bun test in this folder, so discovery stays
+# inside it. The package's own bunfig.toml limits `bun test` to tests/.
+[test]
+coverage = false

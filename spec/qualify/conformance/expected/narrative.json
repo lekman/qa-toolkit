@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "kind": "run",
+  "run": {
+    "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+    "environment": "local",
+    "tool": {
+      "name": "<tool>",
+      "version": "<version>",
+      "language": "<language>",
+      "runtime": "<runtime>"
+    },
+    "source": {
+      "commit": null,
+      "branch": null,
+      "dirty": null
+    },
+    "actor": {
+      "name": null,
+      "ci": null,
+      "ciRunUrl": null
+    },
+    "target": {},
+    "policy": {
+      "productionWriteBlocked": false,
+      "overrides": []
+    },
+    "startedAt": "<timestamp>",
+    "endedAt": "<timestamp>"
+  },
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "error": 0,
+    "skip": 0,
+    "verdict": "pass"
+  },
+  "tests": [
+    {
+      "id": "PQ-CONF-014",
+      "level": "PQ",
+      "title": "narrative test",
+      "given": "données d’entrée — 入力",
+      "when": "the run 🚀 starts",
+      "then": "“quoted” output",
+      "and": [
+        "first",
+        "second",
+        "third — 3"
+      ],
+      "scope": "read",
+      "requirements": [],
+      "tags": [],
+      "site": "<scenario>:0",
+      "outcome": "pass",
+      "startedAt": "<timestamp>",
+      "endedAt": "<timestamp>",
+      "durationMs": 0,
+      "checks": [
+        {
+          "seq": 0,
+          "context": "fixture",
+          "description": "one equals one",
+          "matcher": "equals",
+          "expected": 1,
+          "actual": 1,
+          "pass": true,
+          "soft": false,
+          "site": "<scenario>:0"
+        }
+      ],
+      "attachments": [],
+      "secretsUsed": []
+    }
+  ]
+}

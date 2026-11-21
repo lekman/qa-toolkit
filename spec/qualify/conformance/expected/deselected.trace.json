@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "kind": "trace",
+  "inputs": [
+    {
+      "path": "test-evidence.json",
+      "role": "evidence",
+      "sha256": "<sha256>"
+    },
+    {
+      "path": "deselected.protocol.yaml",
+      "role": "protocol",
+      "sha256": "<sha256>"
+    }
+  ],
+  "runs": [
+    {
+      "id": "01HQA1ZQJ0C0NF0RMANCE00000",
+      "environment": "local",
+      "commit": null,
+      "verdict": "pass"
+    }
+  ],
+  "summary": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "error": 0,
+    "skip": 0,
+    "notRun": 1,
+    "requirements": 0,
+    "requirementsWithoutPass": 0,
+    "verdict": "incomplete"
+  },
+  "rows": [
+    {
+      "requirement": null,
+      "sources": [],
+      "testId": "OQ-CONF-020",
+      "level": "OQ",
+      "title": "deselected test",
+      "risk": null,
+      "controls": null,
+      "outcome": "pass",
+      "run": "01HQA1ZQJ0C0NF0RMANCE00000",
+      "environment": "local"
+    },
+    {
+      "requirement": null,
+      "sources": [],
+      "testId": "OQ-CONF-021",
+      "level": "OQ",
+      "title": "deselected test",
+      "risk": null,
+      "controls": null,
+      "outcome": "not-run",
+      "run": null,
+      "environment": null
+    }
+  ],
+  "notRun": [
+    "OQ-CONF-021"
+  ],
+  "requirementsWithoutPass": []
+}

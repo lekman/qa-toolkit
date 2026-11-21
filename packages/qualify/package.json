@@ -1,0 +1,102 @@
+{
+  "name": "@lekman/qualify",
+  "version": "0.1.0",
+  "description": "Qualification tests (IQ, OQ, PQ, intended use) for vitest, node:test and bun that write redacted JSON evidence and a trace matrix.",
+  "license": "MIT",
+  "author": "Tobias Lekman",
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekman/qa-toolkit.git",
+    "directory": "packages/qualify"
+  },
+  "keywords": [
+    "qualification",
+    "validation",
+    "evidence",
+    "traceability",
+    "vitest",
+    "node-test",
+    "bun",
+    "pdf"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./vitest": {
+      "types": "./src/adapters/vitest.ts",
+      "bun": "./src/adapters/vitest.ts",
+      "default": "./dist/vitest.js"
+    },
+    "./vitest/setup": {
+      "types": "./src/adapters/vitest-setup.ts",
+      "bun": "./src/adapters/vitest-setup.ts",
+      "default": "./dist/vitest-setup.js"
+    },
+    "./node": {
+      "types": "./src/adapters/node.ts",
+      "bun": "./src/adapters/node.ts",
+      "default": "./dist/node.js"
+    },
+    "./node/setup": {
+      "types": "./src/adapters/node-setup.ts",
+      "bun": "./src/adapters/node-setup.ts",
+      "default": "./dist/node-setup.js"
+    },
+    "./bun": {
+      "types": "./src/adapters/bun.ts",
+      "bun": "./src/adapters/bun.ts",
+      "default": "./dist/bun.js"
+    }
+  },
+  "bin": {
+    "qualify": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "themes",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test",
+    "conformance": "bun run build && bun run conformance/run.ts",
+    "check": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run check"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "ajv": "^8.20.0",
+    "pdf-lib": "^1.17.1",
+    "yaml": "^2.9.1"
+  },
+  "peerDependencies": {
+    "vitest": ">=3.2.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.2.0",
+    "pdfjs-dist": "^6.5.438",
+    "typescript": "^5.7.0",
+    "vitest": "^5.1.1"
+  }
+}

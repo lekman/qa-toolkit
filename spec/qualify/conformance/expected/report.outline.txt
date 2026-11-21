@@ -1,0 +1,40 @@
+lekman.com
+Conformance report
+IQ and OQ qualification, local environment, 2026-01-02
+CONF-RPT-001
+2026-01-02
+Failed
+3 tests: 1 pass, 1 fail, 0 error, 1 skip
+local
+-
+Internal
+Conformance report Internal
+Conformance report
+Run details
+01HQA1ZQJ0C0NF0RMANCE00000
+2026-01-02 03:04:05 UTC
+IQ-CONF-001
+all-pass test
+pass
+OQ-CONF-002
+failing-check-stops test
+fail
+OQ-CONF-006
+runtime-skip test
+skip
+OQ-CONF-099
+a protocol test with no record
+not-run
+Not run
+OQ-CONF-099 a protocol test with no record
+Requirements without a passing test
+None
+IQ-CONF-001 all-pass test
+OQ-CONF-002 failing-check-stops test
+CheckFailed
+fixture: second fails
+OQ-CONF-006 runtime-skip test
+fixture not seeded
+Prepared by
+Reviewed by
+Approved by
