@@ -1,0 +1,6 @@
+# Gradle and Kotlin build output
+.gradle/
+.kotlin/
+build/
+# Evidence a local run of the tests writes
+qualification/

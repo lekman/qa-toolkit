@@ -11,6 +11,8 @@
 #   detect          which tools and languages the repository declares
 #   quality         lint, typecheck, test and build across the Bun workspace,
 #                   plus Python checks when a pyproject.toml exists (none yet)
+#   jvm             format, static analysis, tests, coverage and conformance
+#                   for packages/qualify-jvm
 #   dotnet          build, format, unit tests, conformance and pack for
 #                   packages/qualify-dotnet
 #   security        Semgrep SAST and, when present on the runner, Gitleaks
@@ -71,7 +73,7 @@ jobs:
           mode: start
           results: >-
             {
-              "required": ["quality", "dotnet", "security", "leak-guard"],
+              "required": ["quality", "jvm", "dotnet", "security", "leak-guard"],
               "conditional": ["trunk-check", "audit"],
               "groups": { "Security Gate": ["security", "audit", "leak-guard"] },
               "results": {}
@@ -285,6 +287,55 @@ jobs:
           run-typecheck: ${{ needs.detect.outputs.python-has-typecheck }}
           run-test: ${{ needs.detect.outputs.python-has-test }}
           findings-dir: ${{ runner.temp }}/findings-raw
+
+  # The Java package, packages/qualify-jvm: Spotless (google-java-format and
+  # ktlint), Error Prone with NullAway, detekt, the unit and Kotlin tests with
+  # JaCoCo's coverage gate, then every conformance scenario. The JVM build
+  # compiles on JDK 21, which Error Prone and google-java-format need, for
+  # Java 17, and runs the tests and the CLI on Java 17. The trace scenarios
+  # call the TypeScript CLI, so it is built first.
+  jvm:
+    name: JVM package (qualify-jvm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/qualify-jvm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          # The last one listed becomes JAVA_HOME.
+          java-version: |
+            21
+            17
+          cache: gradle
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Build the TypeScript CLI for the trace scenarios
+        working-directory: .
+        run: |
+          bun install --frozen-lockfile
+          bun run --filter '@lekman/qualify' build
+
+      # Gradle finds the two JDKs setup-java installed through these variables,
+      # instead of downloading its own.
+      - name: Build, check and test
+        run: ./gradlew build -Porg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_21_X64
+
+      - name: Conformance
+        run: ./gradlew conformance -Porg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_21_X64
 
   # packages/qualify-dotnet: build with warnings as errors, unit tests with a
   # line coverage floor of 80%, formatting, the conformance scenarios through
@@ -534,7 +585,7 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    needs: [quality, dotnet, security, audit, trunk-check, leak-guard]
+    needs: [quality, jvm, dotnet, security, audit, trunk-check, leak-guard]
     if: always()
     permissions:
       contents: read
@@ -551,11 +602,12 @@ jobs:
         with:
           results: >-
             {
-              "required": ["quality", "dotnet", "security", "leak-guard"],
+              "required": ["quality", "jvm", "dotnet", "security", "leak-guard"],
               "conditional": ["trunk-check", "audit"],
               "groups": { "Security Gate": ["security", "audit", "leak-guard"] },
               "results": {
                 "quality": "${{ needs.quality.result }}",
+                "jvm": "${{ needs.jvm.result }}",
                 "dotnet": "${{ needs.dotnet.result }}",
                 "security": "${{ needs.security.result }}",
                 "audit": "${{ needs.audit.result }}",
