@@ -128,9 +128,26 @@ jobs:
       - name: Copy the licence into the package
         run: cp LICENSE "${{ matrix.path }}/LICENSE"
 
+      # A version published by hand before trusted publishing was set up (the
+      # first @lekman/qualify release) is already on npm. npm refuses to
+      # publish a version twice, so the job skips it instead of failing.
+      - name: Check whether this version is on npm
+        id: published
+        working-directory: ${{ matrix.path }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version is already on npm; skipping publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # prepublishOnly runs `bun run check` (typecheck, test, build), so the
       # tarball is built and verified by npm itself right before upload.
       - name: Publish
+        if: steps.published.outputs.exists != 'true'
         working-directory: ${{ matrix.path }}
         run: npm publish --access public
 
