@@ -1,6 +1,6 @@
 # qat-004: qualify, Python
 
-> **Status:** Dispatched | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-004
+> **Status:** Consumed | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-004
 
 ## Context
 
@@ -88,4 +88,107 @@ qat-005.
 
 ## Outcome
 
-_Empty at dispatch._
+2026-11-20, implementation session. Branch `feat/qualify-python`, stacked on
+`origin/feat/qualify-typescript` (3744a8d, the themed report). Committed
+locally; the coordinating session pushes and opens the pull request, so step
+8's draft pull request is not opened here, and the new CI job has not run on
+GitHub.
+
+### Result
+
+- `packages/qualify-python`: hatchling, project `lekman-qualify` 0.1.0, import
+  package `qualify`, `requires-python >=3.10`, the `pytest11` entry point
+  `qualify = qualify.plugin`, and the console script `qualify` (also
+  `python -m qualify`). No `package.json`; `bun install --frozen-lockfile` and
+  `bun run check` at the root pass with the folder present. `uv.lock` resolves
+  from pypi.org only.
+- Runtime dependencies: `pytest>=8.3`, `jsonschema>=4.18`, `fpdf2>=2.8.3` and
+  `pyyaml>=6.0.1`, about 31 MB installed beyond pytest, 28 MB of it fpdf2 with
+  fontTools and Pillow. The plugin imports none of the report's dependencies.
+  Dev: ruff pinned to 0.17.6 (the version Trunk runs), mypy, pytest-cov,
+  pytest-xdist, pypdf (text extraction), pypdfium2 (page images),
+  types-jsonschema, types-pyyaml.
+- 208 unit tests, 98.3 % of lines, mypy strict on `src`, `tests`,
+  `conformance` and `scripts`. The plugin is tested in-process with
+  `pytester`; the outer session runs with `-p no:qualify`, because an
+  entry-point plugin loads before pytest-cov starts and its module lines would
+  count as missed.
+- Checked on Python 3.13 and 3.10, and on 3.10 with the lowest declared
+  versions (pytest 8.3.5, jsonschema 4.18.0, fpdf2 2.8.3, PyYAML 6.0.1).
+- Conformance, `uv run python conformance/run.py`: all 24 runs pass. Every
+  numbered scenario runs as a real pytest file through the real plugin, is
+  merged with this package's `qualify merge`, masked, and compared byte for
+  byte with the expected file. Scenarios 12, 19 and 20 run
+  `node packages/qualify/dist/cli.js trace` on the Python run file and match
+  their `.trace.json` files. Scenario 16 runs on two xdist workers, twice.
+  Scenario 18 ends the pytest process with `os._exit`. Scenarios 21 and 22
+  extract the PDF text with pypdf and match both outlines in order, plus the
+  metadata, footers, header, bad theme and flags. Three runs beyond the
+  numbered scenarios: xdist workers share the controller's run ID, and
+  `--qualify-merge` merges at session end.
+
+### How the Plugin Gets Outcomes and Run IDs
+
+- Outcome: a `pytest_runtest_makereport` wrapper reads the exception of the
+  phase that ended the test: `call`, or `setup` for a fixture error or a skip
+  marker. A `pytest_pyfunc_call` wrapper raises `CheckFailed` after a body that
+  completed with a failed soft check, or with a hard check whose
+  `CheckFailed` the body caught. A setup wrapper writes the started marker
+  before any other plugin's setup; a separate plain `tryfirst` hook raises the
+  policy skip, because a wrapper that raises before it yields stops the
+  logging plugin's wrapper from setting up and its teardown then fails.
+- Run ID: the controller (or a run without xdist) takes `QUALIFY_RUN_ID` or
+  creates a ULID in `pytest_configure`, and a `pytest_configure_node` hook,
+  registered only when xdist is present, hands it to each worker in
+  `workerinput`.
+- Declaration errors and parametrised qualification tests become one
+  collection error each (a `Collector` whose `collect()` raises), so pytest
+  exits 2, "Interrupted", and writes nothing. vitest exits 1 for the same
+  scenarios; the conformance text asks only for a runner failure.
+
+### Visual Check of the Report
+
+Pages 1 to 3 of both themes, rendered with pypdfium2, compared with
+`packages/qualify/docs/report-*-page-*.png`: the cover, header, footer,
+headings, tables, zebra rows and mono values match the reference, and every
+glyph draws. Two faults were found in the layout this package ports, and are
+fixed here only:
+
+1. A striped row's fill covered half of the hairline under the row above it,
+   so every second rule was fainter (visible in the plain theme's tables).
+   Fills are now drawn before lines and text.
+2. A heading could end a page alone: `Signatures` sat at the foot of page 4
+   with its block on page 5, in both languages. A heading now stays with a
+   table's header and first row, and with the first three signature roles.
+
+The TypeScript reference has both faults. Neither changes the text or its
+order, so no expected file or outline changes. A test of embedded glyph
+outlines, like the TypeScript one, was not written: fpdf2 subsets with
+fontTools, and the rendered pages are the check.
+
+### Deviations and Notes
+
+- `pytest.xfail()` in a body is recorded as `skip` with reason `xfail: <msg>`;
+  an `xfail` marker does not change the record. `pytest.fail()` is `fail`.
+  A setup error is `error`; a teardown error does not change the record.
+- `ctx.skip` is `pytest.skip`, so pytest reports the test as skipped.
+- `delegate` runs synchronous functions only.
+- Python-specific normalisation: `Decimal`, `UUID` and paths become strings, an
+  `Enum` its value, a dataclass a map, a naive `datetime` UTC.
+- `timeout_ms` becomes a `pytest.mark.timeout` marker, which needs
+  pytest-timeout.
+- The ini options `qualify_*` mirror the variables; `qualify_evidence_dir` is
+  relative to the rootdir.
+- The CI job uses detect-language, setup-runtime, python-deps and
+  python-quality at bf452e6 through their `working-directory` input, plus plain
+  steps for `ruff format --check`, the TypeScript build and the conformance
+  harness. It is a new `python` job beside the existing ones, so it carries
+  over to the rewritten `ci.yml` of `ci/align-devops-actions` as one block.
+  `eslint.config.mjs` now ignores `.venv/`, which carries third-party
+  JavaScript and failed the root lint.
+- The wheel carries the fonts' `OFL.txt` files as licence files but not the
+  repository's MIT `LICENSE`; that is release work (qat-006).
+
+### Specification Changes
+
+None. No expected file or specification text disagreed with the Python result.

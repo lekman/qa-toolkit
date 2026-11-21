@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "name": "plain",
+  "page": { "size": "A4", "marginMm": 20 },
+  "brand": { "logo": null, "logoHeightMm": 14, "name": null },
+  "fonts": {
+    "body": "fonts/NotoSans-Regular.ttf",
+    "bodyBold": "fonts/NotoSans-Bold.ttf",
+    "heading": "fonts/NotoSans-Bold.ttf",
+    "mono": "fonts/NotoSans-Regular.ttf"
+  },
+  "colours": {
+    "text": "#1f1f1f",
+    "muted": "#6b6b6b",
+    "title": "#1f1f1f",
+    "heading": "#1f1f1f",
+    "accent": "#1f1f1f",
+    "rule": "#d0d0d0",
+    "tableHeader": "#e8e8e8",
+    "tableHeaderText": "#1f1f1f",
+    "tableStripe": "#ffffff"
+  },
+  "texts": {
+    "title": "Qualification report",
+    "subtitle": "{levels} qualification, {environment} environment, {date}",
+    "classification": "",
+    "header": "{title}",
+    "footer": "{documentId}   Page {page} of {pages}   sha256 {sha12}"
+  },
+  "cover": {
+    "fields": [
+      "documentId",
+      "date",
+      "verdict",
+      "tests",
+      "environment",
+      "version",
+      "commit"
+    ]
+  },
+  "signatures": ["Prepared by", "Reviewed by", "Approved by"]
+}

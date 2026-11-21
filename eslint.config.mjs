@@ -5,14 +5,15 @@ import tseslint from "typescript-eslint";
 
 export default [
   // `.ua/` holds generated knowledge-graph data and the scratch scripts the
-  // analysis writes. `qualify-jvm/build/` holds Gradle's HTML reports, whose
-  // scripts are not this repository's code. Gitignored, but eslint keeps its
-  // own list.
+  // analysis writes. `.venv/` is a Python package's virtual environment, which
+  // carries third-party JavaScript, and `qualify-jvm/build/` holds Gradle's
+  // HTML reports. Both are gitignored, but eslint keeps its own list.
   {
     ignores: [
       "**/dist/",
       "**/node_modules/",
       "**/.ua/",
+      "**/.venv/",
       "packages/qualify-jvm/build/",
     ],
   },

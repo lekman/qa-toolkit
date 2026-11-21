@@ -1,0 +1,12 @@
+# Python build and tool output.
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.coverage
+coverage.xml
+junit.xml
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
