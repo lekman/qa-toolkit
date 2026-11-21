@@ -242,7 +242,7 @@ class Scenario:
     trace: int | None = None
     """``trace``'s exit code without a protocol, from the exit-code table."""
     sites: list[str] | None = None
-    extra: Callable[[Context], None] | None = None
+    check: Callable[[Context], None] | None = None
 
 
 @contextmanager
@@ -313,8 +313,8 @@ def run_scenario(scenario: Scenario) -> None:
                 result.status == scenario.trace,
                 f"trace exited {result.status}, expected {scenario.trace}\n{result.output}",
             )
-        if scenario.extra is not None:
-            scenario.extra(Context(directory, output, merged))
+        if scenario.check is not None:
+            scenario.check(Context(directory, output, merged))
         if scenario.expected is not None:
             check(merged is not None, "merge wrote no run file")
             assert merged is not None
@@ -328,11 +328,11 @@ def run_scenario(scenario: Scenario) -> None:
 
 
 def error_type_is(test_id: str, name: str) -> Callable[[Context], None]:
-    def extra(ctx: Context) -> None:
+    def verify(ctx: Context) -> None:
         actual = test_by_id(ctx.merged, test_id).get("error", {}).get("type")
         check(actual == name, f"error.type is {actual}, not {name}")
 
-    return extra
+    return verify
 
 
 def reported_skipped(ctx: Context) -> None:
@@ -340,7 +340,7 @@ def reported_skipped(ctx: Context) -> None:
 
 
 def declaration_errors(expectations: list[tuple[str, str]]) -> Callable[[Context], None]:
-    def extra(ctx: Context) -> None:
+    def verify(ctx: Context) -> None:
         check(not records(ctx.directory), "a declaration error wrote files to records/")
         lines = ctx.output.splitlines()
         for test_id, word in expectations:
@@ -349,7 +349,7 @@ def declaration_errors(expectations: list[tuple[str, str]]) -> Callable[[Context
                 f'the pytest output does not name {test_id} with "{word}"',
             )
 
-    return extra
+    return verify
 
 
 def secret_redaction(ctx: Context) -> None:
@@ -478,7 +478,7 @@ SCENARIOS = [
         1,
         "thrown-error",
         error_type="<runtime error>",
-        extra=error_type_is("OQ-CONF-004", "RuntimeError"),
+        check=error_type_is("OQ-CONF-004", "RuntimeError"),
     ),
     Scenario(
         "plain-assertion",
@@ -486,7 +486,7 @@ SCENARIOS = [
         1,
         "plain-assertion",
         error_type="<assertion error>",
-        extra=error_type_is("OQ-CONF-005", "AssertionError"),
+        check=error_type_is("OQ-CONF-005", "AssertionError"),
     ),
     Scenario(
         "runtime-skip",
@@ -494,14 +494,14 @@ SCENARIOS = [
         0,
         "runtime-skip",
         trace=0,
-        extra=reported_skipped,
+        check=reported_skipped,
     ),
     Scenario(
         "policy-skip.a",
         [Invocation(["policy-skip"], 0, env={"QUALIFY_ENVIRONMENT": "production"})],
         0,
         "policy-skip.a",
-        extra=reported_skipped,
+        check=reported_skipped,
     ),
     Scenario(
         "policy-skip.b",
@@ -522,13 +522,13 @@ SCENARIOS = [
         "missing-scope",
         [Invocation(["missing-scope"], 2)],
         None,
-        extra=declaration_errors([("OQ-CONF-008", "scope")]),
+        check=declaration_errors([("OQ-CONF-008", "scope")]),
     ),
     Scenario(
         "bad-id",
         [Invocation(["bad-id"], 2)],
         None,
-        extra=declaration_errors([("OQ-conf-009", "pattern"), ("IQ-CONF-010", "level")]),
+        check=declaration_errors([("OQ-conf-009", "pattern"), ("IQ-CONF-010", "level")]),
     ),
     Scenario(
         "secret-redaction",
@@ -536,23 +536,23 @@ SCENARIOS = [
         1,
         "secret-redaction",
         error_type="<runtime error>",
-        extra=secret_redaction,
+        check=secret_redaction,
     ),
     Scenario(
         "pattern-redaction",
         [Invocation(["pattern-redaction"], 0)],
         0,
         "pattern-redaction",
-        extra=pattern_redaction,
+        check=pattern_redaction,
     ),
     Scenario(
         "several-requirements",
         [Invocation(["several-requirements"], 0)],
         0,
         "several-requirements",
-        extra=several_requirements,
+        check=several_requirements,
     ),
-    Scenario("narrative", [Invocation(["narrative"], 0)], 0, "narrative", extra=narrative),
+    Scenario("narrative", [Invocation(["narrative"], 0)], 0, "narrative", check=narrative),
     Scenario(
         "attachments",
         [
@@ -563,7 +563,7 @@ SCENARIOS = [
         ],
         1,
         "attachments",
-        extra=attachments,
+        check=attachments,
     ),
     Scenario(
         "value-normalisation", [Invocation(["value-normalisation"], 0)], 0, "value-normalisation"
@@ -573,18 +573,18 @@ SCENARIOS = [
         [Invocation(["duplicate-id-a", "duplicate-id-b"], 0)],
         2,
         sites=["duplicate-id-a", "duplicate-id-b"],
-        extra=duplicate_id,
+        check=duplicate_id,
     ),
-    Scenario("crash", [Invocation(["crash"], None)], 1, "crash", trace=1, extra=crash),
+    Scenario("crash", [Invocation(["crash"], None)], 1, "crash", trace=1, check=crash),
     Scenario(
         "deselected",
         [Invocation(["deselected"], 0, ["-k", "OQ-CONF-020"])],
         0,
         "deselected",
-        extra=deselected,
+        check=deselected,
     ),
     Scenario(
-        "control-pair", [Invocation(["control-pair"], 0)], 0, "control-pair", extra=control_pair
+        "control-pair", [Invocation(["control-pair"], 0)], 0, "control-pair", check=control_pair
     ),
 ]
 
