@@ -1,6 +1,6 @@
 # qat-006: qualify, Release Automation
 
-> **Status:** Dispatched | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-006
+> **Status:** In review (Steps 1 to 4) | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-006
 
 ## Context
 
@@ -74,4 +74,53 @@ confirmed:
 
 ## Outcome
 
-_Empty at dispatch._
+Steps 1 to 4 are done on branch `feat/qualify-release`. Step 5 waits until the
+packages are published.
+
+### Release-please
+
+- Four packages added with independent versions and tags (`qualify`,
+  `qualify-python`, `qualify-jvm`, `qualify-dotnet`). The changelog sections
+  moved to the top level of the config, so every package shares them.
+- The manifest records 0.1.0 for each, the version every package declares
+  today. Release-please treats a manifest version as already released, so the
+  first release of each new package is 0.2.0 after a `feat` commit.
+- `uv.lock` is an extra file of the Python package, because `uv lock --check`
+  fails once `pyproject.toml` has a new version and the lock does not.
+- The JVM version moved from `build.gradle.kts` to `gradle.properties`, between
+  `x-release-please-start-version` and `x-release-please-end`. The .NET
+  version line in `Directory.Build.props` carries `x-release-please-version`.
+- The three updaters were run locally with the release-please 17.6.0 library
+  on the real files. Each changed exactly the one version line.
+
+### Publishing in cd.yml
+
+- npm: the job now publishes every released package that has a
+  `package.json`, so `@lekman/qualify` as well as `@lekman/data-sampler`.
+- PyPI: a build job (contents read) and a publish job (`id-token: write`,
+  environment `pypi`) with `pypa/gh-action-pypi-publish` v1.14.3.
+- Maven Central: `com.vanniktech.maven.publish` 0.37.0, Central Portal with
+  automatic release, environment `maven-central`. Signing is on only when a
+  key is set; the job stops before the upload if a secret is missing.
+- NuGet: nuget.org offers trusted publishing for GitHub Actions (GA, policy
+  per owner, repository, workflow file and optional environment). The job
+  uses `NuGet/login` v1.2.0 with `id-token: write` and environment `nuget`,
+  so there is no `NUGET_API_KEY`. It needs the nuget.org user name as the
+  `NUGET_USER` secret.
+
+### Dry runs (2026-11-21, macOS)
+
+| Check                                                          | Result                                                                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `uv build` and `uvx twine check --strict` (twine 7.0.0)        | Passed for the sdist and the wheel. Metadata 2.5 with `License-Expression: MIT`, project URLs and classifiers.                 |
+| `./gradlew publishToMavenLocal` (JDK 21 and 17 from mise)      | Passed. Jar, sources jar, Javadoc jar, POM and module file. POM has name, description, URL, MIT licence, developer, SCM.        |
+| Signing                                                        | Not run. No signing key on this machine, and a throwaway GPG key could not be made in the sandbox. CI is the first signed run. |
+| `dotnet pack` (SDK 11.0.100)                                   | Passed for both packages, each with a `.snupkg`. The nuspec has the MIT expression, README, icon and repository commit.        |
+| `npm publish --dry-run` in `packages/qualify` (npm 11.17.0)    | Passed. `prepublishOnly` ran typecheck, 230 tests and the build. 111 files, 937 kB.                                            |
+
+### Left open
+
+- The package READMEs use relative links and images. npm rewrites them;
+  PyPI and nuget.org do not, so they break there. Change them to absolute
+  URLs as part of Step 5.
+- The JVM CLI jar is built but not published to Maven Central.
