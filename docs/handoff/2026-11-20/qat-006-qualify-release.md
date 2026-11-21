@@ -82,9 +82,9 @@ packages are published.
 - Four packages added with independent versions and tags (`qualify`,
   `qualify-python`, `qualify-jvm`, `qualify-dotnet`). The changelog sections
   moved to the top level of the config, so every package shares them.
-- The manifest records 0.1.0 for each, the version every package declares
-  today. Release-please treats a manifest version as already released, so the
-  first release of each new package is 0.2.0 after a `feat` commit.
+- The manifest records 0.0.0 for each qualify package. Release-please treats a
+  manifest version as already released, so the `feat` commits on `main` make
+  the first release of each 0.1.0, the version every package declares today.
 - `uv.lock` is an extra file of the Python package, because `uv lock --check`
   fails once `pyproject.toml` has a new version and the lock does not.
 - The JVM version moved from `build.gradle.kts` to `gradle.properties`, between
