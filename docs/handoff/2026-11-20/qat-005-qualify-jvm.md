@@ -1,6 +1,6 @@
 # qat-005: qualify, Java and Kotlin
 
-> **Status:** Dispatched | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-005
+> **Status:** Consumed | **Date:** 2026-11-20 | **Author:** planning session | **Keys:** qat-005
 
 ## Context
 
@@ -82,4 +82,92 @@ this framework existed before; this is new work.
 
 ## Outcome
 
-_Empty at dispatch._
+2026-11-20, implementation session. Branch `feat/qualify-jvm`, stacked on
+`feat/qualify-typescript` at 454c8de (the themed report and its layout fixes).
+Committed locally; the coordinating session pushes and opens the pull request,
+so step 8's draft pull request is not opened here.
+
+### Result
+
+- `packages/qualify-jvm` is a Gradle 9.9.2 build (Kotlin DSL, wrapper
+  committed, distribution checksum pinned): `com.lekman:qualify` 0.1.0, Java 17
+  bytecode, `java-library`. Run-time dependencies: `junit-jupiter-api` 5.14.4
+  (`api`), JSpecify 1.0.0 (`api`), Jackson 3.2.4 databind and YAML,
+  json-schema-validator 3.0.9 (which uses Jackson 3), and Apache PDFBox 3.0.8.
+  No `package.json`.
+- `@IQ`, `@OQ`, `@PQ` and `@IU` are composed annotations with `@Test`, the
+  level's `@Tag` and `@ExtendWith(QualifyExtension.class)`. `@IQ` and `@IU`
+  have no `scope` attribute, so declaring one is a compile error.
+  `QualifyExtension` implements the five interfaces of the brief plus
+  `InvocationInterceptor`, which replaces a failure whose message holds a
+  registered secret, so JUnit's own report never shows the value.
+- Outcomes come from `getExecutionException()` in `afterTestExecution`:
+  `CheckFailed` and any `AssertionError` are `fail`, a `TestAbortedException`
+  (assumptions, `ctx.skip`) is `skip`, anything else `error`. Failed soft
+  checks with no exception fail the test there with `CheckFailed`. A policy
+  denial or "not applicable" rule is decided in `ExecutionCondition`, which
+  writes the marker and a `skip` record; when conditions are switched off
+  (`junit.jupiter.conditions.deactivate`) the policy is applied in
+  `beforeTestExecution` instead. `TestWatcher` writes the record of a started
+  test whose after-execution callback never ran.
+- The run ID is `QUALIFY_RUN_ID` or `qualify.runId`, else one ULID per
+  launcher session, kept in JUnit 5.13's `StoreScope.LAUNCHER_SESSION` store.
+  This needs no `LauncherSessionListener`, and it holds for Gradle and the
+  testkit alike. Gradle forks get one session each; the README says to set
+  `QUALIFY_RUN_ID` or merge with `--allow-runs`.
+- Sites: a declaration's site is the first line of its method, read from the
+  class file's `LineNumberTable`, because Java has no API for an annotation's
+  line. A path is found under `src/*/java`, `src/*/kotlin` and
+  `qualify.sourceRoots`, relative to the git root.
+- CLI jar `qualify-0.1.0-cli.jar` (Shadow, 9 MB): `merge`, `validate`,
+  `report`; `trace` prints the `npx @lekman/qualify trace` pointer and exits 64.
+- Report: PDFBox with the themes copied byte for byte from
+  `spec/qualify/report/themes` at build time, a unit test comparing every file
+  with the spec, theme validation (schema, tokens, fonts, logo), `--theme`,
+  `--subtitle`, `--classification` and `QUALIFY_REPORT_THEME`. The two layout
+  fixes of 9b88049 (fills drawn first, headings kept with what follows) are
+  ported. Pages 1 to 3 of both themes were rendered with PDFBox's
+  `PDFRenderer` and compared by eye with the TypeScript images: same layout,
+  every glyph drawn, no subsetting fault. They are in the package README.
+
+### Conformance
+
+`./gradlew conformance`: 24 of 24 pass. Scenarios 1 to 20 (21 runs, with
+policy-skip A and B), 16 on two threads twice, 21 and 22, and the shared run
+ID check. Each scenario runs its JUnit classes through the launcher in a fresh
+JVM with a clean `QUALIFY_*` environment and `-ea`; crash uses
+`Runtime.getRuntime().halt` in that JVM. `merge` and `validate` come from the
+CLI jar, `trace` from `packages/qualify/dist/cli.js`. Scenario 21 extracts text
+with `PDFTextStripper`. No expected file was changed.
+
+### Quality Gates
+
+`./gradlew build` fails on any violation of: Spotless with google-java-format
+1.32.0 (Java) and ktlint 1.7.1, `ktlint_official` (Kotlin and the build
+scripts); Error Prone 2.52.0 with NullAway 0.14.3 on `com.lekman.qualify`,
+with `-Werror`; detekt 1.23.8, default rules plus `maxIssues: 0`; JaCoCo 0.8.14
+at line and instruction 0.8, method 0.6. Measured: 95.8 % of lines, 98.9 % of
+methods, 74 unit tests plus one Kotlin test. Kover does not apply: the only
+Kotlin is test code, and JaCoCo measures the library.
+
+### Deviations
+
+- Error Prone 2.43 and later and google-java-format 1.32.0 run only on JDK 21,
+  so the Gradle daemon and `javac` use JDK 21 (`gradle-daemon-jvm.properties`,
+  the foojay resolver) with `--release 17`. `mise.toml` still pins Temurin
+  17, which runs the tests, the conformance JVMs and the CLI.
+- Tags: JUnit has no hook that adds a tag at discovery, so a value only in
+  the `tags` attribute cannot be selected. The record holds the declared tags
+  and the test's JUnit tags except the level, so `@Tag("export")` both selects
+  and records. A test proves both. Spec section 2.4 is corrected in its own
+  `docs(qualify)` commit; the TypeScript conformance still passes.
+- `timeoutMs` is not an annotation attribute; JUnit's `@Timeout` is the
+  runner's own timeout. `delegate` returns nothing and `delegateValue` returns
+  the work's result, so a Kotlin lambda is never ambiguous between them.
+- The quality gate configuration (`required` in the gate's results) is only
+  on `ci/align-devops-actions` (pull request 9), not on this branch, so the
+  `jvm` job could not be added to it here. When both merge, `jvm` belongs in
+  the gate's `required` list.
+- `eslint.config.mjs` now ignores `packages/qualify-jvm/build/`: after a local
+  Gradle build, the root lint failed on the HTML reports' scripts. Pull
+  request 12 edits the same `ignores` line.
