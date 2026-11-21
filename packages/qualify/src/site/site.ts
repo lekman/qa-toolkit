@@ -16,8 +16,21 @@ const frameLocation = (line: string): string | undefined => {
   return body.replace(/^async /, "");
 };
 
+/**
+ * Drops a query or hash suffix that holds no colon, as
+ * `location.replace(/[?#][^:]*$/, "")` would: the first ? or # after the
+ * last colon starts it. One pass, whatever the input.
+ */
+const withoutQueryOrHash = (location: string): string => {
+  const afterColon = location.lastIndexOf(":") + 1;
+  const query = location.indexOf("?", afterColon);
+  const hash = location.indexOf("#", afterColon);
+  const cut = query < 0 ? hash : hash < 0 ? query : Math.min(query, hash);
+  return cut < 0 ? location : location.slice(0, cut);
+};
+
 const toPath = (location: string): string | undefined => {
-  let path = location.replace(/[?#][^:]*$/, "");
+  let path = withoutQueryOrHash(location);
   if (path.startsWith("file://")) {
     try {
       path = fileURLToPath(path);

@@ -2,10 +2,18 @@ import type { Classification, RunnerErrors } from "./types";
 
 import { CheckFailed, SkipSignal } from "../checks";
 
-/** The type name of a thrown value: its class name, or its `name`. */
+/**
+ * The type name of a thrown value: a `name` the error sets on itself, then
+ * its class name, then an inherited `name`. The own `name` comes first because
+ * a bundler may rename a class (AttachmentTooLarge2) when two chunks hold one.
+ */
 const typeName = (error: unknown): string => {
   if (error === null || error === undefined) return String(error);
   if (typeof error !== "object") return typeof error;
+  const own = Object.prototype.hasOwnProperty.call(error, "name")
+    ? (error as { name?: unknown }).name
+    : undefined;
+  if (typeof own === "string" && own.length > 0 && own !== "Error") return own;
   const ctor = (error as { constructor?: { name?: unknown } }).constructor
     ?.name;
   const name = (error as { name?: unknown }).name;

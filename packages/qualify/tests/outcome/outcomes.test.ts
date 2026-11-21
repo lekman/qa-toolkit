@@ -93,9 +93,22 @@ describe("Outcomes.classify", () => {
     });
   });
 
-  test("type names prefer the class, then the name", () => {
+  test("type names prefer an own name, then the class, then the name", () => {
     class Custom extends Error {}
     expect(Outcomes.typeName(new Custom())).toBe("Custom");
+    // A bundler renamed the class; the name the error sets still wins.
+    class AttachmentTooLarge2 extends Error {
+      constructor() {
+        super("too large");
+        this.name = "AttachmentTooLarge";
+      }
+    }
+    expect(Outcomes.typeName(new AttachmentTooLarge2())).toBe(
+      "AttachmentTooLarge",
+    );
+    // An inherited name does not hide the subclass.
+    class Narrower extends TypeError {}
+    expect(Outcomes.typeName(new Narrower())).toBe("Narrower");
     expect(
       Outcomes.typeName(Object.assign(new Error(), { name: "Named" })),
     ).toBe("Named");
