@@ -2,7 +2,8 @@
   <!-- Shared by every project in this folder: one version, one language level,
        nullable reference types on, and warnings as errors. -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <!-- release-please updates the version on the next line. -->
+    <Version>0.1.0</Version> <!-- x-release-please-version -->
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -18,6 +19,14 @@
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-dotnet</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- Each packable project also ships a symbol package (.snupkg), and
+         Source Link records the commit, so a debugger can step into the
+         source from GitHub. dotnet nuget push uploads the .snupkg beside the
+         .nupkg. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

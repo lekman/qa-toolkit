@@ -13,11 +13,15 @@ license-files = ["src/qualify/themes/*/fonts/OFL.txt"]
 authors = [{ name = "Tobias Lekman" }]
 requires-python = ">=3.10"
 keywords = ["qualification", "validation", "evidence", "traceability", "pytest"]
+# No licence classifier: the license expression above replaces it (PEP 639).
 classifiers = [
+  "Development Status :: 3 - Alpha",
   "Framework :: Pytest",
   "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Quality Assurance",
   "Topic :: Software Development :: Testing",
   "Typing :: Typed",
 ]
@@ -30,6 +34,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-python"
+Repository = "https://github.com/lekman/qa-toolkit"
+Issues = "https://github.com/lekman/qa-toolkit/issues"
+Changelog = "https://github.com/lekman/qa-toolkit/blob/main/packages/qualify-python/CHANGELOG.md"
 Specification = "https://github.com/lekman/qa-toolkit/blob/main/spec/qualify/README.md"
 
 [project.entry-points.pytest11]
