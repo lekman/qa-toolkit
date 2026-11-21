@@ -1,0 +1,4 @@
+# detekt runs on top of its default rules (trunk passes
+# --build-upon-default-config). Any finding fails the check.
+build:
+  maxIssues: 0

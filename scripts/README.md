@@ -35,7 +35,11 @@ leak the check exists to prevent. Start from
 [client-terms.example.txt](client-terms.example.txt), which ships with none.
 
 No list means the check skips and prints why. A contributor who works with no
-clients is never blocked, and CI, which has no list, never fails on it.
+clients is never blocked.
+
+CI is the exception. Its `leak-guard` job writes the list from the
+`CLIENT_TERMS` repository secret and fails when the secret is empty. See
+[docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) for how the secret is set.
 
 ### Why All Three Modes Exist
 

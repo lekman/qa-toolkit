@@ -58,8 +58,34 @@ good  fix(data-sampler): stop generating records for an excluded grade
 Enforced locally, by the `pre-commit` and `commit-msg` hooks in `.githooks/`.
 Install them once per clone with `scripts/install-hooks.sh`. The guard reads
 a gitignored term list and skips when there is none, so a contributor with no
-list is never blocked. There is no CI check: this repository does not carry a
-term list, so a secret-backed workflow would have nothing to match on.
+list is never blocked.
+
+CI runs the same guard as a backstop, in the `leak-guard` job of
+[ci.yml](../.github/workflows/ci.yml). It catches a commit made without the
+hooks. It scans the working tree on every pull request and push to `main`, and
+on a pull request it also scans the message of every commit the pull request
+adds. The Quality Gate requires it to pass.
+
+The job reads its term list from the `CLIENT_TERMS` repository secret. The
+secret holds the same newline-separated regex list as your local
+`scripts/client-terms.txt`. The repository owner sets it:
+
+```bash
+gh secret set CLIENT_TERMS -R lekman/qa-toolkit < scripts/client-terms.txt
+```
+
+Set it again whenever the local list changes. A term missing from the secret is
+a term CI lets through.
+
+The job fails when the secret is empty, so a missing list cannot pass as a
+clean scan. Two cases are exempt, because GitHub does not pass the secret to
+them: pull requests from a fork, and runs Dependabot starts. They warn and pass
+instead. To cover Dependabot too, set the same value as a Dependabot secret
+with `gh secret set CLIENT_TERMS --app dependabot -R lekman/qa-toolkit`.
+
+CI logs are public for this repository. The job runs the guard with `--quiet`,
+which reports file paths and commit SHAs only, never the term or the matching
+line. To see what matched, run the guard locally without `--quiet`.
 
 Audit what is already committed:
 
@@ -115,9 +141,32 @@ needed to _use_ what this repo publishes. A released CLI runs under plain Node
 
 ## Linting
 
-[Trunk](https://trunk.io) runs markdownlint, prettier, gitleaks, trufflehog, and
-a diff check, with commitlint as an action. Configuration is in
-[.trunk/trunk.yaml](../.trunk/trunk.yaml).
+[Trunk](https://trunk.io) runs on every commit through the git hooks and on
+every pull request in CI, so a problem is caught before it is pushed.
+Configuration is in [.trunk/trunk.yaml](../.trunk/trunk.yaml), with linter
+settings in `.trunk/configs/` and shared editor settings in
+[.editorconfig](../.editorconfig).
+
+| Area            | Linters                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| Every file      | gitleaks, trufflehog, a diff check, osv-scanner for lockfiles      |
+| Markdown, JSON  | prettier, markdownlint                                             |
+| YAML, workflows | yamllint, actionlint                                               |
+| Shell scripts   | shellcheck, with its default checks                                |
+| Python          | ruff                                                               |
+| Kotlin          | ktlint (official style), detekt (default rules, any finding fails) |
+| Java            | google-java-format                                                 |
+
+commitlint and the client-content guard run as Trunk actions.
+
+Trunk covers formatting and quick static checks. Each package's own build
+enforces the rest of the standard and fails on any violation: type checks
+(TypeScript, mypy), Error Prone and NullAway for Java, the .NET analyzers and
+`dotnet format` for C#, and a coverage floor of 80% of lines in every
+language. C# formatting is checked by the .NET build, not by Trunk, because
+Trunk's `dotnet-format` needs a .NET SDK on the path. A package build and
+Trunk must agree: when a package pins ktlint or google-java-format in its
+build, it pins the version Trunk uses.
 
 ```bash
 trunk check          # lint the diff
