@@ -5,8 +5,17 @@ import tseslint from "typescript-eslint";
 
 export default [
   // `.ua/` holds generated knowledge-graph data and the scratch scripts the
-  // analysis writes. Gitignored, but eslint keeps its own list.
-  { ignores: ["**/dist/", "**/node_modules/", "**/.ua/"] },
+  // analysis writes. `qualify-jvm/build/` holds Gradle's HTML reports, whose
+  // scripts are not this repository's code. Gitignored, but eslint keeps its
+  // own list.
+  {
+    ignores: [
+      "**/dist/",
+      "**/node_modules/",
+      "**/.ua/",
+      "packages/qualify-jvm/build/",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
