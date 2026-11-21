@@ -20,9 +20,10 @@ then the assigned brief. The contract every document follows is in
 
 ## Days
 
-| Day                                     | Goal                                                         |
-| --------------------------------------- | ------------------------------------------------------------ |
-| [2026-09-06](2026-09-06/00-day-plan.md) | Scaffold the repository and ship `@lekman/data-sampler` v0.1 |
+| Day                                     | Goal                                                            |
+| --------------------------------------- | --------------------------------------------------------------- |
+| [2026-09-06](2026-09-06/00-day-plan.md) | Scaffold the repository and ship `@lekman/data-sampler` v0.1    |
+| [2026-11-20](2026-11-20/00-day-plan.md) | Specify qualify and build it in TypeScript, Python, Java and C# |
 
 ## Keys
 

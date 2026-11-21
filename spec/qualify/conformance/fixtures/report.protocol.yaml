@@ -1,0 +1,15 @@
+# Protocol for conformance scenario 21 (report), shared by every language.
+# OQ-CONF-099 has no test, so the report lists it as not run.
+tests:
+  - id: IQ-CONF-001
+    title: all-pass test
+    level: IQ
+  - id: OQ-CONF-002
+    title: failing-check-stops test
+    level: OQ
+  - id: OQ-CONF-006
+    title: runtime-skip test
+    level: OQ
+  - id: OQ-CONF-099
+    title: a protocol test with no record
+    level: OQ

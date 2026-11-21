@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lekman/qa-toolkit/blob/main/spec/qualify/evidence.schema.json",
+  "title": "qualify evidence",
+  "description": "Evidence written by a qualify implementation. One schema covers the three kinds of file: a started marker and a record fragment, both written by the process that runs a test, and the run file that `qualify merge` builds from them. Normative: every implementation validates its own output against this file. schemaVersion changes only for a breaking change.",
+  "oneOf": [
+    { "$ref": "#/$defs/startedFile" },
+    { "$ref": "#/$defs/recordFile" },
+    { "$ref": "#/$defs/runFile" }
+  ],
+  "$defs": {
+    "schemaVersion": { "const": 1 },
+
+    "timestamp": {
+      "description": "UTC instant with millisecond precision and a Z suffix.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+
+    "runId": {
+      "description": "ULID shared by every file of one run, including runs split across processes or languages.",
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+
+    "testId": {
+      "description": "Level prefix, one area segment, a number of at least three digits. The prefix must equal the record's level.",
+      "type": "string",
+      "pattern": "^(IQ|OQ|PQ|IU)-[A-Z][A-Z0-9]{1,15}-[0-9]{3,}$"
+    },
+
+    "level": { "enum": ["IQ", "OQ", "PQ", "IU"] },
+
+    "scope": {
+      "description": "Declared effect on the system under test. IQ is always read, IU always read-write, OQ and PQ must declare it.",
+      "enum": ["read", "read-write"]
+    },
+
+    "risk": { "enum": ["high", "medium", "low"] },
+
+    "outcome": { "enum": ["pass", "fail", "error", "skip"] },
+
+    "site": {
+      "description": "Repository-relative path and 1-based line, separated by a colon.",
+      "type": "string",
+      "pattern": "^[^:\\n]+:[0-9]+$"
+    },
+
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+
+    "value": {
+      "description": "Any JSON value after the normalisation rules in spec/qualify/README.md: sorted object keys, bytes as {\"$bytes\": base64}, instants as timestamp strings, integers beyond 2^53 and non-finite numbers as strings, unserialisable values as \"[unserialisable: <type>]\"."
+    },
+
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "language", "runtime"],
+      "properties": {
+        "name": {
+          "description": "Implementation package name, for example @lekman/qualify.",
+          "type": "string",
+          "minLength": 1
+        },
+        "version": { "type": "string", "minLength": 1 },
+        "language": { "enum": ["typescript", "python", "java", "csharp"] },
+        "runtime": {
+          "description": "Runtime and test runner, for example \"node 22.11.0; vitest 3.2.4\".",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+
+    "source": {
+      "description": "The code under test. Values are null when they could not be read, never guessed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "branch", "dirty"],
+      "properties": {
+        "commit": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "branch": { "type": ["string", "null"] },
+        "dirty": { "type": ["boolean", "null"] }
+      }
+    },
+
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ci", "ciRunUrl"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "ci": {
+          "description": "CI system name, or null when run outside CI.",
+          "type": ["string", "null"]
+        },
+        "ciRunUrl": { "type": ["string", "null"] }
+      }
+    },
+
+    "target": {
+      "description": "Facts the job declares about what was tested, such as an artefact digest or version. A declared fact with no value is null.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productionWriteBlocked", "overrides"],
+      "properties": {
+        "productionWriteBlocked": { "type": "boolean" },
+        "overrides": {
+          "description": "Tests allowed to write in production for this run, named one by one.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "reason"],
+            "properties": {
+              "id": { "$ref": "#/$defs/testId" },
+              "reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+
+    "selection": {
+      "description": "What the caller asked the runner for, where the adapter can read it. Empty arrays mean no filter of that kind.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levels", "ids", "tags", "excludeTags"],
+      "properties": {
+        "levels": { "type": "array", "items": { "$ref": "#/$defs/level" } },
+        "ids": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "excludeTags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "runInfo": {
+      "description": "Run envelope. Fragments carry it so a fragment is readable on its own; merge takes it from the fragments and checks they agree. Left open here so the run file can extend it; every use closes it with unevaluatedProperties.",
+      "type": "object",
+      "required": [
+        "id",
+        "environment",
+        "tool",
+        "source",
+        "actor",
+        "target",
+        "policy"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/runId" },
+        "environment": { "type": "string", "minLength": 1 },
+        "tool": { "$ref": "#/$defs/tool" },
+        "source": { "$ref": "#/$defs/source" },
+        "actor": { "$ref": "#/$defs/actor" },
+        "target": { "$ref": "#/$defs/target" },
+        "policy": { "$ref": "#/$defs/policy" },
+        "selection": { "$ref": "#/$defs/selection" }
+      }
+    },
+
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seq",
+        "context",
+        "description",
+        "matcher",
+        "expected",
+        "actual",
+        "pass",
+        "soft",
+        "site"
+      ],
+      "properties": {
+        "seq": {
+          "description": "0-based position in call order within the test.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "context": {
+          "description": "What is being checked, for example a component or endpoint.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "The claim, in words a reviewer can read.",
+          "type": "string",
+          "minLength": 1
+        },
+        "matcher": {
+          "enum": [
+            "equals",
+            "notEquals",
+            "contains",
+            "matches",
+            "isTrue",
+            "isFalse",
+            "isNull",
+            "isNotNull",
+            "hasLength",
+            "atLeast",
+            "atMost",
+            "oneOf",
+            "delegate"
+          ]
+        },
+        "expected": { "$ref": "#/$defs/value" },
+        "actual": { "$ref": "#/$defs/value" },
+        "pass": { "type": "boolean" },
+        "soft": { "type": "boolean" },
+        "site": { "$ref": "#/$defs/site" },
+        "delegate": {
+          "description": "Qualified name of the function a delegate check ran. Present only for matcher delegate.",
+          "type": "string",
+          "minLength": 1
+        },
+        "at": { "$ref": "#/$defs/timestamp" }
+      },
+      "if": { "properties": { "matcher": { "const": "delegate" } } },
+      "then": { "required": ["delegate"] },
+      "else": { "not": { "required": ["delegate"] } }
+    },
+
+    "attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filename",
+        "contentType",
+        "encoding",
+        "content",
+        "sizeBytes",
+        "sha256"
+      ],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "contentType": { "type": "string", "minLength": 1 },
+        "encoding": { "const": "base64" },
+        "content": { "type": "string" },
+        "sizeBytes": {
+          "description": "Size of the redacted bytes.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "description": "SHA-256 of the redacted bytes.",
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+
+    "failure": {
+      "description": "The first failure in the test, redacted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message", "site"],
+      "properties": {
+        "type": {
+          "description": "CheckFailed for a failed check, the language's assertion type for a plain assertion, otherwise the thrown type.",
+          "type": "string",
+          "minLength": 1
+        },
+        "message": { "type": "string" },
+        "site": {
+          "oneOf": [{ "$ref": "#/$defs/site" }, { "type": "null" }]
+        }
+      }
+    },
+
+    "declaration": {
+      "description": "Fields fixed by the test's declaration, shared by the started marker and the record.",
+      "type": "object",
+      "required": [
+        "id",
+        "level",
+        "title",
+        "given",
+        "when",
+        "then",
+        "scope",
+        "requirements",
+        "tags",
+        "site"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/testId" },
+        "level": { "$ref": "#/$defs/level" },
+        "title": { "type": "string", "minLength": 1 },
+        "given": { "type": "string", "minLength": 1 },
+        "when": { "type": "string", "minLength": 1 },
+        "then": { "type": "string", "minLength": 1 },
+        "and": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "scope": { "$ref": "#/$defs/scope" },
+        "requirements": {
+          "description": "Requirement IDs declared in code, in declaration order, without duplicates.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "risk": { "$ref": "#/$defs/risk" },
+        "tags": {
+          "description": "Sorted, without duplicates.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "controls": {
+          "description": "ID of the negative test this test is the control for.",
+          "$ref": "#/$defs/testId"
+        },
+        "site": { "$ref": "#/$defs/site" }
+      }
+    },
+
+    "testRecord": {
+      "allOf": [
+        { "$ref": "#/$defs/declaration" },
+        {
+          "type": "object",
+          "required": [
+            "outcome",
+            "startedAt",
+            "endedAt",
+            "durationMs",
+            "checks",
+            "attachments",
+            "secretsUsed"
+          ],
+          "properties": {
+            "outcome": { "$ref": "#/$defs/outcome" },
+            "skipReason": { "type": "string", "minLength": 1 },
+            "error": { "$ref": "#/$defs/failure" },
+            "startedAt": { "$ref": "#/$defs/timestamp" },
+            "endedAt": { "$ref": "#/$defs/timestamp" },
+            "durationMs": { "type": "integer", "minimum": 0 },
+            "checks": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/check" }
+            },
+            "attachments": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/attachment" }
+            },
+            "secretsUsed": {
+              "description": "Names of secrets read or registered, sorted, never values.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "outcome": { "const": "skip" } } },
+              "then": { "required": ["skipReason"] },
+              "else": { "not": { "required": ["skipReason"] } }
+            },
+            {
+              "if": {
+                "properties": { "outcome": { "enum": ["fail", "error"] } }
+              },
+              "then": { "required": ["error"] },
+              "else": { "not": { "required": ["error"] } }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "startedFile": {
+      "description": "Written atomically when a test starts, at <evidenceDir>/records/<runId>__<testId>__<key>.started, where <key> is the first 8 hex digits of the SHA-256 of the declaration's site. A marker with no matching record means the test began and never finished.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "run", "test"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "kind": { "const": "started" },
+        "run": {
+          "$ref": "#/$defs/runInfo",
+          "unevaluatedProperties": false
+        },
+        "test": {
+          "allOf": [
+            { "$ref": "#/$defs/declaration" },
+            {
+              "type": "object",
+              "required": ["startedAt"],
+              "properties": {
+                "startedAt": { "$ref": "#/$defs/timestamp" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      }
+    },
+
+    "recordFile": {
+      "description": "Written atomically, already redacted, by the process that ran the test, at <evidenceDir>/records/<runId>__<testId>__<key>.json, the same <key> as its marker.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "run", "test"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "kind": { "const": "record" },
+        "run": {
+          "$ref": "#/$defs/runInfo",
+          "unevaluatedProperties": false
+        },
+        "test": { "$ref": "#/$defs/testRecord" }
+      }
+    },
+
+    "runFile": {
+      "description": "Built by qualify merge at <evidenceDir>/test-evidence.json, with a .sha256 sidecar.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "run", "summary", "tests"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "kind": { "const": "run" },
+        "run": {
+          "allOf": [
+            { "$ref": "#/$defs/runInfo" },
+            {
+              "type": "object",
+              "required": ["startedAt", "endedAt"],
+              "properties": {
+                "startedAt": {
+                  "description": "Earliest test start.",
+                  "$ref": "#/$defs/timestamp"
+                },
+                "endedAt": {
+                  "description": "Latest test end.",
+                  "$ref": "#/$defs/timestamp"
+                },
+                "mergedRuns": {
+                  "description": "Other run IDs merged in with --allow-runs, sorted.",
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/runId" }
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "pass", "fail", "error", "skip", "verdict"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "pass": { "type": "integer", "minimum": 0 },
+            "fail": { "type": "integer", "minimum": 0 },
+            "error": { "type": "integer", "minimum": 0 },
+            "skip": { "type": "integer", "minimum": 0 },
+            "verdict": {
+              "description": "fail if any fail or error; incomplete if there are no records; otherwise pass.",
+              "enum": ["pass", "fail", "incomplete"]
+            }
+          }
+        },
+        "tests": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/testRecord" }
+        }
+      }
+    }
+  }
+}

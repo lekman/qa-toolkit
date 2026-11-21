@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lekman/qa-toolkit/blob/main/spec/qualify/trace.schema.json",
+  "title": "qualify trace matrix",
+  "description": "The trace.json file `qualify trace` writes: one row per link between a requirement and a test result, the protocol IDs with no record, and the requirements with no passing test. Normative for the TypeScript CLI, the only implementation that writes it. schemaVersion changes only for a breaking change.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "inputs",
+    "runs",
+    "summary",
+    "rows",
+    "notRun",
+    "requirementsWithoutPass"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "trace" },
+    "inputs": {
+      "description": "Every file read, in the order given on the command line: evidence files, then the protocol, then the map.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "role", "sha256"],
+        "properties": {
+          "path": {
+            "description": "The path as given on the command line.",
+            "type": "string",
+            "minLength": 1
+          },
+          "role": { "enum": ["evidence", "protocol", "map"] },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "runs": {
+      "description": "One entry per evidence file, in input order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "environment", "commit", "verdict"],
+        "properties": {
+          "id": { "$ref": "#/$defs/runId" },
+          "environment": { "type": "string", "minLength": 1 },
+          "commit": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "verdict": { "enum": ["pass", "fail", "incomplete"] }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "pass",
+        "fail",
+        "error",
+        "skip",
+        "notRun",
+        "requirements",
+        "requirementsWithoutPass",
+        "verdict"
+      ],
+      "properties": {
+        "tests": {
+          "description": "Test records across all evidence files.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "pass": { "type": "integer", "minimum": 0 },
+        "fail": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 },
+        "skip": { "type": "integer", "minimum": 0 },
+        "notRun": {
+          "description": "Protocol IDs with no record.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "requirements": {
+          "description": "Distinct requirement IDs linked to any test.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "requirementsWithoutPass": { "type": "integer", "minimum": 0 },
+        "verdict": {
+          "description": "fail for exit code 1, incomplete for exit code 3, pass for exit code 0.",
+          "enum": ["pass", "fail", "incomplete"]
+        }
+      }
+    },
+    "rows": {
+      "description": "Sorted by requirement (rows without one last), then test ID, then run. A control test's row follows the row of the test it controls when both share a requirement.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement",
+          "sources",
+          "testId",
+          "level",
+          "title",
+          "risk",
+          "controls",
+          "outcome",
+          "run",
+          "environment"
+        ],
+        "properties": {
+          "requirement": {
+            "description": "null for a test linked to no requirement.",
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "sources": {
+            "description": "Where the link came from: the code declaration, the protocol, the map. Empty when requirement is null.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "enum": ["code", "protocol", "map"] }
+          },
+          "testId": { "$ref": "#/$defs/testId" },
+          "level": { "enum": ["IQ", "OQ", "PQ", "IU"] },
+          "title": { "type": "string", "minLength": 1 },
+          "risk": { "enum": ["high", "medium", "low", null] },
+          "controls": {
+            "oneOf": [{ "$ref": "#/$defs/testId" }, { "type": "null" }]
+          },
+          "outcome": { "enum": ["pass", "fail", "error", "skip", "not-run"] },
+          "run": {
+            "description": "The run that produced the record, null for not-run.",
+            "oneOf": [{ "$ref": "#/$defs/runId" }, { "type": "null" }]
+          },
+          "environment": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "notRun": {
+      "description": "Protocol test IDs with no record, sorted.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/testId" }
+    },
+    "requirementsWithoutPass": {
+      "description": "Requirement IDs with no row whose outcome is pass, sorted.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runId": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$" },
+    "testId": {
+      "type": "string",
+      "pattern": "^(IQ|OQ|PQ|IU)-[A-Z][A-Z0-9]{1,15}-[0-9]{3,}$"
+    }
+  }
+}
