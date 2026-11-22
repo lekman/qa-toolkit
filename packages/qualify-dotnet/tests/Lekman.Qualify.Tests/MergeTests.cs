@@ -287,7 +287,8 @@ public class CommandTests
         Assert.Equal(0, QualifyCommands.Run(["--help"], io));
         Assert.Contains("Usage:", io.Output.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, QualifyCommands.Run(["--version"], io));
-        Assert.Contains("0.1.0", io.Output.ToString(), StringComparison.Ordinal);
+        // The release bumps the version, so the test checks its shape, not its value.
+        Assert.Matches(@"\d+\.\d+\.\d+", io.Output.ToString());
         Assert.Equal(64, QualifyCommands.Run(["trace", "run.json"], io));
         Assert.Contains("npx @lekman/qualify trace", io.Errors.ToString(), StringComparison.Ordinal);
         Assert.Equal(2, QualifyCommands.Run(["merge", "--evidence-dir", "/x"], new MemoryIO { Variables = { ["QUALIFY_ATTACHMENT_LIMIT"] = "bad" } }));
