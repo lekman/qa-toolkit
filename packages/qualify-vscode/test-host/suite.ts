@@ -2,7 +2,8 @@
  * The extension host test: runs inside VS Code with test-host/fixture open,
  * activates the extension and checks the shape of the Testing view's tree:
  * the qualification tests of every language, and the ordinary tests of the
- * sets in the fixture's qa.yaml.
+ * sets in the fixture's qa.yaml. The fixture's toolkit/ folder holds a
+ * conformance scenario and a test fixture that must not be shown.
  * Bundled to dist-test/suite.js by scripts/build-host-test.ts.
  */
 

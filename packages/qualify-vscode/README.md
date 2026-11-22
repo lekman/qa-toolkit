@@ -35,10 +35,40 @@ Qualification
   it. A declaration that breaks a rule of the specification is shown as an
   error item with the reason: an ID that does not match
   `^(IQ|OQ|PQ|IU)-[A-Z][A-Z0-9]{1,15}-[0-9]{3,}$`, a prefix that is not the
-  level, a missing `scope` on an OQ or PQ test, an ID declared twice, or a
-  Scenario Outline. It is never hidden, and it is not run.
+  level, a missing `scope` on an OQ or PQ test, an ID declared twice (with
+  the other places, relative to the workspace folder), or a Scenario
+  Outline. It is never hidden, and it is not run.
 
-The tree updates when a file changes. Nothing runs to build it.
+The tree updates when a file changes. Nothing runs to build it, and a
+change under a folder discovery skips, such as the build output a run
+writes, does not rebuild it.
+
+### What Discovery Skips
+
+Discovery skips build output and tool folders, and the conformance
+scenarios and fixtures a test toolkit keeps for its own tests. Those break
+the rules on purpose, with bad IDs and the same ID in every language, and
+are not a product's tests. The built-in globs are `**/node_modules/**`,
+`**/dist/**`, `**/build/**`, `**/bin/**`, `**/obj/**`, `**/target/**`,
+`**/.venv/**`, `**/.git/**`, `**/.vscode-test/**`, `**/conformance/**`,
+`**/fixture/**`, `**/fixtures/**` and `**/test-host/**`. It also skips what
+each `.gitignore` in the folder ignores (`qualify.useGitIgnore`).
+
+`qualify.exclude` adds globs to the built-in ones. A built-in glob after a
+`!` is read again:
+
+```jsonc
+// .vscode/settings.json of a repository whose conformance scenarios are its tests
+{
+  "qualify.exclude": ["!**/conformance/**", "!**/fixtures/**"],
+}
+```
+
+Every `qualify.*` setting is read per workspace folder. In a multi-root
+workspace, a folder's own `.vscode/settings.json` applies to that folder,
+and a value in the `.code-workspace` file applies to every folder. To leave
+a folder out, such as one that holds other repositories, set
+`"qualify.enabled": false` in its settings, or `"qualify.exclude": ["**"]`.
 
 ## What It Reads
 
@@ -117,13 +147,17 @@ run ID, a record counts when it ended after the run started.
 
 ## Settings
 
-| Setting               | Default                                                                  | What it does                                                                         |
-| --------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `qualify.evidenceDir` | `qualification/evidence`                                                 | Where tests write evidence, relative to the package folder                           |
-| `qualify.runners`     | `{}`                                                                     | A command per runner ID, for every package                                           |
-| `qualify.packages`    | `{}`                                                                     | Per package folder (relative, `.` for the root): `command`, `runners`, `evidenceDir` |
-| `qualify.exclude`     | `node_modules`, `dist`, `build`, `bin`, `obj`, `target`, `.venv`, `.git` | Globs that discovery skips                                                           |
-| `qualify.traceFiles`  | `**/{trace.md,trace.json}`                                               | Where **Qualify: Open Trace Matrix** looks                                           |
+| Setting                | Default                    | What it does                                                                                                                     |
+| ---------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `qualify.enabled`      | `true`                     | `false` leaves the folder out of the Testing view                                                                                |
+| `qualify.evidenceDir`  | `qualification/evidence`   | Where tests write evidence, relative to the package folder                                                                       |
+| `qualify.runners`      | `{}`                       | A command per runner ID, for every package                                                                                       |
+| `qualify.packages`     | `{}`                       | Per package folder (relative, `.` for the root): `command`, `runners`, `evidenceDir`                                             |
+| `qualify.exclude`      | `[]`                       | Globs that discovery skips as well as the built-in ones; `!` and a built-in glob reads it again ([above](#what-discovery-skips)) |
+| `qualify.useGitIgnore` | `true`                     | Discovery also skips what each `.gitignore` ignores; lines that start with `!` are not read                                      |
+| `qualify.traceFiles`   | `**/{trace.md,trace.json}` | Where **Qualify: Open Trace Matrix** looks                                                                                       |
+
+Each setting is read per workspace folder.
 
 A command may use these placeholders:
 
@@ -195,7 +229,27 @@ box:
 ## Trace Matrix
 
 **Qualify: Open Trace Matrix** opens the output of `qualify trace` (`--md` or
-`--json`). With several, it asks which one. It does not run `qualify trace`.
+`--json`) that `qualify.traceFiles` finds. With several, it asks which one.
+
+When there is none, it builds one:
+
+1. It looks for qualification runs in the evidence folders that
+   `qualify.evidenceDir`, `qualify.packages` and the qualification sets of
+   `qa.yaml` name: a run file (`test-evidence.json`), or the records of a run
+   that no run file holds yet.
+2. With one run it takes that one. With several it asks which, newest
+   first, each labelled with its levels, package and start time.
+3. It runs the qualify CLI the workspace has: `node_modules/.bin/qualify`
+   in the run's folder or one above it, else `bunx` (with a Bun lockfile) or
+   `npx`, at the version a `package.json` pins, else the version that wrote
+   the run. Records are merged first with `qualify merge`; when the folder
+   holds records of other runs, only the chosen run's records are merged.
+4. It writes `trace.md` next to the run file with
+   `qualify trace <run file> --md trace.md`, and opens it.
+
+When there is no run at all, it offers **Run qualification tests**, runs
+every IQ, OQ, PQ and IU test of the workspace, and tries again. When a
+step fails, the message says which step and what the CLI printed.
 
 ## What It Costs and What It Does Not Do
 
@@ -218,6 +272,13 @@ box:
   test as not run.
 - **Evidence is read only after a run.** Records from an earlier run, or from
   CI, are not shown when VS Code starts.
+- **A run ends when its command's shell exits.** A process the command
+  started and left running, such as a preview server, is stopped two
+  seconds later, so it cannot hold the run open. The command gets no input:
+  one that waits for a key press reads end of file.
+- **One qualification set per package and runner lends its command.** When
+  two sets of `qa.yaml` cover the same package with the same runner, such
+  as one per viewport, the extension runs the first.
 
 ## Layout
 
@@ -231,11 +292,18 @@ the file system and processes are touched only in `src/extension/*.system.ts`.
 | `src/packages/`  | Which package a file belongs to                                                                                      |
 | `src/runners/`   | The command lines a runner definition makes. The definitions are data in [@lekman/test-sets](../test-sets/README.md) |
 | `src/sets/`      | Ordinary tests of the sets in `qa.yaml`, and their JUnit results                                                     |
+| `src/trace/`     | Finding qualification runs and building the trace matrix with the qualify CLI                                        |
 | `src/results/`   | The result-reader port and the qualify evidence reader                                                               |
 | `src/runs/`      | The run plan and its execution, behind process and reporter ports                                                    |
 | `src/tree/`      | The tree: product, package, level, test, and the tags                                                                |
 | `src/extension/` | The VS Code adapters                                                                                                 |
 | `test-host/`     | The extension host test and its fixture workspace                                                                    |
+
+The repository's own conformance scenarios, fixtures and `test-host/` are
+skipped by the built-in globs. To see them while working on this
+repository, set `qualify.exclude` to `["!**/conformance/**",
+"!**/fixtures/**", "!**/fixture/**", "!**/test-host/**"]` in your own
+`.vscode/settings.json`; the repository does not track `.vscode/`.
 
 ```bash
 bun test                 # unit tests, with fakes for the ports

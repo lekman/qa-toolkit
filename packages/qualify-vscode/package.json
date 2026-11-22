@@ -69,14 +69,22 @@
     "configuration": {
       "title": "Qualify",
       "properties": {
+        "qualify.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Whether the extension reads this folder. Set it to `false` in a folder's `.vscode/settings.json` to leave that folder's tests out of the Testing view."
+        },
         "qualify.evidenceDir": {
           "type": "string",
           "default": "qualification/evidence",
+          "scope": "resource",
           "markdownDescription": "Where the tests write their evidence, relative to the package folder. The extension sets `QUALIFY_EVIDENCE_DIR` to this folder for every run, and reads the records from it afterwards."
         },
         "qualify.runners": {
           "type": "object",
           "default": {},
+          "scope": "resource",
           "markdownDescription": "Command per runner for every package, keyed by runner ID (`vitest`, `node-test`, `bun-test`, `pytest`, `gradle`, `maven`, `dotnet`, `cucumber-js`). Placeholders: `${tool}`, `${filter}`, `${id}`, `${ids}`, `${package}`, `${evidenceDir}`, `${workspaceFolder}`.",
           "additionalProperties": {
             "type": "string"
@@ -85,6 +93,7 @@
         "qualify.packages": {
           "type": "object",
           "default": {},
+          "scope": "resource",
           "markdownDescription": "Settings per package, keyed by the package folder relative to the workspace folder (`.` for the folder itself). Each takes `command` (for every runner in the package), `runners` (a command per runner ID) and `evidenceDir`. For example `{ \"apps/web\": { \"command\": \"task test:intended-use -- ${ids}\" } }`.",
           "additionalProperties": {
             "type": "object",
@@ -113,21 +122,20 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "**/node_modules/**",
-            "**/dist/**",
-            "**/build/**",
-            "**/bin/**",
-            "**/obj/**",
-            "**/target/**",
-            "**/.venv/**",
-            "**/.git/**"
-          ],
-          "description": "Folders and files that discovery skips."
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "Globs, relative to the workspace folder, that discovery skips as well as the built-in ones: `**/node_modules/**`, `**/dist/**`, `**/build/**`, `**/bin/**`, `**/obj/**`, `**/target/**`, `**/.venv/**`, `**/.git/**`, `**/.vscode-test/**`, `**/conformance/**`, `**/fixture/**`, `**/fixtures/**` and `**/test-host/**`. Start a built-in glob with `!` to read that folder again, such as `!**/conformance/**`. `[\"**\"]` skips the whole folder."
+        },
+        "qualify.useGitIgnore": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Whether discovery also skips what each `.gitignore` in the folder ignores. Lines that start with `!` are not read."
         },
         "qualify.traceFiles": {
           "type": "string",
           "default": "**/{trace.md,trace.json}",
+          "scope": "resource",
           "markdownDescription": "Where `Qualify: Open Trace Matrix` looks for the output of `qualify trace`."
         }
       }

@@ -1,18 +1,32 @@
 import type { RunnerDefinition } from "../runners";
 import type { PackageSettings, QualifySettings } from "./types";
 
+/**
+ * What discovery always skips, unless `qualify.exclude` takes a glob out
+ * with `!`: build output and tool folders, and the fixtures and
+ * conformance scenarios a test toolkit keeps for its own tests.
+ */
+const EXCLUDE: readonly string[] = [
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/bin/**",
+  "**/obj/**",
+  "**/target/**",
+  "**/.venv/**",
+  "**/.git/**",
+  "**/.vscode-test/**",
+  "**/conformance/**",
+  "**/fixture/**",
+  "**/fixtures/**",
+  "**/test-host/**",
+];
+
 const DEFAULTS: QualifySettings = {
+  enabled: true,
   evidenceDir: "qualification/evidence",
-  exclude: [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/build/**",
-    "**/bin/**",
-    "**/obj/**",
-    "**/target/**",
-    "**/.venv/**",
-    "**/.git/**",
-  ],
+  exclude: [...EXCLUDE],
+  gitIgnore: true,
   packages: {},
   runners: {},
   traceFiles: "**/{trace.md,trace.json}",
@@ -40,6 +54,9 @@ export class Settings {
   /** The values a setting has when it is not set. */
   static readonly DEFAULTS: QualifySettings = DEFAULTS;
 
+  /** The globs discovery skips when `qualify.exclude` is not set. */
+  static readonly EXCLUDE: readonly string[] = EXCLUDE;
+
   /**
    * The command template for a runner in a package, most specific first:
    * the package's command for that runner, the package's command, the
@@ -64,6 +81,21 @@ export class Settings {
     return settings.packages[packagePath]?.evidenceDir ?? settings.evidenceDir;
   }
 
+  /**
+   * The built-in globs and the user's, merged: a user's glob adds to the
+   * built-in ones, and a built-in glob given again after a `!` is taken out.
+   */
+  static exclude(user: readonly string[]): string[] {
+    const removed = new Set(
+      user.filter((g) => g.startsWith("!")).map((g) => g.slice(1).trim()),
+    );
+    const added = user
+      .filter((g) => !g.startsWith("!"))
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+    return [...new Set([...EXCLUDE.filter((g) => !removed.has(g)), ...added])];
+  }
+
   /** Settings from raw configuration values, with a default for each value that is missing or of the wrong type. */
   static from(raw: Readonly<Record<string, unknown>>): QualifySettings {
     const packages: Record<string, PackageSettings> = {};
@@ -84,12 +116,16 @@ export class Settings {
         };
       }
     }
-    const exclude = Array.isArray(raw.exclude)
-      ? raw.exclude.filter((e): e is string => typeof e === "string")
-      : DEFAULTS.exclude;
+    const exclude = Settings.exclude(
+      Array.isArray(raw.exclude)
+        ? raw.exclude.filter((e): e is string => typeof e === "string")
+        : [],
+    );
     return {
+      enabled: raw.enabled !== false,
       evidenceDir: text(raw.evidenceDir) ?? DEFAULTS.evidenceDir,
       exclude,
+      gitIgnore: raw.gitIgnore !== false,
       packages,
       runners: strings(raw.runners),
       traceFiles: text(raw.traceFiles) ?? DEFAULTS.traceFiles,
