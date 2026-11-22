@@ -37,6 +37,8 @@ export interface ProductTests {
 export interface ScanResult {
   /** Declarations by file, for re-reading one file when it changes. */
   declarations: Map<string, Declaration[]>;
+  /** The globs the scan skipped: the settings' and those of each `.gitignore`. */
+  exclude: string[];
   /** Build files and tool files, by folder. */
   index: FileIndex;
   /** The ordinary tests of the sets in `qa.yaml`. */

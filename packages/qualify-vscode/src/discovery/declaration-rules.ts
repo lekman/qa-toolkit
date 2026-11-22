@@ -1,3 +1,5 @@
+import { relative } from "node:path";
+
 import type { Declaration } from "./types";
 
 import { Levels, TestIds } from "../levels";
@@ -60,9 +62,15 @@ export class DeclarationRules {
 
   /**
    * The declarations with a problem added to each one whose ID another
-   * declaration also uses, because one ID must map to one record.
+   * declaration also uses, because one ID must map to one record. The other
+   * places are named relative to `base` when it is given.
    */
-  static duplicates(declarations: readonly Declaration[]): Declaration[] {
+  static duplicates(
+    declarations: readonly Declaration[],
+    base?: string,
+  ): Declaration[] {
+    const name = (file: string): string =>
+      base === undefined ? file : relative(base, file).split("\\").join("/");
     const byId = new Map<string, Declaration[]>();
     for (const d of declarations) {
       byId.set(d.id, [...(byId.get(d.id) ?? []), d]);
@@ -70,7 +78,7 @@ export class DeclarationRules {
     return declarations.map((d) => {
       const others = (byId.get(d.id) ?? []).filter((o) => o !== d);
       if (others.length === 0) return d;
-      const where = others.map((o) => `${o.file}:${o.line}`).join(", ");
+      const where = others.map((o) => `${name(o.file)}:${o.line}`).join(", ");
       return {
         ...d,
         problems: [

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { relative } from "node:path";
 import * as vscode from "vscode";
 
 import type { Declaration } from "../discovery";
@@ -8,10 +9,11 @@ import type { TreeNode } from "../tree";
 import type { ProductFolder, ResolvedTest, ScanResult } from "../workspace";
 
 import { Discovery } from "../discovery";
+import { Levels } from "../levels";
 import { RunExecution, RunIds, RunPlan } from "../runs";
 import { Settings } from "../settings";
 import { TestTree } from "../tree";
-import { WorkspaceScan } from "../workspace";
+import { Globs, WorkspaceScan } from "../workspace";
 import { ResultFiles, WorkspaceFiles } from "./files.system";
 import { ShellProcess } from "./process.system";
 
@@ -24,8 +26,10 @@ export const settingsOf = (folder: string) => {
     vscode.Uri.file(folder),
   );
   return Settings.from({
+    enabled: config.get("enabled"),
     evidenceDir: config.get("evidenceDir"),
     exclude: config.get("exclude"),
+    gitIgnore: config.get("useGitIgnore"),
     packages: config.get("packages"),
     runners: config.get("runners"),
     traceFiles: config.get("traceFiles"),
@@ -47,7 +51,8 @@ export class QualifyController implements vscode.Disposable {
   /** The VS Code test controller, for the extension host test. */
   readonly controller: vscode.TestController;
   private readonly disposables: vscode.Disposable[] = [];
-  private readonly items = new Map<ResolvedTest, vscode.TestItem>();
+  /** The current items by ID; a refresh during a run replaces them. */
+  private readonly items = new Map<string, vscode.TestItem>();
   private readonly nodes = new Map<string, TreeNode>();
   private pending: NodeJS.Timeout | undefined;
   private readonly scans = new Map<string, ScanResult>();
@@ -69,6 +74,7 @@ export class QualifyController implements vscode.Disposable {
       ...new Set([
         ...Discovery.EXTENSIONS.map((e) => `**/*${e}`),
         ...WorkspaceScan.indexGlobs(),
+        "**/.gitignore",
       ]),
     ];
     for (const glob of globs) {
@@ -123,15 +129,52 @@ export class QualifyController implements vscode.Disposable {
     this.sync();
   }
 
-  /** Re-reads one changed file, or rescans when a build file or qa.yaml changed. */
+  /**
+   * Runs every qualification test (IQ, OQ, PQ, IU) of the workspace and
+   * resolves when the run ends. Ordinary tests are left out.
+   */
+  async runQualification(): Promise<void> {
+    const request = new vscode.TestRunRequest();
+    const cancel = new vscode.CancellationTokenSource();
+    try {
+      await this.run(request, cancel.token, (test) =>
+        Levels.isQualification(test.declaration.level),
+      );
+    } finally {
+      cancel.dispose();
+    }
+  }
+
+  /**
+   * Re-reads one changed file, or rescans when a build file, a `.gitignore`
+   * or qa.yaml changed. A change under a folder the scan skips, such as the
+   * build output a run writes, is left alone.
+   */
   private changed(uri: vscode.Uri): void {
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    const scan = folder && this.scans.get(folder.uri.fsPath);
+    if (folder !== undefined && scan !== undefined) {
+      const path = relative(folder.uri.fsPath, uri.fsPath)
+        .split("\\")
+        .join("/");
+      if (Globs.matchesAny(path, scan.exclude)) return;
+    }
     clearTimeout(this.pending);
     this.pending = setTimeout(() => void this.reread(uri), 300);
   }
 
-  private reporter(run: vscode.TestRun): IRunReporter {
-    const item = (test: ResolvedTest): vscode.TestItem =>
-      this.items.get(test) as vscode.TestItem;
+  /**
+   * Reports to the run by item ID: the item that holds the ID now, or the
+   * one the run started with when a refresh has since removed it.
+   */
+  private reporter(
+    run: vscode.TestRun,
+    started: ReadonlyMap<ResolvedTest, vscode.TestItem>,
+  ): IRunReporter {
+    const item = (test: ResolvedTest): vscode.TestItem => {
+      const first = started.get(test) as vscode.TestItem;
+      return this.items.get(first.id) ?? first;
+    };
     const out = (text: string): string => text.replace(/\r?\n/g, "\r\n");
     return {
       errored: (test, message) => {
@@ -185,13 +228,16 @@ export class QualifyController implements vscode.Disposable {
   private async run(
     request: vscode.TestRunRequest,
     token: vscode.CancellationToken,
+    only: (test: ResolvedTest) => boolean = () => true,
   ): Promise<void> {
     const excluded = new Set((request.exclude ?? []).map((i) => i.id));
-    const selected = new Map<string, ResolvedTest>();
+    const selected = new Map<ResolvedTest, vscode.TestItem>();
     const collect = (item: vscode.TestItem): void => {
       if (excluded.has(item.id)) return;
       const node = this.nodes.get(item.id);
-      if (node?.test !== undefined) selected.set(item.id, node.test);
+      if (node?.test !== undefined && only(node.test)) {
+        selected.set(node.test, item);
+      }
       item.children.forEach(collect);
     };
     if (request.include === undefined) this.controller.items.forEach(collect);
@@ -199,7 +245,7 @@ export class QualifyController implements vscode.Disposable {
     const run = this.controller.createTestRun(request);
     const runId = RunIds.create(Date.now(), randomBytes(16));
     const scans = this.scans;
-    const plan = RunPlan.build([...selected.values()], {
+    const plan = RunPlan.build([...selected.keys()], {
       index: (folder) => scans.get(folder)?.index ?? new Map(),
       platform: process.platform,
       resultsDir: this.resultsDir,
@@ -217,7 +263,7 @@ export class QualifyController implements vscode.Disposable {
           clock: Date.now,
           files: new ResultFiles(),
           process: new ShellProcess(),
-          reporter: this.reporter(run),
+          reporter: this.reporter(run, selected),
         },
         abort.signal,
       );
@@ -248,7 +294,7 @@ export class QualifyController implements vscode.Disposable {
         node.file === undefined ? undefined : vscode.Uri.file(node.file);
       const item = this.controller.createTestItem(node.id, node.label, uri);
       this.nodes.set(node.id, node);
-      if (node.test !== undefined) this.items.set(node.test, item);
+      this.items.set(node.id, item);
       item.description = node.description;
       item.error = node.error;
       item.sortText = node.sortText;

@@ -71,4 +71,53 @@ describe("Settings", () => {
     expect(Settings.evidenceDir(s, "web")).toBe("e");
     expect(Settings.evidenceDir(s, "api")).toBe("out/evidence");
   });
+
+  test("a user's exclude globs add to the built-in ones, and a ! glob takes one out", () => {
+    const s = Settings.from({
+      exclude: ["qa-toolkit/**", "!**/conformance/**", " ", 3],
+    });
+    expect(s.exclude).toContain("**/node_modules/**");
+    expect(s.exclude).toContain("**/fixtures/**");
+    expect(s.exclude).toContain("qa-toolkit/**");
+    expect(s.exclude).not.toContain("**/conformance/**");
+    expect(s.exclude).not.toContain("!**/conformance/**");
+    expect(Settings.from({ exclude: [] }).exclude).toEqual([
+      ...Settings.EXCLUDE,
+    ]);
+  });
+
+  test("the built-in globs skip a toolkit's conformance scenarios and fixtures", () => {
+    for (const glob of [
+      "**/conformance/**",
+      "**/fixture/**",
+      "**/fixtures/**",
+      "**/test-host/**",
+    ]) {
+      expect(Settings.DEFAULTS.exclude).toContain(glob);
+    }
+  });
+
+  test("enabled and gitIgnore are on unless set to false", () => {
+    expect(Settings.DEFAULTS.enabled).toBe(true);
+    expect(Settings.DEFAULTS.gitIgnore).toBe(true);
+    const off = Settings.from({ enabled: false, gitIgnore: false });
+    expect(off.enabled).toBe(false);
+    expect(off.gitIgnore).toBe(false);
+    expect(Settings.from({ enabled: "no" }).enabled).toBe(true);
+  });
+
+  test("every setting is read per folder, so a folder's own settings apply in a multi-root workspace", async () => {
+    const manifest = (await Bun.file(
+      new URL("../../package.json", import.meta.url),
+    ).json()) as {
+      contributes: {
+        configuration: { properties: Record<string, { scope?: string }> };
+      };
+    };
+    const properties = manifest.contributes.configuration.properties;
+    expect(Object.keys(properties).length).toBeGreaterThan(0);
+    for (const [name, property] of Object.entries(properties)) {
+      expect(`${name}: ${property.scope}`).toBe(`${name}: resource`);
+    }
+  });
 });

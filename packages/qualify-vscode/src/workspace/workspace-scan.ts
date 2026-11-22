@@ -16,9 +16,35 @@ import { DeclarationRules, Discovery } from "../discovery";
 import { PackageRoots } from "../packages";
 import { RunnerDefinitions } from "../runners";
 import { SetScan } from "../sets";
+import { GitIgnore } from "./git-ignore";
 
 /** Finds the tests of a product: reads its files, then places each test in its package. */
 export class WorkspaceScan {
+  /**
+   * The settings' exclude globs and, when `gitIgnore` is on, the globs of
+   * every `.gitignore` in the folder that is not itself excluded.
+   */
+  static async excludes(
+    folder: ProductFolder,
+    settings: QualifySettings,
+    files: IWorkspaceFiles,
+  ): Promise<string[]> {
+    if (!settings.gitIgnore) return settings.exclude;
+    const ignoreFiles = await files.find(
+      folder.path,
+      [`**/${GitIgnore.FILE}`],
+      settings.exclude,
+    );
+    const globs = await Promise.all(
+      ignoreFiles
+        .sort()
+        .map(async (file) =>
+          GitIgnore.globs(folder.path, file, (await files.read(file)) ?? ""),
+        ),
+    );
+    return [...new Set([...settings.exclude, ...globs.flat()])];
+  }
+
   /** The globs of the build files and tool files a scan indexes. */
   static indexGlobs(): string[] {
     return [
@@ -64,7 +90,7 @@ export class WorkspaceScan {
     const all = [...declarations.keys()]
       .sort()
       .flatMap((file) => declarations.get(file) ?? []);
-    const checked = DeclarationRules.duplicates(all);
+    const checked = DeclarationRules.duplicates(all, folder.path);
     return {
       folder,
       tests: [
@@ -95,13 +121,26 @@ export class WorkspaceScan {
   /**
    * Reads every file of a product that may declare a qualification test,
    * indexes its build files, and reads the ordinary tests of the sets in
-   * `qa.yaml` at its root.
+   * `qa.yaml` at its root. A folder with `enabled` off has no tests.
    */
   static async scan(
     folder: ProductFolder,
-    settings: QualifySettings,
+    given: QualifySettings,
     files: IWorkspaceFiles,
   ): Promise<ScanResult> {
+    if (!given.enabled) {
+      return {
+        declarations: new Map(),
+        exclude: [],
+        index: new Map(),
+        ordinary: [],
+        problems: [],
+      };
+    }
+    const settings = {
+      ...given,
+      exclude: await WorkspaceScan.excludes(folder, given, files),
+    };
     const [sources, indexed] = await Promise.all([
       files.find(
         folder.path,
@@ -123,6 +162,7 @@ export class WorkspaceScan {
     if (text === undefined) {
       return {
         declarations,
+        exclude: settings.exclude,
         index: PackageRoots.index(indexed),
         ordinary: [],
         problems: [],
@@ -135,6 +175,7 @@ export class WorkspaceScan {
         : await SetScan.scan(folder, parsed.file, settings, files);
     return {
       declarations,
+      exclude: settings.exclude,
       index: PackageRoots.index(indexed),
       ordinary,
       problems: parsed.problems,
