@@ -31,7 +31,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from pdf_text import PdfText, extract, missing_from_outline, outline
+from pdf_text import PdfText, extract, missing_from_outline, outline, placed_images
 from qualify import schema
 from qualify.jsontext import EVIDENCE_SHAPE, TRACE_SHAPE, document
 
@@ -565,6 +565,7 @@ SCENARIOS = [
         "attachments",
         check=attachments,
     ),
+    Scenario("report-images", [Invocation(["report-images"], 0)], 0, "report-images"),
     Scenario(
         "value-normalisation", [Invocation(["value-normalisation"], 0)], 0, "value-normalisation"
     ),
@@ -778,6 +779,41 @@ def run_report(sample: Path | None) -> None:
             shutil.copyfile(plain, sample / "sample-report-plain.pdf")
 
 
+def run_report_images(sample: Path | None) -> None:
+    """Scenario 23: the run of OQ-CONF-024, rendered with the plain theme. The
+    run file is compared as a scenario above; this checks the report's text and
+    the images its pages place."""
+    with evidence_dir("report-images") as directory:
+        result = pytest_run(Invocation(["report-images"], 0), directory)
+        check(result.status == 0, f"pytest exited {result.status}\n{result.output[-3000:]}")
+        merge = qualify("merge", "--evidence-dir", str(directory))
+        check(merge.status == 0, f"merge exited {merge.status}, expected 0")
+        pdf = directory / "report-images.pdf"
+        result = qualify(
+            "report",
+            str(directory / "test-evidence.json"),
+            "--pdf",
+            str(pdf),
+            "--theme",
+            "plain",
+            "--title",
+            "Conformance images",
+            "--document-id",
+            "CONF-IMG-001",
+            env=scenario_env(directory, {"QUALIFY_REPORT_TIME": REPORT_TIME}),
+        )
+        check(result.status == 0, f"report exited {result.status}, expected 0\n{result.output}")
+        check_outline(extract(pdf), "report-images.outline.txt")
+        placed = placed_images(pdf)
+        check(
+            placed == [(48, 48), (200, 600), (960, 540)],
+            f"the pages place the images {placed}",
+        )
+        if sample is not None:
+            sample.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(pdf, sample / "sample-report-images.pdf")
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
     parser.add_argument("--only", help="comma-separated scenario names")
@@ -793,6 +829,7 @@ def main(argv: Sequence[str]) -> int:
         ("shared-run-id", run_shared_run_id),
         ("merge-option", run_merge_option),
         ("report, report-theme", partial(run_report, options.sample)),
+        ("report-images", partial(run_report_images, options.sample)),
     ]
     results: list[tuple[str, str | None]] = []
     for name, job in jobs:

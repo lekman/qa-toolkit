@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
+from collections.abc import Sequence
 from pathlib import Path
 
 from fpdf import FPDF
@@ -10,8 +12,10 @@ from fpdf.fonts import TTFFont
 from PIL import Image as PillowImage
 
 from qualify import theme as themes
+from qualify.report import images as pictures
 from qualify.report import layout
 from qualify.report.content import Document
+from qualify.report.images import ImageSource
 from qualify.theme import Theme
 
 _SIZES = {"A4": (595.28, 841.89), "Letter": (612.0, 792.0)}
@@ -62,6 +66,26 @@ def _logo_size(theme: Theme) -> tuple[float, float] | None:
     return height * pixels_wide / pixels_high, height
 
 
+_PILLOW_FORMATS = {"png": "PNG", "jpeg": "JPEG"}
+
+
+def image_size(source: ImageSource) -> tuple[float, float] | None:
+    """The pixel size of an image attachment, or ``None`` when its bytes do not
+    start with its format's signature or Pillow, which fpdf2 reads images
+    with, cannot decode them as that format."""
+    if not pictures.signed(source.data, source.format):
+        return None
+    try:
+        with PillowImage.open(io.BytesIO(source.data)) as image:
+            if image.format != _PILLOW_FORMATS[source.format]:
+                return None
+            image.load()
+            width, height = image.size
+    except Exception:
+        return None
+    return float(width), float(height)
+
+
 def render(document: Document, theme: Theme, producer: str) -> bytes:
     """Lay out and draw the document: the cover without header or footer, then
     the content pages with both. Pages count from the cover. fpdf2 embeds the
@@ -74,7 +98,8 @@ def render(document: Document, theme: Theme, producer: str) -> bytes:
     colours = {name: _rgb(value) for name, value in theme.colours.items()}
 
     first = layout.cover(document.cover, _logo_size(theme), fonts, g)
-    pages = [first, *layout.paginate(document.blocks, fonts, g)]
+    sizes = [image_size(source) for source in document.images]
+    pages = [first, *layout.paginate(document.blocks, fonts, g, sizes)]
     total = str(len(pages))
     for index, ops in enumerate(pages):
         if index > 0:
@@ -93,7 +118,7 @@ def render(document: Document, theme: Theme, producer: str) -> bytes:
         # Fills first: a striped row's fill would otherwise cover half of the
         # hairline drawn under the row above it.
         for op in sorted(ops, key=lambda o: not isinstance(o, layout.Fill)):
-            _draw(pdf, op, g, fonts, colours, theme)
+            _draw(pdf, op, g, fonts, colours, theme, document.images)
 
     meta = document.metadata
     pdf.set_title(meta.title)
@@ -112,6 +137,7 @@ def _draw(
     fonts: _Fonts,
     colours: dict[str, tuple[int, int, int]],
     theme: Theme,
+    images: Sequence[ImageSource],
 ) -> None:
     """Draw one operation. Layout measures ``y`` up from the bottom; fpdf2 down from the top."""
     if isinstance(op, layout.Text):
@@ -125,5 +151,8 @@ def _draw(
     elif isinstance(op, layout.Fill):
         pdf.set_fill_color(*colours[op.colour])
         pdf.rect(op.x, g.height - op.y - op.height, op.width, op.height, style="F")
+    elif op.image is not None:
+        data = io.BytesIO(images[op.image].data)
+        pdf.image(data, x=op.x, y=g.height - op.y - op.height, w=op.width, h=op.height)
     elif theme.logo is not None:
         pdf.image(str(theme.logo), x=op.x, y=g.height - op.y - op.height, w=op.width, h=op.height)

@@ -5,12 +5,15 @@ signature block. Pure: the theme decides the texts, the layout comes later.
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from qualify import theme as themes
+from qualify.report import images as pictures
+from qualify.report.images import ImageSource
 from qualify.trace import Matrix
 from qualify.values import Json, key_text
 
@@ -123,7 +126,17 @@ class Signatures:
     roles: tuple[str, ...]
 
 
-Block = Heading | Paragraph | Listing | Fields | Table | Signatures
+@dataclass(frozen=True)
+class Picture:
+    """An image attachment: an index into the document's images, the line
+    under the image, and the line drawn instead when it cannot be read."""
+
+    image: int
+    caption: str
+    unreadable: str
+
+
+Block = Heading | Paragraph | Listing | Fields | Table | Signatures | Picture
 
 
 @dataclass(frozen=True)
@@ -169,6 +182,7 @@ class Document:
     footer: str
     tokens: Mapping[str, str]
     metadata: Metadata = field(compare=False)
+    images: tuple[ImageSource, ...] = ()
 
 
 def tokens(
@@ -297,7 +311,26 @@ def _summary(run: Mapping[str, Any], matrix: Matrix) -> list[Block]:
     ]
 
 
-def _test(test: Mapping[str, Any]) -> list[Block]:
+def _pictures(test: Mapping[str, Any], sources: list[ImageSource]) -> list[Block]:
+    """The PNG and JPEG attachments of a test as picture blocks, in the order
+    attached. Their bytes are added to ``sources``, which the blocks index."""
+    blocks: list[Block] = []
+    for attachment in test["attachments"]:
+        fmt = pictures.image_format(attachment["contentType"])
+        if fmt is None:
+            continue
+        sources.append(ImageSource(base64.b64decode(attachment["content"]), fmt))
+        blocks.append(
+            Picture(
+                len(sources) - 1,
+                pictures.caption(attachment),
+                pictures.unreadable(attachment),
+            )
+        )
+    return blocks
+
+
+def _test(test: Mapping[str, Any], sources: list[ImageSource]) -> list[Block]:
     fields = [
         Field("Level", test["level"]),
         Field("Outcome", test["outcome"]),
@@ -373,6 +406,7 @@ def _test(test: Mapping[str, Any]) -> list[Block]:
         checks,
         Heading(3, "Attachments"),
         attachments,
+        *_pictures(test, sources),
     ]
 
 
@@ -397,8 +431,9 @@ def build(
         *_details(run, digest, options),
         *_summary(run, matrix),
     ]
+    sources: list[ImageSource] = []
     for test in run["tests"]:
-        blocks += _test(test)
+        blocks += _test(test, sources)
     if roles:
         blocks += [Heading(2, "Signatures"), Signatures(roles)]
     return Document(
@@ -417,4 +452,5 @@ def build(
             producer=producer,
             creation_date=options.generated_at,
         ),
+        images=tuple(sources),
     )
