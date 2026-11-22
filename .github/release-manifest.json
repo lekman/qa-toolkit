@@ -1,6 +1,6 @@
 {
   "packages/data-sampler": "0.1.0",
-  "packages/qualify": "0.0.0",
+  "packages/qualify-ts": "0.0.0",
   "packages/qualify-python": "0.0.0",
   "packages/qualify-jvm": "0.0.0",
   "packages/qualify-dotnet": "0.0.0"

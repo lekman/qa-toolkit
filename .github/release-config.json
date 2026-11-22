@@ -53,7 +53,7 @@
       "component": "data-sampler",
       "initial-version": "0.1.0"
     },
-    "packages/qualify": {
+    "packages/qualify-ts": {
       "release-type": "node",
       "package-name": "@lekman/qualify",
       "component": "qualify",
