@@ -1,4 +1,4 @@
-import type { ISecretRegistry, QualifyContext } from "../checks";
+import type { ISecretRegistry, QualifyContext, TestContext } from "../checks";
 import type { DeclaredTest, Level } from "../declaration";
 import type { IEvidenceWriter, RunInfo } from "../evidence";
 import type { Settings } from "../settings";
@@ -41,3 +41,30 @@ export type RunResult =
 
 /** A level function: `iq`, `oq`, `pq` or `iu`. */
 export type LevelName = Lowercase<Level>;
+
+/**
+ * Sites a runner knows better than a stack trace, for example the feature
+ * file line of the step that is running.
+ */
+export interface SiteOverrides {
+  /** The site of each check, in place of the caller's frame. */
+  check?: () => string;
+  /** The site of a failure other than a failed check, in place of the innermost frame in the test file. */
+  failure?: () => null | string;
+}
+
+/** A test whose started marker is written and whose body has not ended. */
+export interface StartedTest {
+  /** The context the body records its checks on. */
+  ctx: TestContext;
+  /** The evidence file key, from the declaration's site. */
+  key: string;
+  overrides: SiteOverrides;
+  /** Why the policy skips the test; the body must not run when set. */
+  policySkip?: string;
+  process: ProcessContext;
+  registration: Extract<Registration, { valid: true }>;
+  /** The envelope as the files carry it. */
+  run: RunInfo;
+  startedAt: Date;
+}

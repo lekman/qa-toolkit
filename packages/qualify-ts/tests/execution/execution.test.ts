@@ -336,3 +336,108 @@ describe("Execution.finish", () => {
     ).toThrow("f");
   });
 });
+
+describe("Execution.declareAt", () => {
+  test("takes the site from the frame the runner gives", () => {
+    const registration = Execution.declareAt(
+      "OQ",
+      "OQ-EXEC-010",
+      "a scenario",
+      narrative,
+      { path: join(SITES.root, "features/cart.feature"), line: 7 },
+      SITES,
+    );
+    expect(registration.valid).toBe(true);
+    if (!registration.valid) return;
+    expect(registration.declared.declaration.site).toBe(
+      "features/cart.feature:7",
+    );
+  });
+
+  test("refuses a declaration without a frame", () => {
+    const registration = Execution.declareAt(
+      "OQ",
+      "OQ-EXEC-011",
+      "a scenario",
+      narrative,
+      undefined,
+      SITES,
+    );
+    expect(registration.valid).toBe(false);
+    if (registration.valid) return;
+    expect(registration.error.message).toContain("could not find");
+  });
+});
+
+describe("Execution.start and Execution.end", () => {
+  test("a body that spans several calls uses the runner's sites", async () => {
+    const { context, writer } = processContext();
+    let step = "features/cart.feature:8";
+    const started = await Execution.start(declare("OQ-EXEC-012"), context, {
+      check: () => step,
+      failure: () => step,
+    });
+    expect(files(writer).marker?.test.id).toBe("OQ-EXEC-012");
+    expect(files(writer).record).toBeUndefined();
+    started.ctx.check("cart", "has items").that(2).equals(2);
+    step = "features/cart.feature:9";
+    const result = await Execution.end(
+      started,
+      { error: new TypeError("broken") },
+      RUNNER,
+    );
+    expect(result.outcome).toBe("error");
+    const { record } = files(writer);
+    expect(record?.test.checks[0]?.site).toBe("features/cart.feature:8");
+    expect(record?.test.error?.site).toBe("features/cart.feature:9");
+  });
+
+  test("a failed check keeps its own site over the runner's", async () => {
+    const { context, writer } = processContext();
+    const started = await Execution.start(declare("OQ-EXEC-013"), context, {
+      check: () => "features/a.feature:3",
+      failure: () => "features/a.feature:4",
+    });
+    let thrown: undefined | { error: unknown };
+    try {
+      started.ctx.check("cart", "is empty").that(1).equals(0);
+    } catch (error) {
+      thrown = { error };
+    }
+    await Execution.end(started, thrown, RUNNER);
+    expect(files(writer).record?.test.error?.site).toBe("features/a.feature:3");
+  });
+
+  test("a policy skip is set at start and ends the test as a skip", async () => {
+    const { context, writer } = processContext({
+      QUALIFY_ENVIRONMENT: "production",
+    });
+    const started = await Execution.start(
+      declare("OQ-EXEC-014", { scope: "read-write" }),
+      context,
+    );
+    expect(started.policySkip).toContain("blocked in production");
+    const result = await Execution.end(
+      started,
+      { error: new Error("ignored") },
+      RUNNER,
+    );
+    expect(result).toEqual({
+      outcome: "skip",
+      reason: started.policySkip as string,
+    });
+    expect(files(writer).record?.test.outcome).toBe("skip");
+  });
+});
+
+describe("Execution.redactError", () => {
+  test("redacts registered values in the message and stack", () => {
+    const { context } = processContext();
+    context.registry.add("known-secret-2");
+    const error = new Error("failed with known-secret-2");
+    Execution.redactError(error, context);
+    expect(error.message).toBe("failed with [REDACTED]");
+    expect(error.stack).not.toContain("known-secret-2");
+    expect(() => Execution.redactError("text", context)).not.toThrow();
+  });
+});

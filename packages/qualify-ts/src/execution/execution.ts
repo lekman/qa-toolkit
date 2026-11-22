@@ -9,12 +9,15 @@ import type {
   TestRecord,
 } from "../evidence";
 import type { RunnerErrors } from "../outcome";
+import type { Frame } from "../site";
 import type { JsonValue } from "../values";
 import type {
   ProcessContext,
   Registration,
   RunResult,
   SiteContext,
+  SiteOverrides,
+  StartedTest,
   TestBody,
 } from "./types";
 
@@ -63,8 +66,29 @@ export class Execution {
     stack: string | undefined,
     sites: SiteContext,
   ): Registration {
+    return Execution.declareAt(
+      level,
+      id,
+      title,
+      narrative,
+      Site.caller(stack, sites.exclude),
+      sites,
+    );
+  }
+
+  /**
+   * Validate a declaration whose site the runner knows, such as the line of
+   * a scenario in a feature file.
+   */
+  static declareAt(
+    level: Level,
+    id: unknown,
+    title: unknown,
+    narrative: Narrative | undefined,
+    frame: Frame | undefined,
+    sites: SiteContext,
+  ): Registration {
     const name = Declarations.displayName(id, title);
-    const frame = Site.caller(stack, sites.exclude);
     try {
       if (frame === undefined) {
         throw new DeclarationError(String(id), [
@@ -85,81 +109,21 @@ export class Execution {
   }
 
   /**
-   * Hand a result back to the runner: return for a pass, throw for a
-   * failure, and mark a skip with the runner's own skip where it has one.
+   * End a started test: wait for delegated work, classify what the body
+   * threw, and write the redacted record. `thrown` is the first value the
+   * body threw, if any.
    */
-  static finish(result: RunResult, skip: (reason: string) => void): void {
-    if (result.outcome === "pass") return;
-    if (result.outcome === "skip") {
-      if (result.rethrow !== undefined) throw result.rethrow;
-      skip(result.reason);
-      return;
-    }
-    throw result.rethrow;
-  }
-
-  /** Run a registered test and write its evidence. */
-  static async run<R>(
-    registration: Extract<Registration, { valid: true }>,
-    body: TestBody<R>,
-    runnerContext: R,
-    process: ProcessContext,
+  static async end(
+    started: StartedTest,
+    thrown: undefined | { error: unknown },
     runner: RunnerErrors,
   ): Promise<RunResult> {
+    const { ctx, policySkip, process, registration } = started;
     const { declaration } = registration.declared;
-    const run = Execution.envelope(process.envelope);
-    const key = EvidenceFiles.key(declaration.site);
-    const records = join(process.evidenceDir, "records");
-    const started = process.now();
-
-    const marker: StartedFile = {
-      schemaVersion: 1,
-      kind: "started",
-      run,
-      test: {
-        ...Execution.redactDeclaration(declaration, process.registry.values()),
-        startedAt: started.toISOString(),
-      },
-    };
-    await process.writer.write(
-      join(records, EvidenceFiles.marker(run.id, declaration.id, key)),
-      JsonText.document(marker, EVIDENCE_SHAPE),
-    );
-
-    const policySkip = Policy.skipReason(declaration, process.settings);
-    const ctx = new TestContext({
-      attachmentLimit: process.settings.attachmentLimit,
-      environment: process.settings.environment,
-      id: declaration.id,
-      level: declaration.level,
-      now: () => process.now(),
-      readSecret: process.settings.readSecret,
-      registry: process.registry,
-      runContext: () => ({
-        actor: run.actor,
-        source: run.source,
-        target: run.target,
-      }),
-      site: () => {
-        const frame = Site.caller(new Error().stack, process.sites.exclude);
-        return frame
-          ? Site.format(frame, process.sites.root)
-          : declaration.site;
-      },
-      warn: (message) => process.warn(message),
-    });
-
-    let thrown: undefined | { error: unknown };
     if (policySkip === undefined) {
-      try {
-        await body(ctx, runnerContext);
-      } catch (error) {
-        thrown = { error };
-      }
       const late = await ctx.settle();
       thrown ??= late;
     }
-
     const classification =
       policySkip === undefined
         ? Outcomes.classify(thrown, ctx.softFailures().length, runner)
@@ -171,12 +135,7 @@ export class Execution {
     if (classification.failure) {
       error = {
         ...classification.failure,
-        site: Execution.failureSite(
-          thrown,
-          ctx,
-          registration.file,
-          process.sites,
-        ),
+        site: Execution.failureSite(thrown, started),
       };
     }
     const test = Redaction.value(
@@ -187,9 +146,9 @@ export class Execution {
           ? {}
           : { skipReason: classification.skipReason }),
         ...(error === undefined ? {} : { error }),
-        startedAt: started.toISOString(),
+        startedAt: started.startedAt.toISOString(),
         endedAt: ended.toISOString(),
-        durationMs: Math.max(0, ended.getTime() - started.getTime()),
+        durationMs: Math.max(0, ended.getTime() - started.startedAt.getTime()),
         checks: ctx.checks(),
         attachments: [],
         secretsUsed: ctx.secretsUsed(),
@@ -200,9 +159,18 @@ export class Execution {
       .attachments()
       .map((pending) => Attachments.finalise(pending, registered));
 
-    const record: RecordFile = { schemaVersion: 1, kind: "record", run, test };
+    const record: RecordFile = {
+      schemaVersion: 1,
+      kind: "record",
+      run: started.run,
+      test,
+    };
     await process.writer.write(
-      join(records, EvidenceFiles.record(run.id, declaration.id, key)),
+      join(
+        process.evidenceDir,
+        "records",
+        EvidenceFiles.record(started.run.id, declaration.id, started.key),
+      ),
       JsonText.document(record, EVIDENCE_SHAPE),
     );
 
@@ -228,6 +196,118 @@ export class Execution {
     }
   }
 
+  /**
+   * Hand a result back to the runner: return for a pass, throw for a
+   * failure, and mark a skip with the runner's own skip where it has one.
+   */
+  static finish(result: RunResult, skip: (reason: string) => void): void {
+    if (result.outcome === "pass") return;
+    if (result.outcome === "skip") {
+      if (result.rethrow !== undefined) throw result.rethrow;
+      skip(result.reason);
+      return;
+    }
+    throw result.rethrow;
+  }
+
+  /**
+   * Redact the message and stack of a thrown value in place, with the values
+   * registered so far, before a runner prints it.
+   */
+  static redactError(error: unknown, process: ProcessContext): void {
+    scrub(error, process.registry.values());
+  }
+
+  /** Run a registered test and write its evidence. */
+  static async run<R>(
+    registration: Extract<Registration, { valid: true }>,
+    body: TestBody<R>,
+    runnerContext: R,
+    process: ProcessContext,
+    runner: RunnerErrors,
+  ): Promise<RunResult> {
+    const started = await Execution.start(registration, process);
+    let thrown: undefined | { error: unknown };
+    if (started.policySkip === undefined) {
+      try {
+        await body(started.ctx, runnerContext);
+      } catch (error) {
+        thrown = { error };
+      }
+    }
+    return Execution.end(started, thrown, runner);
+  }
+
+  /**
+   * Start a registered test: write the started marker, apply the policy, and
+   * build the context. A runner whose body spans several calls, such as the
+   * steps of a scenario, runs them between `start` and `end`; when
+   * `policySkip` is set, it runs nothing and still calls `end`.
+   */
+  static async start(
+    registration: Extract<Registration, { valid: true }>,
+    process: ProcessContext,
+    overrides: SiteOverrides = {},
+  ): Promise<StartedTest> {
+    const { declaration } = registration.declared;
+    const run = Execution.envelope(process.envelope);
+    const key = EvidenceFiles.key(declaration.site);
+    const startedAt = process.now();
+
+    const marker: StartedFile = {
+      schemaVersion: 1,
+      kind: "started",
+      run,
+      test: {
+        ...Execution.redactDeclaration(declaration, process.registry.values()),
+        startedAt: startedAt.toISOString(),
+      },
+    };
+    await process.writer.write(
+      join(
+        process.evidenceDir,
+        "records",
+        EvidenceFiles.marker(run.id, declaration.id, key),
+      ),
+      JsonText.document(marker, EVIDENCE_SHAPE),
+    );
+
+    const policySkip = Policy.skipReason(declaration, process.settings);
+    const ctx = new TestContext({
+      attachmentLimit: process.settings.attachmentLimit,
+      environment: process.settings.environment,
+      id: declaration.id,
+      level: declaration.level,
+      now: () => process.now(),
+      readSecret: process.settings.readSecret,
+      registry: process.registry,
+      runContext: () => ({
+        actor: run.actor,
+        source: run.source,
+        target: run.target,
+      }),
+      site:
+        overrides.check ??
+        (() => {
+          const frame = Site.caller(new Error().stack, process.sites.exclude);
+          return frame
+            ? Site.format(frame, process.sites.root)
+            : declaration.site;
+        }),
+      warn: (message) => process.warn(message),
+    });
+    return {
+      ctx,
+      key,
+      overrides,
+      ...(policySkip === undefined ? {} : { policySkip }),
+      process,
+      registration,
+      run,
+      startedAt,
+    };
+  }
+
   /** The envelope as files carry it: pattern rules applied to every string. */
   private static envelope(envelope: RunInfo): RunInfo {
     return Redaction.value(
@@ -238,21 +318,21 @@ export class Execution {
 
   private static failureSite(
     thrown: undefined | { error: unknown },
-    ctx: TestContext,
-    file: string,
-    sites: SiteContext,
+    started: StartedTest,
   ): null | string {
+    const { ctx, overrides, process, registration } = started;
     if (thrown === undefined) return ctx.softFailures()[0]?.site ?? null;
     if (CheckFailed.is(thrown.error)) return thrown.error.site;
+    if (overrides.failure !== undefined) return overrides.failure();
     const stack =
       typeof thrown.error === "object" && thrown.error !== null
         ? (thrown.error as { stack?: unknown }).stack
         : undefined;
     const frame = Site.inFile(
       typeof stack === "string" ? stack : undefined,
-      file,
+      registration.file,
     );
-    return frame ? Site.format(frame, sites.root) : null;
+    return frame ? Site.format(frame, process.sites.root) : null;
   }
 
   private static redactDeclaration(
