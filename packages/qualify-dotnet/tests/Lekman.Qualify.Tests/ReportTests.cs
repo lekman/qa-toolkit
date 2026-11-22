@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Lekman.Qualify.Cli;
+using Lekman.Qualify.Execution;
 using Lekman.Qualify.Merge;
 using Lekman.Qualify.Report;
 using Lekman.Qualify.Theme;
@@ -373,7 +374,7 @@ public class ReportTests
         io.Disk["/work/map.yaml"] = "PQ-CONF-014: R-1\n"u8.ToArray();
         Assert.Equal(0, QualifyCommands.Run(["report", "run.json", "--pdf", "out.pdf", "--map", "map.yaml", "--theme", "plain", "--signatures", "Author; Owner", "--subtitle", "Sub", "--document-id", "DOC-1"], io));
         using var pdf = PdfDocument.Open(io.Files.Files["/work/out.pdf"]);
-        Assert.Contains("Lekman.Qualify 0.1.0", pdf.Information.Producer, StringComparison.Ordinal);
+        Assert.Contains($"Lekman.Qualify {QualifyRuntime.ToolVersion}", pdf.Information.Producer, StringComparison.Ordinal);
         Assert.Equal(Records.RunId, pdf.Information.Subject);
         var words = string.Join(" ", pdf.GetPages().SelectMany(p => p.GetWords()).Select(w => w.Text));
         Assert.Contains("d’entrée", words, StringComparison.Ordinal);

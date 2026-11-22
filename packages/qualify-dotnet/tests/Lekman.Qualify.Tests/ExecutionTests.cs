@@ -369,7 +369,7 @@ public class RuntimeTests
             Assert.Equal("/repo", QualifyRuntime.SiteRoot());
             Assert.Equal("csharp", (string?)first.Envelope["tool"]!["language"]);
             Assert.Contains("xunit.v3", QualifyRuntime.RuntimeDescription, StringComparison.Ordinal);
-            Assert.Equal("0.1.0", QualifyRuntime.ToolVersion);
+            Assert.Matches(@"^\d+\.\d+\.\d+", QualifyRuntime.ToolVersion);
         }
         finally
         {

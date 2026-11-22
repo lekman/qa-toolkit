@@ -43,7 +43,8 @@ class CommandsTest {
     assertEquals(0, run(io, "--help"));
     assertTrue(io.out.toString().contains("qualify merge"));
     assertEquals(0, run(io, "--version"));
-    assertTrue(io.out.toString().contains("0.1.0"));
+    // The release bumps the version, so the test checks its shape, not its value.
+    assertTrue(io.out.toString().matches("(?s).*\\d+\\.\\d+\\.\\d+.*"), io.out.toString());
     assertEquals(64, run(io));
     assertEquals(64, run(io, "nope"));
     assertEquals(64, run(io, "merge", "extra"));
