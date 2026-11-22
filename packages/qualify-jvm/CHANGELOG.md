@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/lekman/qa-toolkit/compare/qualify-jvm@v0.1.0...qualify-jvm@v0.2.0) (2026-11-22)
+
+
+### Features
+
+* **qualify-jvm:** draw PNG and JPEG attachments in the report ([#31](https://github.com/lekman/qa-toolkit/issues/31)) ([f5a398a](https://github.com/lekman/qa-toolkit/commit/f5a398a524fcb13d636fe91b07902f3facf6abb5))
+
 ## 0.1.0 (2026-11-22)
 
 

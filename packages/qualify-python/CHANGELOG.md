@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/lekman/qa-toolkit/compare/qualify-python@v0.1.0...qualify-python@v0.2.0) (2026-11-22)
+
+
+### Features
+
+* **qualify-python:** draw PNG and JPEG attachments in the report ([#29](https://github.com/lekman/qa-toolkit/issues/29)) ([e249c6e](https://github.com/lekman/qa-toolkit/commit/e249c6efa65e373e47f6d78701f9301e4dc0268e))
+
 ## 0.1.0 (2026-11-22)
 
 
