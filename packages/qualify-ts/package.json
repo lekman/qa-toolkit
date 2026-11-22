@@ -1,6 +1,6 @@
 {
   "name": "@lekman/qualify",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Qualification tests (IQ, OQ, PQ, intended use) for vitest, node:test, bun and cucumber-js that write redacted JSON evidence and a trace matrix.",
   "license": "MIT",
   "author": "Tobias Lekman",

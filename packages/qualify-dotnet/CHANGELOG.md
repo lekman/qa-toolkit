@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/lekman/qa-toolkit/compare/qualify-dotnet@v0.1.0...qualify-dotnet@v0.2.0) (2026-11-22)
+
+
+### Features
+
+* **qualify-dotnet:** draw PNG and JPEG attachments in the report ([#30](https://github.com/lekman/qa-toolkit/issues/30)) ([37ea7d6](https://github.com/lekman/qa-toolkit/commit/37ea7d6c07571df0ae4db24ccd8350b5499227a1))
+
 ## 0.1.0 (2026-11-22)
 
 

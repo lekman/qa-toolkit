@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/lekman/qa-toolkit/compare/qualify@v0.1.0...qualify@v0.2.0) (2026-11-22)
+
+
+### Features
+
+* **qualify:** draw PNG and JPEG attachments in the report ([#32](https://github.com/lekman/qa-toolkit/issues/32)) ([852e968](https://github.com/lekman/qa-toolkit/commit/852e968b3f9c5f6349232accd60f2fb30972c148))
+
 ## 0.1.0 (2026-11-22)
 
 

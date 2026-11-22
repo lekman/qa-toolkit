@@ -3,7 +3,7 @@
        nullable reference types on, and warnings as errors. -->
   <PropertyGroup>
     <!-- release-please updates the version on the next line. -->
-    <Version>0.1.0</Version> <!-- x-release-please-version -->
+    <Version>0.2.0</Version> <!-- x-release-please-version -->
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
