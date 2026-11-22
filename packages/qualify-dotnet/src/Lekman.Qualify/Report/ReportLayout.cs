@@ -27,8 +27,13 @@ public sealed record LineOp(double X1, double Y1, double X2, double Y2, double T
 /// <summary>A filled rectangle with its lower left corner at <c>x</c>, <c>y</c>.</summary>
 public sealed record FillOp(double X, double Y, double Width, double Height, ColourName Colour) : DrawOp;
 
-/// <summary>The logo, with its lower left corner at <c>x</c>, <c>y</c>.</summary>
-public sealed record ImageOp(double X, double Y, double Width, double Height) : DrawOp;
+/// <summary>An image with its lower left corner at <c>x</c>, <c>y</c>.</summary>
+/// <param name="X">The left edge.</param>
+/// <param name="Y">The bottom edge.</param>
+/// <param name="Width">The drawn width in points.</param>
+/// <param name="Height">The drawn height in points.</param>
+/// <param name="Image">The index into the document's images; null for the theme's logo.</param>
+public sealed record ImageOp(double X, double Y, double Width, double Height, int? Image = null) : DrawOp;
 
 /// <summary>
 /// Layout of the report on pages, section 9.2 of the specification: the
@@ -54,6 +59,9 @@ public static class ReportLayout
 
     /// <summary>Level 3 heading size.</summary>
     public const double H3 = 11;
+
+    /// <summary>Image caption size.</summary>
+    public const double Caption = 8.5;
 
     private const double PadY = 3.5;
     private const double PadX = 4;
@@ -252,11 +260,15 @@ public static class ReportLayout
         return runes.Count == 0 ? string.Empty : string.Concat(runes).TrimEnd() + "…";
     }
 
-    /// <summary>Lay out the content blocks on pages after the cover.</summary>
-    public static List<List<DrawOp>> Paginate(IReadOnlyList<Block> blocks, ITextMetrics metrics, Geometry g)
+    /// <summary>
+    /// Lay out the content blocks on pages after the cover. <paramref name="images"/>
+    /// holds the pixel size of each image the blocks refer to, or null for one
+    /// the PDF library could not read.
+    /// </summary>
+    public static List<List<DrawOp>> Paginate(IReadOnlyList<Block> blocks, ITextMetrics metrics, Geometry g, IReadOnlyList<(double Width, double Height)?>? images = null)
     {
         ArgumentNullException.ThrowIfNull(blocks);
-        var cursor = new Cursor(metrics, g);
+        var cursor = new Cursor(metrics, g, images ?? []);
         for (var i = 0; i < blocks.Count; i++)
         {
             Place(cursor, blocks[i], i + 1 < blocks.Count ? blocks[i + 1] : null);
@@ -399,7 +411,52 @@ public static class ReportLayout
             case SignaturesBlock signatures:
                 Signatures(cursor, signatures.Roles);
                 return;
+            case ImageBlock image:
+                Image(cursor, image);
+                return;
         }
+    }
+
+    /// <summary>
+    /// An image attachment, section 9.2: scaled into the text width and half
+    /// the text height, framed in the rule colour, with its caption below, and
+    /// both kept on one page. An image that cannot be read becomes a line of text.
+    /// </summary>
+    private static void Image(Cursor cursor, ImageBlock block)
+    {
+        var pixels = block.Image < cursor.Images.Count ? cursor.Images[block.Image] : null;
+        if (pixels is not { } known)
+        {
+            Place(cursor, new ParagraphBlock(block.Unreadable), null);
+            return;
+        }
+
+        var (width, height) = ReportImages.Fit(known, (cursor.Width, (cursor.Top - cursor.Bottom) / 2));
+        var caption = Wrap(Clean(cursor.Metrics, block.Caption, FontSlot.Body), cursor.Width, Caption, FontSlot.Body, cursor.Metrics);
+        const double before = 6;
+        const double gap = 4;
+        var needed = before + height + gap + (caption.Count * LineHeight(Caption));
+        if (cursor.Room < needed)
+        {
+            cursor.NewPage();
+        }
+        else if (cursor.Y < cursor.Top)
+        {
+            cursor.Y -= before;
+        }
+
+        var x = cursor.G.Margin;
+        var y = cursor.Y - height;
+        var right = x + width;
+        var top = y + height;
+        cursor.Page.Add(new ImageOp(x, y, width, height, block.Image));
+        cursor.Page.Add(new LineOp(x, y, right, y, 0.5, ColourName.Rule));
+        cursor.Page.Add(new LineOp(right, y, right, top, 0.5, ColourName.Rule));
+        cursor.Page.Add(new LineOp(right, top, x, top, 0.5, ColourName.Rule));
+        cursor.Page.Add(new LineOp(x, top, x, y, 0.5, ColourName.Rule));
+        cursor.Y = y - gap;
+        cursor.Lines(caption, Caption, FontSlot.Body, ColourName.Muted);
+        cursor.Y -= 8;
     }
 
     private static (List<string> Label, List<string> Value, FontSlot Font) FieldLines(Cursor cursor, Field field)
@@ -616,9 +673,11 @@ public static class ReportLayout
         double Bottom);
 
     /// <summary>The write position while content pages are laid out.</summary>
-    private sealed class Cursor(ITextMetrics metrics, Geometry g)
+    private sealed class Cursor(ITextMetrics metrics, Geometry g, IReadOnlyList<(double Width, double Height)?> images)
     {
         public ITextMetrics Metrics { get; } = metrics;
+
+        public IReadOnlyList<(double Width, double Height)?> Images { get; } = images;
 
         public Geometry G { get; } = g;
 

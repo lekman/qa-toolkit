@@ -332,6 +332,24 @@ public partial class ScenarioTests
         }
     }
 
+    [Fact]
+    public void Scenario23ReportImages() =>
+        Scenario("report-images", ["ReportImagesTests"], status: 0, merge: 0, check: (dir, _, _) =>
+        {
+            var pdf = Path.Combine(dir, "report-images.pdf");
+            var exec = Harness.ToolWith(
+                new Dictionary<string, string> { ["QUALIFY_REPORT_TIME"] = ReportTime },
+                ["report", Path.Combine(dir, EvidenceFiles.RunFile), "--pdf", pdf, "--theme", "plain", "--title", "Conformance images", "--document-id", "CONF-IMG-001"]);
+            Assert.True(exec.Status == 0, $"report exited {exec.Status}, expected 0\n{exec.Output}");
+            var bytes = File.ReadAllBytes(pdf);
+            var content = PdfText.Extract(bytes);
+            var missing = PdfText.MissingFromOutline(content.Lines, PdfText.Outline(Path.Combine(Harness.Expected, "report-images.outline.txt")));
+            Assert.True(missing is null, $"the report text does not hold \"{missing}\" in order\n{string.Join("\n", content.Lines)}");
+            var placed = PdfText.PlacedImages(bytes).Skip(1).SelectMany(page => page).Order(StringComparer.Ordinal).ToList();
+            Assert.Equal(["200x600", "48x48", "960x540"], placed);
+            KeepSample(pdf, "report-images.pdf");
+        });
+
     private static (Exec Exec, string Pdf) Report(string[] args)
     {
         var run = ReportRun.Value;

@@ -176,8 +176,8 @@ this tool writes.
 ## The Qualification Report
 
 `qualify report` renders a run file as a PDF with PDFsharp 6: a cover, then
-the run details, the summary and trace matrix, one section per test, and a
-signature block. The look comes from a theme: the bundled `lekman` (the
+the run details, the summary and trace matrix, one section per test with PNG
+and JPEG attachments drawn as images, and a signature block. The look comes from a theme: the bundled `lekman` (the
 default) or `plain`, or your own `theme.json` by path
 ([spec/qualify/report/README.md](../../spec/qualify/report/README.md) says how
 to make one). `QUALIFY_REPORT_THEME` picks one too; the flag wins.
@@ -192,6 +192,37 @@ each theme ([lekman PDF](docs/sample-report-lekman.pdf),
 | ![Cover, lekman theme](docs/report-lekman-page-1.png)  | ![Cover, plain theme](docs/report-plain-page-1.png)  |
 | ![Page 2, lekman theme](docs/report-lekman-page-2.png) | ![Page 2, plain theme](docs/report-plain-page-2.png) |
 | ![Page 3, lekman theme](docs/report-lekman-page-3.png) | ![Page 3, plain theme](docs/report-plain-page-3.png) |
+
+### Screenshots in the Report
+
+An attachment with content type `image/png` or `image/jpeg` is drawn below the
+test's attachments table, in the order attached, with a caption of its file
+name, size and the start of its SHA-256. It is scaled down to the text width
+and half the page's text height, never up, and kept on one page with its
+caption. An image that cannot be read is listed with a note instead; the report
+still succeeds.
+
+```csharp
+// After a Playwright screenshot (Microsoft.Playwright).
+var bytes = await page.ScreenshotAsync(new() { Type = ScreenshotType.Png });
+QualifyContext.Current.Attach("IU-DASH-001-1.png", bytes, "image/png");
+```
+
+A viewport screenshot fits the 1 MiB attachment limit
+(`QUALIFY_ATTACHMENT_LIMIT`) with room to spare. Measured on a dashboard page:
+
+| Viewport                 | PNG     | JPEG, quality 80 |
+| ------------------------ | ------- | ---------------- |
+| 1280 x 720               | 138 KiB | 101 KiB          |
+| 1920 x 1080              | 199 KiB | 166 KiB          |
+| 1440 x 900 at 2x density | 339 KiB | 285 KiB          |
+
+- Use PNG of the viewport at device scale 1. Text stays sharp, and for a flat
+  user interface PNG is about as small as JPEG. On A4 the report draws a
+  1280-pixel-wide screenshot 160 to 170 mm wide, near 200 pixels per inch, so
+  a 2x screenshot adds bytes and no detail.
+- Use JPEG at quality 80 for photographs, maps or video frames, or for a
+  full-page screenshot that would pass the limit as PNG.
 
 ## What It Costs
 

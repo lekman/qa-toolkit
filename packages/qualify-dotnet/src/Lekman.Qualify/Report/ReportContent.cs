@@ -51,7 +51,12 @@ public static class ReportContent
         var blocks = new List<Block> { new HeadingBlock(1, tokens.Title) };
         blocks.AddRange(Details(input));
         blocks.AddRange(Summary(tests, input.Trace));
-        blocks.AddRange(tests.SelectMany(Test));
+        var images = new List<ImageSource>();
+        foreach (var test in tests)
+        {
+            blocks.AddRange(Test(test, images));
+        }
+
         if (roles.Count > 0)
         {
             blocks.Add(new HeadingBlock(2, "Signatures"));
@@ -67,6 +72,7 @@ public static class ReportContent
             Footer = input.Theme.Texts.Footer,
             Tokens = tokens,
             Metadata = new ReportMetadata(tokens.Title, tokens.RunId, $"sha256:{input.Digest}", input.Producer, options.GeneratedAt),
+            Images = images,
         };
     }
 
@@ -207,8 +213,9 @@ public static class ReportContent
         yield return List(trace.RequirementsWithoutPass);
     }
 
-    private static IEnumerable<Block> Test(JsonObject test)
+    private static List<Block> Test(JsonObject test, List<ImageSource> images)
     {
+        var blocks = new List<Block>();
         var controls = (string?)test["controls"];
         var fields = new List<Field>
         {
@@ -239,11 +246,11 @@ public static class ReportContent
         fields.Add(new("Duration", $"{test["durationMs"]} ms"));
         fields.Add(new("Secrets used", ReportText.List(Strings(test["secretsUsed"]))));
 
-        yield return new HeadingBlock(2, $"{test["id"]} {test["title"]}");
-        yield return new FieldsBlock(fields);
-        yield return new HeadingBlock(3, "Checks");
+        blocks.Add(new HeadingBlock(2, $"{test["id"]} {test["title"]}"));
+        blocks.Add(new FieldsBlock(fields));
+        blocks.Add(new HeadingBlock(3, "Checks"));
         var checks = ((JsonArray)test["checks"]!).Cast<JsonObject>().ToList();
-        yield return checks.Count == 0
+        blocks.Add(checks.Count == 0
             ? new ParagraphBlock("None")
             : new TableBlock(
                 [new("#", 0.05), new("Context", 0.13), new("Description", 0.21), new("Matcher", 0.11), new("Expected", 0.18, Mono: true), new("Actual", 0.18, Mono: true), new("Result", 0.14)],
@@ -256,13 +263,25 @@ public static class ReportContent
                     ReportText.Json(c["expected"]),
                     ReportText.Json(c["actual"]),
                     ((bool)c["pass"]! ? "Pass" : "Fail") + ((bool)c["soft"]! ? " (soft)" : string.Empty),
-                ])]);
-        yield return new HeadingBlock(3, "Attachments");
+                ])]));
+        blocks.Add(new HeadingBlock(3, "Attachments"));
         var attachments = ((JsonArray)test["attachments"]!).Cast<JsonObject>().ToList();
-        yield return attachments.Count == 0
+        blocks.Add(attachments.Count == 0
             ? new ParagraphBlock("None")
             : new TableBlock(
                 [new("File", 0.2), new("Content type", 0.2), new("Size", 0.12), new("SHA-256", 0.48, Mono: true)],
-                [.. attachments.Select(a => (IReadOnlyList<string>)[(string)a["filename"]!, (string)a["contentType"]!, $"{a["sizeBytes"]} bytes", (string)a["sha256"]!])]);
+                [.. attachments.Select(a => (IReadOnlyList<string>)[(string)a["filename"]!, (string)a["contentType"]!, $"{a["sizeBytes"]} bytes", (string)a["sha256"]!])]));
+
+        // Each PNG and JPEG attachment, in the order attached, below the table.
+        foreach (var attachment in attachments)
+        {
+            if (ReportImages.Format((string)attachment["contentType"]!) is { } format)
+            {
+                images.Add(new ImageSource(Convert.FromBase64String((string)attachment["content"]!), format));
+                blocks.Add(new ImageBlock(images.Count - 1, ReportImages.Caption(attachment), ReportImages.Unreadable(attachment)));
+            }
+        }
+
+        return blocks;
     }
 }
