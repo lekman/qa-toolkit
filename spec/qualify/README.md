@@ -16,12 +16,12 @@ is the reference and carries the full CLI. The Python, Java and C# packages
 follow the same rules and must pass the same conformance scenarios. Where this document
 and an implementation disagree, the implementation is wrong.
 
-| Language   | Package                      | Runs on                      |
-| ---------- | ---------------------------- | ---------------------------- |
-| TypeScript | `@lekman/qualify` (npm)      | vitest, `node:test`, bun     |
-| Python     | `lekman-qualify` (PyPI)      | pytest, as a plugin          |
-| Java       | `com.lekman:qualify` (Maven) | JUnit 5, from Java or Kotlin |
-| C#         | `Lekman.Qualify` (NuGet)     | xUnit v3 on .NET 10 and 11   |
+| Language   | Package                      | Runs on                               |
+| ---------- | ---------------------------- | ------------------------------------- |
+| TypeScript | `@lekman/qualify` (npm)      | vitest, `node:test`, bun, cucumber-js |
+| Python     | `lekman-qualify` (PyPI)      | pytest, as a plugin                   |
+| Java       | `com.lekman:qualify` (Maven) | JUnit 5, from Java or Kotlin          |
+| C#         | `Lekman.Qualify` (NuGet)     | xUnit v3 on .NET 10 and 11            |
 
 ## Contents
 
@@ -84,7 +84,7 @@ several records.
 ### 2.2 TypeScript
 
 A runner-free core plus one thin adapter per runner: `@lekman/qualify/vitest`,
-`@lekman/qualify/node` and `@lekman/qualify/bun`.
+`@lekman/qualify/node`, `@lekman/qualify/bun` and `@lekman/qualify/cucumber`.
 
 ```ts
 import { oq } from "@lekman/qualify/vitest";
@@ -120,6 +120,69 @@ oq(
   a skip in its runner where the runner allows it; where a runner has no in-body
   skip, the adapter ends the body and still records `skip`. The adapter's README
   states which applies.
+
+#### cucumber-js
+
+The cucumber-js adapter reads the declaration from Gherkin instead of code. A
+support file calls `install()`, which adds hooks that make each scenario a
+qualification test, and a step reads the context with `ctx(this)`.
+
+```gherkin
+@export
+Feature: Bank file export
+
+  @REQ-EXPORT-003 @risk-high @scope-read
+  Scenario: OQ-EXPORT-003 The bank file never changes an amount
+    Given a day of payments in three currencies
+    When the export writes the bank file
+    Then every amount in the file equals the amount in the ledger
+```
+
+```ts
+Then("every amount in the file equals the amount in the ledger", function () {
+  ctx(this)
+    .check("bank file", "EUR keeps two decimals")
+    .that(this.file.amount("EUR"))
+    .equals("100.50");
+});
+```
+
+| Field          | Read from                                                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `title`  | The scenario name, `<ID> <title>`.                                                                                               |
+| level          | The ID's prefix, so a prefix cannot differ from the level.                                                                       |
+| `given`        | The Given steps, including Background steps, joined with `and`.                                                                  |
+| `when`         | The When steps that follow, joined the same way.                                                                                 |
+| `then`         | The first Then step.                                                                                                             |
+| `and`          | Each later step, in order. A later Given or When step is written with its keyword (`When it is undone`); a Then step without it. |
+| `requirements` | Each `@REQ-<ID>` tag, recorded as `REQ-<ID>`.                                                                                    |
+| `risk`         | One `@risk-high`, `@risk-medium` or `@risk-low` tag.                                                                             |
+| `scope`        | One `@scope-read` or `@scope-read-write` tag. The rules of section 2.1 apply: required for OQ and PQ, refused for IQ and IU.     |
+| `controls`     | One `@controls-<ID>` tag.                                                                                                        |
+| `tags`         | Every other tag, without its `@`, including the tags of the feature and the rule.                                                |
+
+- Step text is recorded without its data table or doc string. Tags with the
+  same name count once.
+- Each of these is a declaration error: a name that does not start with an ID
+  whose prefix is a level; steps that are not one or more Given steps, then one
+  or more When steps, then a Then step; a second `@risk-`, `@scope-` or
+  `@controls-` tag; and a Scenario Outline, which runs once per example and is
+  refused as a parametrised test (section 2.1). The scenario
+  fails in qualify's Before hook, before its steps run, and writes no evidence.
+- The declaration's site is the line of the scenario in its feature file. A
+  check's site, and the site of a failure other than a failed check, is the
+  line of the step that was running.
+- A scenario has no single body for the adapter to wrap. qualify's Before
+  hook writes the started marker, and its After hook writes the record from
+  the first error a step or hook threw, or from cucumber's result when
+  qualify did not see the error.
+- The adapter does not register a name of its own, because the scenario name
+  already starts with the ID. cucumber's name filter selects by ID
+  (`--name "^OQ-EXPORT-003 "`), and its tag expressions select by tag.
+- `ctx.skip(reason)` shows as a skipped step. A failed soft check fails the
+  scenario in qualify's After hook.
+- With `--parallel`, the main process sets `QUALIFY_RUN_ID` before the workers
+  start, so they share one run.
 
 ### 2.3 Python
 
