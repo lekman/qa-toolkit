@@ -11,8 +11,7 @@ the _shape_, for navigation.
   normative; change it first, in its own pull request, then the packages.
 - `practices/`: patterns and reasoning. Prose, not config. Each package pairs
   with one.
-- `docs/`: contributing guide, cross-cutting notes, and `docs/handoff/` for
-  dispatch briefs to implementation sessions.
+- `docs/`: the contributing guide and cross-cutting notes.
 
 The repo's own `.claude/` carries hooks, rules and `settings.json` that protect
 this repo. Read `.claude/rules/` before writing code or markdown here.

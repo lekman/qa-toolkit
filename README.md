@@ -38,7 +38,7 @@ If your tests already tell you everything you need, you do not need this.
 | [packages/](packages/README.md)   | The tools you install and run. Each has its own README with install and usage.           |
 | [practices/](practices/README.md) | The reasoning half: the problem each tool solves, the pattern, and the trade-offs.       |
 | [spec/](spec/README.md)           | Specifications that more than one package implements, such as qualify's evidence schema. |
-| [docs/](docs/CONTRIBUTING.md)     | How to contribute, and the briefs that plan each piece of work.                          |
+| [docs/](docs/CONTRIBUTING.md)     | How to contribute.                                                                       |
 
 ## Principles
 
