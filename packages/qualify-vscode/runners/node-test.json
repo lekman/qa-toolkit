@@ -1,0 +1,19 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "node-test",
+  "label": "node:test",
+  "framework": "node",
+  "files": [
+    "**/*{.,_}{test,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+    "**/test/**/*.{ts,mts,cts,js,mjs,cjs}"
+  ],
+  "command": "node --test ${filter}",
+  "tools": [],
+  "select": {
+    "term": "\\[${id}\\]",
+    "join": "|",
+    "quote": "all",
+    "argument": "--test-name-pattern=${terms}"
+  },
+  "results": "qualify-evidence"
+}

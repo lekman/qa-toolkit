@@ -5,7 +5,8 @@ The reasoning behind qualify: the
 [@lekman/qualify](../../packages/qualify-ts/README.md), the pytest plugin
 [lekman-qualify](../../packages/qualify-python/README.md), the JUnit 5 extension
 [com.lekman:qualify](../../packages/qualify-jvm/README.md) and the C# package
-[Lekman.Qualify](../../packages/qualify-dotnet/README.md).
+[Lekman.Qualify](../../packages/qualify-dotnet/README.md), and the
+[VS Code extension](../../packages/qualify-vscode/README.md) that shows them.
 
 ## The Problem
 
@@ -46,7 +47,14 @@ crashes, which is exactly the run a reviewer wants to see.
 5. **Merge, then trace.** One command builds the run file and its digest; a
    second links each result to its requirements, from the code, a protocol
    file and a mapping file, and reports what did not run.
-6. **One contract, several languages.** A JSON Schema and a set of scenarios
+6. **The reviewer's grouping in the editor.** A qualification test sits in a
+   test file beside unit tests, so the editor shows it by file. A reviewer
+   reads it by level and package: every intended-use test of the web app,
+   every high-risk OQ test. The VS Code extension builds that tree by reading
+   the declarations, runs a selection with the runner's own ID filter, and
+   shows each result from the evidence record rather than from the runner's
+   report, so the editor and the reviewer see the same outcome.
+7. **One contract, several languages.** A JSON Schema and a set of scenarios
    that real runners must reproduce byte for byte keep the TypeScript, Python
    and Java packages honest with each other.
 

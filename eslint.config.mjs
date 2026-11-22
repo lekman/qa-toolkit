@@ -8,6 +8,8 @@ export default [
   // analysis writes. `.venv/` is a Python package's virtual environment, which
   // carries third-party JavaScript, and `qualify-jvm/build/` holds Gradle's
   // HTML reports. Both are gitignored, but eslint keeps its own list.
+  // `.vscode-test/` is the copy of VS Code the extension host test
+  // downloads, and `dist-test/` its bundled suite.
   {
     ignores: [
       "**/dist/",
@@ -15,6 +17,8 @@ export default [
       "**/.ua/",
       "**/.venv/",
       "packages/qualify-jvm/build/",
+      "**/.vscode-test/",
+      "**/dist-test/",
     ],
   },
   js.configs.recommended,

@@ -1,0 +1,16 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "dotnet",
+  "label": "xUnit v3 with dotnet test",
+  "framework": "xunit",
+  "files": ["**/*Test*/**/*.cs", "**/*Test*.cs"],
+  "command": "dotnet test ${filter}",
+  "tools": [],
+  "select": {
+    "term": "DisplayName~${id}",
+    "join": "|",
+    "quote": "all",
+    "argument": "--filter ${terms}"
+  },
+  "results": "qualify-evidence"
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lekman/qa-toolkit/packages/qualify-vscode/runners/runner.schema.json",
+  "title": "Runner definition",
+  "description": "How one test runner finds its tests, runs a selection of them by ID, and where its results are read from. Data only; the extension has one generic runner that reads these.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "label",
+    "framework",
+    "files",
+    "command",
+    "tools",
+    "select",
+    "results"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "description": "The runner ID that settings use, such as vitest.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "label": { "type": "string", "minLength": 1 },
+    "framework": {
+      "description": "The test framework whose declarations this runner runs.",
+      "enum": ["bun", "cucumber", "junit", "node", "pytest", "vitest", "xunit"]
+    },
+    "packageMarkers": {
+      "description": "Build files that pick this runner when several runners share a framework, such as pom.xml for Maven.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "files": {
+      "description": "Globs of the files that may declare tests for this runner.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "command": {
+      "description": "The default command. Placeholders: ${tool}, ${filter}, ${id}, ${ids}, ${package}, ${evidenceDir}, ${workspaceFolder}.",
+      "type": "string",
+      "minLength": 1
+    },
+    "tools": {
+      "description": "What ${tool} becomes: the first entry whose file is in the package folder or a folder above it, or the first entry without a file. ${dir} is the path from the package folder to the folder holding the file.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1 },
+          "value": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "select": {
+      "description": "How ${filter} selects tests by ID with the runner's own filter.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["term", "join", "quote", "argument"],
+      "properties": {
+        "term": {
+          "description": "One test, from ${id}, ${class} and ${method}.",
+          "type": "string",
+          "minLength": 1
+        },
+        "join": {
+          "description": "What goes between two terms.",
+          "type": "string"
+        },
+        "quote": {
+          "description": "Quote each term, the joined terms, or nothing, for the shell.",
+          "enum": ["all", "each", "none"]
+        },
+        "argument": {
+          "description": "The argument, from ${terms}, or from ${term} when repeat is true.",
+          "type": "string",
+          "minLength": 1
+        },
+        "repeat": {
+          "description": "Write the argument once per term instead of once with every term.",
+          "type": "boolean"
+        }
+      }
+    },
+    "results": {
+      "description": "The result format the runner leaves: qualify evidence records for qualification tests.",
+      "enum": ["qualify-evidence", "junit-xml"]
+    }
+  }
+}

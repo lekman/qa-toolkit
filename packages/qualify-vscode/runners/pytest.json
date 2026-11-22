@@ -1,0 +1,20 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "pytest",
+  "label": "pytest",
+  "framework": "pytest",
+  "files": ["**/test_*.py", "**/*_test.py"],
+  "command": "${tool} ${filter}",
+  "tools": [
+    { "file": "uv.lock", "value": "uv run pytest" },
+    { "file": "poetry.lock", "value": "poetry run pytest" },
+    { "value": "python -m pytest" }
+  ],
+  "select": {
+    "term": "${id}",
+    "join": " or ",
+    "quote": "all",
+    "argument": "-k ${terms}"
+  },
+  "results": "qualify-evidence"
+}

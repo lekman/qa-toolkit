@@ -1,0 +1,14 @@
+[test]
+# Unit tests of the logic. The extension host test under test-host/ runs in
+# VS Code itself, through `bun run test:host`.
+root = "tests"
+coverage = true
+coverageThreshold = { line = 0.8, function = 0.6, statement = 0.8 }
+coveragePathIgnorePatterns = [
+  "**/*.system.ts",  # VS Code, file system and process adapters, no logic
+  "**/index.ts",     # Barrel re-exports, no logic
+  "scripts/**",
+  "test-host/**",
+  "tests/**",
+  "**/*.test.ts",
+]

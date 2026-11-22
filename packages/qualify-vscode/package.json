@@ -1,0 +1,153 @@
+{
+  "name": "qualify-vscode",
+  "displayName": "Qualify Tests",
+  "version": "0.1.0",
+  "description": "Qualification tests (IQ, OQ, PQ, intended use) in the VS Code Testing view, grouped by product, package and level, with results from the qualify evidence records.",
+  "license": "MIT",
+  "author": "Tobias Lekman",
+  "publisher": "lekman",
+  "private": true,
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-vscode",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekman/qa-toolkit.git",
+    "directory": "packages/qualify-vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/lekman/qa-toolkit/issues"
+  },
+  "keywords": [
+    "qualification",
+    "testing",
+    "evidence",
+    "traceability",
+    "cucumber",
+    "vitest",
+    "pytest",
+    "junit",
+    "xunit"
+  ],
+  "categories": [
+    "Testing"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/*.feature",
+    "workspaceContains:**/package.json",
+    "workspaceContains:**/pyproject.toml",
+    "workspaceContains:**/build.gradle",
+    "workspaceContains:**/build.gradle.kts",
+    "workspaceContains:**/pom.xml",
+    "workspaceContains:**/*.csproj"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "qualify.refresh",
+        "title": "Refresh Qualification Tests",
+        "category": "Qualify",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "qualify.openTrace",
+        "title": "Open Trace Matrix",
+        "category": "Qualify",
+        "icon": "$(references)"
+      }
+    ],
+    "menus": {
+      "testing/item/context": [
+        {
+          "command": "qualify.openTrace",
+          "when": "controllerId == qualify"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Qualify",
+      "properties": {
+        "qualify.evidenceDir": {
+          "type": "string",
+          "default": "qualification/evidence",
+          "markdownDescription": "Where the tests write their evidence, relative to the package folder. The extension sets `QUALIFY_EVIDENCE_DIR` to this folder for every run, and reads the records from it afterwards."
+        },
+        "qualify.runners": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Command per runner for every package, keyed by runner ID (`vitest`, `node-test`, `bun-test`, `pytest`, `gradle`, `maven`, `dotnet`, `cucumber-js`). Placeholders: `${tool}`, `${filter}`, `${id}`, `${ids}`, `${package}`, `${evidenceDir}`, `${workspaceFolder}`.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "qualify.packages": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Settings per package, keyed by the package folder relative to the workspace folder (`.` for the folder itself). Each takes `command` (for every runner in the package), `runners` (a command per runner ID) and `evidenceDir`. For example `{ \"apps/web\": { \"command\": \"task test:intended-use -- ${ids}\" } }`.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The command for every runner in this package."
+              },
+              "runners": {
+                "type": "object",
+                "description": "A command per runner ID.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "evidenceDir": {
+                "type": "string",
+                "description": "Where this package's tests write their evidence, relative to the package folder."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "qualify.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/bin/**",
+            "**/obj/**",
+            "**/target/**",
+            "**/.venv/**",
+            "**/.git/**"
+          ],
+          "description": "Folders and files that discovery skips."
+        },
+        "qualify.traceFiles": {
+          "type": "string",
+          "default": "**/{trace.md,trace.json}",
+          "markdownDescription": "Where `Qualify: Open Trace Matrix` looks for the output of `qualify trace`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test",
+    "test:host": "bun run build && bun run scripts/build-host-test.ts && bun run test-host/run.ts",
+    "package": "bun run build && bun run scripts/package.ts",
+    "check": "bun run typecheck && bun test && bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.2.0",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.1",
+    "ajv": "^8.20.0",
+    "typescript": "^5.7.0"
+  }
+}
