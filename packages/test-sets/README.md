@@ -75,18 +75,18 @@ Each runner is a JSON file in [runners/](runners/runner.schema.json), the way
 Trunk defines a linter in its plugin file: data, read by one generic runner
 in the CLI and the extension. A new runner is a new file.
 
-| Runner        | Finds tests in                               | Runs a selection with                     | Writes JUnit XML with                                                   | qualify |
-| ------------- | -------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- | ------- |
-| `vitest`      | `*.test.ts`, `*.spec.ts` and the JS variants | `vitest run -t '<pattern>'`               | `--reporter=junit --outputFile.junit=${junitFile}`                      | yes     |
-| `node-test`   | the same                                     | `node --test --test-name-pattern=…`       | `--test-reporter=junit --test-reporter-destination=${junitFile}`        | yes     |
-| `bun-test`    | the same                                     | `bun test -t '<pattern>'`                 | `--reporter=junit --reporter-outfile=${junitFile}`                      | yes     |
-| `cucumber-js` | `*.feature`                                  | `cucumber-js --name '^<ID>\b'`            | `--format junit:${junitFile}`                                           | yes     |
-| `pytest`      | `test_*.py`, `*_test.py`                     | `pytest -k '<A> or <B>'`                  | `--junitxml=${junitFile}`                                               | yes     |
-| `gradle`      | `src/test/**/*.java`, `*.kt`                 | `gradlew test --tests '*Class.method'`    | always, in `build/test-results/test/TEST-*.xml`                         | yes     |
-| `maven`       | the same                                     | `mvn test -Dtest='Class#method'`          | always, in `target/surefire-reports/TEST-*.xml`                         | yes     |
-| `dotnet`      | `*Test*/**/*.cs`                             | `dotnet test --filter 'DisplayName~<ID>'` | `--logger 'junit;LogFilePath=${junitFile}'`, with `JunitXml.TestLogger` | yes     |
-| `storybook`   | `*.stories.*`, `*.mdx`                       | `test-storybook --testNamePattern=…`      | `--junit`, with `JEST_JUNIT_OUTPUT_DIR` and `JEST_JUNIT_OUTPUT_NAME`    | no      |
-| `playwright`  | `e2e/**/*.spec.ts`, `*.e2e.ts`               | `playwright test --grep '<pattern>'`      | `--reporter=list,junit`, with `PLAYWRIGHT_JUNIT_OUTPUT_FILE`            | no      |
+| Runner        | Finds tests in                               | Runs a selection with                     | Writes JUnit XML with                                                                         | qualify |
+| ------------- | -------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
+| `vitest`      | `*.test.ts`, `*.spec.ts` and the JS variants | `vitest run -t '<pattern>'`               | `--reporter=junit --outputFile.junit=${junitFile}`                                            | yes     |
+| `node-test`   | the same                                     | `node --test --test-name-pattern=…`       | `--test-reporter=junit --test-reporter-destination=${junitFile}`                              | yes     |
+| `bun-test`    | the same                                     | `bun test -t '<pattern>'`                 | `--reporter=junit --reporter-outfile=${junitFile}`                                            | yes     |
+| `cucumber-js` | `*.feature`                                  | `cucumber-js --name '^<ID>\b'`            | `--format junit:${junitFile}`                                                                 | yes     |
+| `pytest`      | `test_*.py`, `*_test.py`                     | `pytest -k '<A> or <B>'`                  | `--junitxml=${junitFile}`                                                                     | yes     |
+| `gradle`      | `src/test/**/*.java`, `*.kt`                 | `gradlew test --tests '*Class.method'`    | always, in `build/test-results/test/TEST-*.xml`                                               | yes     |
+| `maven`       | the same                                     | `mvn test -Dtest='Class#method'`          | always, in `target/surefire-reports/TEST-*.xml`                                               | yes     |
+| `dotnet`      | `*Test*/**/*.cs`                             | `dotnet test --filter 'DisplayName~<ID>'` | `--logger 'junit;LogFilePath=${junitFile}'`, with `JunitXml.TestLogger`                       | yes     |
+| `storybook`   | `*.stories.*`, `*.mdx`                       | `test-storybook --testNamePattern=…`      | `--junit`, with `JEST_JUNIT_OUTPUT_DIR=${junitDir}` and `JEST_JUNIT_OUTPUT_NAME=${junitName}` | no      |
+| `playwright`  | `e2e/**/*.spec.ts`, `*.e2e.ts`               | `playwright test --grep '<pattern>'`      | `--reporter=list,junit`, with `PLAYWRIGHT_JUNIT_OUTPUT_FILE`                                  | no      |
 
 A definition holds:
 
@@ -110,7 +110,7 @@ RunnerDefinitions.forFramework("junit", ["pom.xml"]); // maven
 ## What It Costs
 
 - **One more file to keep true.** A set that names a folder that moved runs
-  nothing. The CLI reports a set that matched no folder.
+  nothing. `qa` reports a set that matches no folder.
 - **A runner's own flags change.** A definition pins the flags a runner
   takes today. When a runner renames one, its definition needs a new
   release; a set's `command` can override it until then.

@@ -1,9 +1,7 @@
-import { relative } from "node:path";
+import { dirname, relative } from "node:path";
 
-import type { FileIndex } from "../packages";
-import type { RunnerDefinition, SelectedTest, Selection } from "./types";
-
-import { PackageRoots } from "../packages";
+import type { RunnerDefinition, SelectedTest, Selection } from "../runners";
+import type { FileIndex } from "./types";
 
 const PLACEHOLDER = /\$\{(\w+)\}/g;
 
@@ -53,6 +51,28 @@ export class CommandLines {
     });
   }
 
+  /**
+   * The folder at or above `from`, up to `folder`, that holds a file named
+   * `name`, or `undefined`.
+   */
+  static findUp(
+    name: string,
+    from: string,
+    folder: string,
+    index: FileIndex,
+  ): string | undefined {
+    let dir = from;
+    for (;;) {
+      if (index.get(dir)?.includes(name)) return dir;
+      const rel = relative(folder, dir);
+      const parent = dirname(dir);
+      if (rel.length === 0 || rel.startsWith("..") || parent === dir) {
+        return undefined;
+      }
+      dir = parent;
+    }
+  }
+
   /** A value quoted for the shell of the platform: single quotes, or double quotes on Windows. */
   static quote(value: string, platform: string): string {
     if (platform === "win32") return `"${value.replace(/"/g, '""')}"`;
@@ -71,7 +91,7 @@ export class CommandLines {
   ): string {
     for (const choice of definition.tools) {
       if (choice.file === undefined) return choice.value;
-      const dir = PackageRoots.findUp(choice.file, root, folder, index);
+      const dir = CommandLines.findUp(choice.file, root, folder, index);
       if (dir !== undefined) {
         const rel = relative(root, dir).split("\\").join("/");
         return CommandLines.fill(choice.value, {

@@ -16,3 +16,7 @@ export type {
   Selection,
   ToolChoice,
 } from "./runners";
+export { CommandLines, RunIds } from "./commands";
+export type { FileIndex } from "./commands";
+export { JunitXml } from "./junit";
+export type { CaseOutcome, JunitCase, JunitSummary } from "./junit";

@@ -33,6 +33,9 @@ packages/*/LICENSE
 # Names real clients — the leak it exists to prevent
 scripts/client-terms.txt
 
+# Results and reports of `qa run`.
+qa-results/
+
 # VSIX build output.
 packages/*/*.vsix
 

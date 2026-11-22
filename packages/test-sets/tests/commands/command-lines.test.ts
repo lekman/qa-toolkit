@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { PackageRoots } from "../../src/packages";
-import { CommandLines, RunnerDefinitions } from "../../src/runners";
+import { CommandLines, RunnerDefinitions } from "../../src";
 
 const tests = [
   { className: "BankFileTest", id: "OQ-EXPORT-003", method: "keepsAmounts" },
@@ -80,11 +79,10 @@ describe("CommandLines.filter", () => {
 });
 
 describe("CommandLines.tool", () => {
-  const index = PackageRoots.index([
-    "/ws/gradlew",
-    "/ws/svc/build.gradle.kts",
-    "/ws/web/bun.lock",
-    "/ws/web/package.json",
+  const index = new Map([
+    ["/ws", ["gradlew"]],
+    ["/ws/svc", ["build.gradle.kts"]],
+    ["/ws/web", ["bun.lock", "package.json"]],
   ]);
   const of = (id: string, root: string): string =>
     CommandLines.tool(

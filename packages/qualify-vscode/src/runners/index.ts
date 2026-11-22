@@ -1,5 +1,4 @@
-export { RunnerDefinitions } from "@lekman/test-sets";
-export { CommandLines } from "./command-lines";
+export { CommandLines, RunnerDefinitions } from "@lekman/test-sets";
 export type {
   Framework,
   JunitOutput,

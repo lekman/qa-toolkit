@@ -1,0 +1,13 @@
+[test]
+root = "tests"
+coverage = true
+coverageThreshold = { line = 0.8, function = 0.6, statement = 0.8 }
+coveragePathIgnorePatterns = [
+  "**/*.system.ts",  # File system, process and git adapters, no logic
+  "**/index.ts",     # Barrel re-exports, no logic
+  "src/cli/cli.ts",  # Entry point, wiring only
+  "scripts/**",
+  "../test-sets/**", # Covered by its own tests
+  "tests/**",
+  "**/*.test.ts",
+]

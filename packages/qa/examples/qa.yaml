@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../test-sets/schema/test-sets.schema.json
+#
+# The test sets of a repository with a TypeScript monorepo, a Python
+# library, a Gradle service and a web app with intended-use features.
+version: 1
+sets:
+  - name: unit
+    level: unit
+    runner: vitest
+    paths: [packages/*]
+
+  - name: stories
+    level: story
+    runner: storybook
+    paths: [packages/design]
+
+  - name: python
+    level: unit
+    runner: pytest
+    paths: [libs/pricing]
+
+  - name: export-oq
+    level: OQ
+    runner: gradle
+    paths: [services/export]
+
+  - name: e2e
+    level: integration
+    runner: playwright
+    paths: [apps/web]
+
+  - name: web-intended-use
+    level: IU
+    runner: cucumber-js
+    paths: [apps/web]
+    command: task test:intended-use -- ${ids}
+    results: test-results/evidence

@@ -1,0 +1,48 @@
+{
+  "name": "@lekman/qa",
+  "version": "0.1.0",
+  "description": "qa: run the test sets in qa.yaml with each runner's own command, merge their JUnit XML, and hand qualification evidence to qualify for the PDF reports.",
+  "license": "MIT",
+  "author": "Tobias Lekman",
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/qa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekman/qa-toolkit.git",
+    "directory": "packages/qa"
+  },
+  "keywords": [
+    "testing",
+    "test-runner",
+    "junit",
+    "qualification",
+    "monorepo"
+  ],
+  "type": "module",
+  "bin": {
+    "qa": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run check"
+  },
+  "devDependencies": {
+    "@lekman/test-sets": "workspace:*",
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.2.0",
+    "typescript": "^5.7.0"
+  }
+}

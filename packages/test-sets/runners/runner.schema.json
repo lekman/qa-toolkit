@@ -124,11 +124,11 @@
       "required": ["file"],
       "properties": {
         "args": {
-          "description": "Arguments added to the command so that it writes JUnit XML to ${junitFile}.",
+          "description": "Arguments added to the command so that it writes JUnit XML to ${junitFile} (or ${junitDir} and ${junitName}).",
           "type": "string"
         },
         "env": {
-          "description": "Environment variables that make it write JUnit XML to ${junitFile}.",
+          "description": "Environment variables that make it write JUnit XML to ${junitFile}, or to ${junitDir} and ${junitName}.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
