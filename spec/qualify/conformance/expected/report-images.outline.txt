@@ -1,0 +1,13 @@
+OQ-CONF-024 report-images test
+Checks
+one equals one
+Attachments
+screen.png
+tall.jpg
+broken.png
+icon.png
+note.txt
+screen.png, 2820 bytes, SHA-256 54c63f4d7065
+tall.jpg, 6992 bytes, SHA-256 2340c1bc48aa
+broken.png could not be read as image/png, so it is not drawn.
+icon.png, 296 bytes, SHA-256 86e9701fa7c9

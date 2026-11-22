@@ -324,6 +324,38 @@ in another source.
 --no-signatures`. Expect: `Commercial in confidence` on the cover and in the
   page 2 header, and none of the three signature roles; exit 0.
 
+### 23. `report-images`
+
+- `OQ-CONF-024`, title `report-images test`, reads the image files in
+  [fixtures/images/](fixtures/images/README.md) and attaches, in this order:
+  - `attach("screen.png", <bytes of screen.png>, "image/png")`, 960 by 540
+    pixels;
+  - `attach("tall.jpg", <bytes of tall.jpg>, "image/jpeg")`, 200 by 600 pixels;
+  - `attach("broken.png", utf8("not an image"), "image/png")`;
+  - `attach("icon.png", <bytes of icon.png>, "image/png")`, 48 by 48 pixels,
+    with transparency;
+  - `attach("note.txt", "hello\n", "text/plain")`;
+  - then one passing check.
+- A test finds the folder from its own file or working directory, for example
+  by walking up to the folder that holds `spec/qualify/conformance`.
+- Expect: merge exit 0, and the masked run file equals
+  `expected/report-images.json`, so every language records the same bytes and
+  digests.
+- Render `qualify report <run file> --pdf report-images.pdf --theme plain
+--title "Conformance images" --document-id CONF-IMG-001` with
+  `QUALIFY_REPORT_TIME=2026-01-02T03:04:05.006Z`. Expect exit 0, and every
+  line of `expected/report-images.outline.txt` in the extracted text, in order,
+  matched as in scenario 21: the test heading, the attachments table, the
+  captions of `screen.png` and `tall.jpg`, the line for `broken.png`, and the
+  caption of `icon.png`. `note.txt` has no caption.
+- Expect: the pages after the cover place exactly three images, read as the
+  image XObjects in each page's resources, with the pixel sizes 960 by 540,
+  200 by 600 and 48 by 48. The `plain` theme has no logo, so the report holds
+  no other image. An image's transparency mask is not placed on a page and is
+  not counted.
+- How large each image is drawn is not compared here; each package's unit
+  tests check the sizes of section 9.2.
+
 ## Exit Codes Checked
 
 | Scenario              | `merge` | `trace` | `report` |
@@ -336,3 +368,4 @@ in another source.
 | `deselected`          | 0       | 3       | n/a      |
 | `report`              | 1       | n/a     | 0        |
 | `report-theme`        | n/a     | n/a     | 0, 2, 0  |
+| `report-images`       | 0       | n/a     | 0        |

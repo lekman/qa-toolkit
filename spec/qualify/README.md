@@ -646,9 +646,10 @@ In this order:
    the skip reason, or the error type and message; the narrative (`Given`,
    `When`, `Then`, and each `And`); a checks table with number (`seq` plus 1),
    context, description, matcher, expected, actual, result (`Pass` or `Fail`)
-   and `soft` when set; attachments by file name, content type, size and
-   SHA-256 (the content itself is not rendered); and the names in
-   `secretsUsed`.
+   and `soft` when set; an attachments table with every attachment's file
+   name, content type, size and SHA-256; each PNG and JPEG attachment drawn as
+   an image below that table (section 9.2, **Images**); and the names in
+   `secretsUsed`. The content of any other attachment is not rendered.
 5. **Signature block,** when the theme or `--signatures` names any roles,
    under the level 2 heading `Signatures`. One row per role, each with blank
    lines for name, signature and date.
@@ -684,6 +685,37 @@ In this order:
   an empty list, is drawn as `-`.
 - **Fonts** are embedded as subsets. A character the theme's font cannot draw is
   drawn as `?`. The evidence file stays the record of the exact text.
+- **Images:** an attachment whose content type is exactly `image/png` or
+  `image/jpeg` is drawn below the test's attachments table, after its checks,
+  one image after another in the order the test attached them. It stays in the
+  table too, because the table holds the full SHA-256. Every other attachment
+  is listed in the table only.
+  - **Size.** One pixel of the image is one point (1/72 inch). The resolution
+    stored in the file and any EXIF orientation are ignored. The image is
+    scaled down, keeping its aspect ratio, until it fits both the text width
+    (the page width less both margins) and half the text height (the page
+    height less both margins, halved). It is never scaled up. On A4 with 20 mm
+    margins that box is 481.9 by 364.3 points, so a 1280 by 720 screenshot is
+    drawn 481.9 by 271.1 points, a 200 by 600 image 121.4 by 364.3 points, and
+    a 48 by 48 icon at 48 by 48 points.
+  - **Frame.** A 0.5 pt line in the `rule` colour around the image.
+  - **Caption,** below the image: `<file name>, <size> bytes, SHA-256 <sha12>`,
+    where `<sha12>` is the first 12 characters of the attachment's `sha256`,
+    in the body font at 8.5 pt in the `muted` colour, wrapped to the text
+    width.
+  - **One page.** An image and its caption are never split across pages: when
+    they do not fit in the room left on the page, both start the next page.
+    The height limit means they always fit on an empty page.
+  - **An image that cannot be read** is not drawn, and it is not an error:
+    `report` still writes the PDF and exits as it would without it. In the
+    image's place, in the body font at 9 pt in the `text` colour, is the line
+    `<file name> could not be read as <content type>, so it is not drawn.` An
+    image cannot be read when its bytes do not start with its format's
+    signature (PNG `89 50 4E 47 0D 0A 1A 0A`, JPEG `FF D8 FF`), or when the PDF
+    library cannot read it. Redaction can cause this: a secret replaced inside
+    an image's bytes (section 7.3) usually leaves bytes that no longer decode.
+  - The report draws the bytes the evidence holds, so the picture matches the
+    recorded `sha256`.
 - Timestamps are shown in UTC as `YYYY-MM-DD HH:MM:SS UTC`.
 - PDF metadata: `Title` the title, `Subject` the run ID, `Keywords` holding
   `sha256:<run file digest>`, `Producer` the name and version of the package
