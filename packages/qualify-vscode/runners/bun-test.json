@@ -1,0 +1,19 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "bun-test",
+  "label": "bun test",
+  "framework": "bun",
+  "files": [
+    "**/*{.,_}{test,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+    "**/test/**/*.{ts,mts,cts,js,mjs,cjs}"
+  ],
+  "command": "bun test ${filter}",
+  "tools": [],
+  "select": {
+    "term": "\\[${id}\\]",
+    "join": "|",
+    "quote": "all",
+    "argument": "-t ${terms}"
+  },
+  "results": "qualify-evidence"
+}

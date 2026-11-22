@@ -1,0 +1,8 @@
+{
+  "name": "ts-app",
+  "private": true,
+  "devDependencies": {
+    "@lekman/qualify": "0.1.0",
+    "vitest": "5.1.1"
+  }
+}

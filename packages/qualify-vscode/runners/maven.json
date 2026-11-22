@@ -1,0 +1,17 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "maven",
+  "label": "JUnit 5 with Maven",
+  "framework": "junit",
+  "packageMarkers": ["pom.xml"],
+  "files": ["**/src/test/**/*.{java,kt}", "**/*{Test,Tests,IT}.{java,kt}"],
+  "command": "${tool} test ${filter}",
+  "tools": [{ "file": "mvnw", "value": "${dir}/mvnw" }, { "value": "mvn" }],
+  "select": {
+    "term": "${class}#${method}",
+    "join": ",",
+    "quote": "all",
+    "argument": "-Dtest=${terms}"
+  },
+  "results": "qualify-evidence"
+}

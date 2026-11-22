@@ -1,0 +1,21 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "gradle",
+  "label": "JUnit 5 with Gradle",
+  "framework": "junit",
+  "packageMarkers": ["build.gradle", "build.gradle.kts"],
+  "files": ["**/src/test/**/*.{java,kt}", "**/*{Test,Tests,IT}.{java,kt}"],
+  "command": "${tool} test ${filter}",
+  "tools": [
+    { "file": "gradlew", "value": "${dir}/gradlew" },
+    { "value": "gradle" }
+  ],
+  "select": {
+    "term": "*${class}.${method}",
+    "join": " ",
+    "quote": "each",
+    "argument": "--tests ${term}",
+    "repeat": true
+  },
+  "results": "qualify-evidence"
+}
