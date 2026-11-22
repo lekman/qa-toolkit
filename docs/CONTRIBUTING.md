@@ -14,13 +14,12 @@ is the navigation map; the short version:
 | `packages/`  | Runnable tools: CLIs and libraries. TypeScript built with Bun, plus Python, Java and .NET packages. |
 | `practices/` | The reasoning behind each package. Prose, not config.                                               |
 | `spec/`      | Contracts that more than one package implements: schemas and conformance scenarios.                 |
-| `docs/`      | The contributing guide, cross-cutting notes and handoff briefs.                                     |
+| `docs/`      | The contributing guide and cross-cutting notes.                                                     |
 
 If a change is guidance, it goes in `practices/`. If it is something you install
 and run, it goes in `packages/`. If several packages in different languages must
 agree on it, it goes in `spec/`, and the packages follow. If it explains _why_
-across several of those, or is a dispatch brief for an implementation session,
-it goes in `docs/`.
+across several of those, it goes in `docs/`.
 
 Every folder carries its own `README.md`. Add one when you add a folder.
 
