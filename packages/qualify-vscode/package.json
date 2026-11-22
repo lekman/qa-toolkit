@@ -1,7 +1,7 @@
 {
   "name": "qualify-vscode",
   "displayName": "Qualify Tests",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Qualification tests (IQ, OQ, PQ, intended use) in the VS Code Testing view, grouped by product, package and level, with results from the qualify evidence records.",
   "license": "MIT",
   "author": "Tobias Lekman",
