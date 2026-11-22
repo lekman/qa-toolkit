@@ -204,13 +204,14 @@ its own tag (`qualify@v0.1.0`, `qualify-python@v0.1.0`, and so on), set in
 2. Merging that pull request creates the tags and the GitHub releases. The
    same workflow run then publishes each released package to its registry:
 
-| Package                   | Registry      | Version lives in               | Credential                               |
-| ------------------------- | ------------- | ------------------------------ | ---------------------------------------- |
-| `packages/data-sampler`   | npm           | `package.json`                 | npm trusted publishing (OIDC), no token  |
-| `packages/qualify`        | npm           | `package.json`                 | npm trusted publishing (OIDC), no token  |
-| `packages/qualify-python` | PyPI          | `pyproject.toml` and `uv.lock` | PyPI trusted publishing (OIDC), no token |
-| `packages/qualify-jvm`    | Maven Central | `gradle.properties`            | Central Portal user token and a GPG key  |
-| `packages/qualify-dotnet` | nuget.org     | `Directory.Build.props`        | nuget.org trusted publishing (OIDC)      |
+| Package                   | Registry                       | Version lives in               | Credential                               |
+| ------------------------- | ------------------------------ | ------------------------------ | ---------------------------------------- |
+| `packages/data-sampler`   | npm                            | `package.json`                 | npm trusted publishing (OIDC), no token  |
+| `packages/qualify`        | npm                            | `package.json`                 | npm trusted publishing (OIDC), no token  |
+| `packages/qualify-python` | PyPI                           | `pyproject.toml` and `uv.lock` | PyPI trusted publishing (OIDC), no token |
+| `packages/qualify-jvm`    | Maven Central                  | `gradle.properties`            | Central Portal user token and a GPG key  |
+| `packages/qualify-dotnet` | nuget.org                      | `Directory.Build.props`        | nuget.org trusted publishing (OIDC)      |
+| `packages/qualify-vscode` | GitHub release (`.vsix` asset) | `package.json`                 | the workflow's own token, no store token |
 
 release-please changes every version file in the table, so never edit a
 version by hand. In `gradle.properties` and `Directory.Build.props` it changes

@@ -62,9 +62,21 @@ rule tags apply to every scenario under them. Only English keywords are read.
 
 ## Install
 
+Each release attaches the `.vsix` to its GitHub release, tagged
+`qualify-vscode@v<version>`. The extension is not on the VS Code Marketplace
+or Open VSX. To install the latest release with the GitHub CLI:
+
 ```bash
-code --install-extension qualify-vscode-0.1.0.vsix
+tag=$(gh release list -R lekman/qa-toolkit --json tagName \
+  --jq '[.[] | select(.tagName | startswith("qualify-vscode@"))][0].tagName')
+gh release download "$tag" -R lekman/qa-toolkit --pattern '*.vsix'
+code --install-extension qualify-vscode-*.vsix
 ```
+
+Without the GitHub CLI, download the `.vsix` from the newest
+`qualify-vscode@v…` release on the
+[releases page](https://github.com/lekman/qa-toolkit/releases) and run
+`code --install-extension` on it.
 
 To build the `.vsix` from this repository:
 
