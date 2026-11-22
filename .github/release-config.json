@@ -85,6 +85,12 @@
       "component": "qualify-dotnet",
       "initial-version": "0.1.0",
       "extra-files": ["Directory.Build.props"]
+    },
+    "packages/qualify-vscode": {
+      "release-type": "node",
+      "package-name": "qualify-vscode",
+      "component": "qualify-vscode",
+      "initial-version": "0.1.0"
     }
   }
 }
