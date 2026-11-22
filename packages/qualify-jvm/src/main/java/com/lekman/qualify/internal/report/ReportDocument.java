@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
  * @param classification drawn on the right of every header
  * @param tokens token values for the header and footer
  * @param metadata the PDF document information
+ * @param images the image attachments, in the order the image blocks refer to them
  */
 public record ReportDocument(
     Cover cover,
@@ -23,7 +24,8 @@ public record ReportDocument(
     String footer,
     String classification,
     TokenValues tokens,
-    Metadata metadata) {
+    Metadata metadata,
+    List<ReportImages.Source> images) {
 
   /**
    * The cover page, section 9.1.

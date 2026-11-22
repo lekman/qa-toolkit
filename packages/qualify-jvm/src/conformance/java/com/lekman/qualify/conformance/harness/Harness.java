@@ -431,6 +431,15 @@ public final class Harness {
             null,
             this::checkAttachments),
         new Scenario(
+            "report-images",
+            List.of(Invocation.of(0, "ReportImagesTest")),
+            0,
+            -1,
+            "report-images",
+            null,
+            null,
+            this::checkReportImages),
+        new Scenario(
             "value-normalisation",
             List.of(Invocation.of(0, "ValueNormalisationTest")),
             0,
@@ -804,6 +813,48 @@ public final class Harness {
           "page " + n + " has no footer");
     }
     return text;
+  }
+
+  /**
+   * Scenario 23: renders the scenario's run file with the plain theme, then checks the outline and
+   * the images the pages after the cover place.
+   */
+  private void checkReportImages(Context c) throws IOException {
+    Path pdf = c.dir().resolve("report-images.pdf");
+    Map<String, String> env = scenarioEnv(c.dir(), Map.of());
+    env.put("QUALIFY_REPORT_TIME", REPORT_TIME);
+    Exec result =
+        exec(
+            List.of(
+                java,
+                "-jar",
+                cliJar.toString(),
+                "report",
+                c.dir().resolve("test-evidence.json").toString(),
+                "--pdf",
+                pdf.toString(),
+                "--theme",
+                "plain",
+                "--title",
+                "Conformance images",
+                "--document-id",
+                "CONF-IMG-001"),
+            env);
+    check(
+        result.status() == 0,
+        "report exited " + result.status() + ", expected 0\n" + result.output());
+    String missing =
+        PdfText.missingFromOutline(
+            PdfText.extract(pdf).lines(), outline("report-images.outline.txt"));
+    check(missing == null, "the report text does not hold \"" + missing + "\" in order");
+    List<List<String>> pages = PdfImages.extract(pdf);
+    List<String> placed = new ArrayList<>();
+    pages.subList(1, pages.size()).forEach(placed::addAll);
+    placed.sort(Comparator.naturalOrder());
+    check(
+        placed.equals(List.of("200x600", "48x48", "960x540")),
+        "the pages place the images " + placed);
+    keep(pdf, "report-images.pdf");
   }
 
   /** Scenario 21: the default theme. */

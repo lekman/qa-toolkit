@@ -25,6 +25,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.jspecify.annotations.Nullable;
 
@@ -78,7 +79,15 @@ public final class PdfRenderer {
                       logoHeight * logo.getWidth() / logo.getHeight(), logoHeight),
               metrics,
               g));
-      pages.addAll(Layout.paginate(document.blocks(), metrics, g));
+      List<@Nullable PDImageXObject> images = new ArrayList<>();
+      List<ReportImages.@Nullable Size> sizes = new ArrayList<>();
+      for (ReportImages.Source source : document.images()) {
+        PDImageXObject image = embedImage(pdf, source, "image" + images.size());
+        images.add(image);
+        sizes.add(
+            image == null ? null : new ReportImages.Size(image.getWidth(), image.getHeight()));
+      }
+      pages.addAll(Layout.paginate(document.blocks(), metrics, g, sizes));
 
       String total = String.valueOf(pages.size());
       for (int index = 0; index < pages.size(); index++) {
@@ -99,7 +108,7 @@ public final class PdfRenderer {
         pdf.addPage(page);
         try (PDPageContentStream content = new PDPageContentStream(pdf, page)) {
           for (DrawOp op : Layout.drawOrder(ops)) {
-            draw(content, op, fonts, theme.colours(), logo);
+            draw(content, op, fonts, theme.colours(), logo, images);
           }
         }
       }
@@ -142,7 +151,8 @@ public final class PdfRenderer {
       DrawOp op,
       Map<FontSlot, PDType0Font> fonts,
       Map<String, String> colours,
-      @Nullable PDImageXObject logo)
+      @Nullable PDImageXObject logo,
+      List<@Nullable PDImageXObject> images)
       throws IOException {
     if (op instanceof DrawOp.Text text) {
       content.beginText();
@@ -162,13 +172,37 @@ public final class PdfRenderer {
       content.addRect(
           (float) fill.x(), (float) fill.y(), (float) fill.width(), (float) fill.height());
       content.fill();
-    } else if (op instanceof DrawOp.Image image && logo != null) {
-      content.drawImage(
-          logo,
-          (float) image.x(),
-          (float) image.y(),
-          (float) image.width(),
-          (float) image.height());
+    } else if (op instanceof DrawOp.Image image) {
+      PDImageXObject drawn =
+          image.image() == DrawOp.Image.LOGO
+              ? logo
+              : image.image() < images.size() ? images.get(image.image()) : null;
+      if (drawn != null) {
+        content.drawImage(
+            drawn,
+            (float) image.x(),
+            (float) image.y(),
+            (float) image.width(),
+            (float) image.height());
+      }
+    }
+  }
+
+  /**
+   * Embed an image attachment, or return {@code null} when its bytes do not start with its format's
+   * signature or PDFBox cannot read them.
+   */
+  static @Nullable PDImageXObject embedImage(
+      PDDocument pdf, ReportImages.Source source, String name) {
+    if (!ReportImages.signed(source.bytes(), source.format())) {
+      return null;
+    }
+    try {
+      return source.format() == ReportImages.Format.PNG
+          ? PDImageXObject.createFromByteArray(pdf, source.bytes(), name)
+          : JPEGFactory.createFromByteArray(pdf, source.bytes());
+    } catch (IOException | RuntimeException e) {
+      return null;
     }
   }
 

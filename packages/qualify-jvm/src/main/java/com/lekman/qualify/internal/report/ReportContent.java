@@ -9,6 +9,8 @@ import com.lekman.qualify.internal.trace.Trace;
 import com.lekman.qualify.internal.trace.TraceRow;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,12 +74,13 @@ public final class ReportContent {
             : Template.render(theme.text("subtitle"), tokens.asMap());
     List<String> roles = options.signatures() != null ? options.signatures() : theme.signatures();
 
+    List<ReportImages.Source> images = new ArrayList<>();
     List<Block> blocks = new ArrayList<>();
     blocks.add(new Block.Heading(1, tokens.title()));
     blocks.addAll(details(run, digest, options.generatedAt()));
     blocks.addAll(summary(tests, trace));
     for (Map<String, Object> test : tests) {
-      blocks.addAll(test(test));
+      blocks.addAll(test(test, images));
     }
     if (!roles.isEmpty()) {
       blocks.add(new Block.Heading(2, "Signatures"));
@@ -99,7 +102,8 @@ public final class ReportContent {
             String.valueOf(run.get("id")),
             "sha256:" + digest,
             producer,
-            options.generatedAt()));
+            options.generatedAt()),
+        List.copyOf(images));
   }
 
   /** {@code <total> tests: <pass> pass, <fail> fail, <error> error, <skip> skip} */
@@ -288,7 +292,32 @@ public final class ReportContent {
         list(trace.requirementsWithoutPass()));
   }
 
-  private static List<Block> test(Map<String, Object> test) {
+  /**
+   * The PNG and JPEG attachments of a test as image blocks, in the order attached. Their bytes are
+   * added to {@code images}, which the blocks index.
+   */
+  private static List<Block> images(
+      List<Map<String, Object>> attachments, List<ReportImages.Source> images) {
+    List<Block> blocks = new ArrayList<>();
+    for (Map<String, Object> attachment : attachments) {
+      ReportImages.Format format =
+          ReportImages.format(String.valueOf(attachment.get("contentType")));
+      if (format == null) {
+        continue;
+      }
+      images.add(
+          new ReportImages.Source(
+              Base64.getDecoder().decode(String.valueOf(attachment.get("content"))), format));
+      blocks.add(
+          new Block.Image(
+              images.size() - 1,
+              ReportImages.caption(attachment),
+              ReportImages.unreadable(attachment)));
+    }
+    return blocks;
+  }
+
+  private static List<Block> test(Map<String, Object> test, List<ReportImages.Source> images) {
     String controls = (String) test.get("controls");
     List<Field> fields = new ArrayList<>();
     fields.add(new Field("Level", String.valueOf(test.get("level"))));
@@ -340,7 +369,9 @@ public final class ReportContent {
               a.get("sizeBytes") + " bytes",
               String.valueOf(a.get("sha256"))));
     }
-    return List.of(
+    List<Block> blocks = new ArrayList<>();
+    Collections.addAll(
+        blocks,
         new Block.Heading(2, test.get("id") + " " + test.get("title")),
         new Block.Fields(fields),
         new Block.Heading(3, "Checks"),
@@ -366,6 +397,8 @@ public final class ReportContent {
                     new Column("Size", 0.12),
                     new Column("SHA-256", 0.48, true)),
                 attachmentRows));
+    blocks.addAll(images(attachments, images));
+    return blocks;
   }
 
   @SuppressWarnings("unchecked")
