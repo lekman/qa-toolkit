@@ -1,0 +1,44 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "storybook",
+  "label": "Storybook test runner",
+  "framework": "storybook",
+  "files": ["**/*.stories.{ts,tsx,js,jsx,mjs,svelte,vue}", "**/*.mdx"],
+  "command": "${tool} test-storybook ${filter}",
+  "tools": [
+    {
+      "file": "bun.lock",
+      "value": "bunx"
+    },
+    {
+      "file": "bun.lockb",
+      "value": "bunx"
+    },
+    {
+      "file": "pnpm-lock.yaml",
+      "value": "pnpm exec"
+    },
+    {
+      "file": "yarn.lock",
+      "value": "yarn"
+    },
+    {
+      "value": "npx"
+    }
+  ],
+  "select": {
+    "term": "${id}",
+    "join": "|",
+    "quote": "all",
+    "argument": "--testNamePattern=${terms}"
+  },
+  "qualify": false,
+  "junit": {
+    "args": "--junit",
+    "env": {
+      "JEST_JUNIT_OUTPUT_DIR": "test-results/junit",
+      "JEST_JUNIT_OUTPUT_NAME": "storybook.xml"
+    },
+    "file": "test-results/junit/storybook.xml"
+  }
+}

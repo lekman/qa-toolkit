@@ -7,3 +7,12 @@ export type {
   TestSet,
   TestSetFile,
 } from "./config";
+export { RunnerDefinitions } from "./runners";
+export type {
+  Framework,
+  JunitOutput,
+  RunnerDefinition,
+  SelectedTest,
+  Selection,
+  ToolChoice,
+} from "./runners";

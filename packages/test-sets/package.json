@@ -1,7 +1,7 @@
 {
   "name": "@lekman/test-sets",
   "version": "0.1.0",
-  "description": "Test sets for a repository: which runner runs which tests, at which level and in which folders, in one qa.yaml with a JSON Schema.",
+  "description": "Test sets for a repository and the runners that run them: one qa.yaml with a JSON Schema, and a declarative definition per test runner.",
   "license": "MIT",
   "author": "Tobias Lekman",
   "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/test-sets",
@@ -23,12 +23,14 @@
       "bun": "./src/index.ts",
       "default": "./dist/index.js"
     },
-    "./schema/test-sets.schema.json": "./schema/test-sets.schema.json"
+    "./schema/test-sets.schema.json": "./schema/test-sets.schema.json",
+    "./runners/*": "./runners/*"
   },
   "files": [
     "dist",
     "src",
     "schema",
+    "runners",
     "README.md",
     "LICENSE"
   ],

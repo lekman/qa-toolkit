@@ -6,9 +6,17 @@
   "files": ["**/test_*.py", "**/*_test.py"],
   "command": "${tool} ${filter}",
   "tools": [
-    { "file": "uv.lock", "value": "uv run pytest" },
-    { "file": "poetry.lock", "value": "poetry run pytest" },
-    { "value": "python -m pytest" }
+    {
+      "file": "uv.lock",
+      "value": "uv run pytest"
+    },
+    {
+      "file": "poetry.lock",
+      "value": "poetry run pytest"
+    },
+    {
+      "value": "python -m pytest"
+    }
   ],
   "select": {
     "term": "${id}",
@@ -16,5 +24,9 @@
     "quote": "all",
     "argument": "-k ${terms}"
   },
-  "results": "qualify-evidence"
+  "qualify": true,
+  "junit": {
+    "args": "--junitxml=${junitFile}",
+    "file": "test-results/junit/pytest.xml"
+  }
 }

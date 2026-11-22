@@ -15,5 +15,9 @@
     "quote": "all",
     "argument": "--test-name-pattern=${terms}"
   },
-  "results": "qualify-evidence"
+  "qualify": true,
+  "junit": {
+    "args": "--test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=${junitFile}",
+    "file": "test-results/junit/node-test.xml"
+  }
 }

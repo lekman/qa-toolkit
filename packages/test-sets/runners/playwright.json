@@ -1,0 +1,43 @@
+{
+  "$schema": "./runner.schema.json",
+  "id": "playwright",
+  "label": "Playwright Test",
+  "framework": "playwright",
+  "files": ["**/e2e/**/*.{spec,test}.{ts,js,mjs}", "**/*.e2e.{ts,js}"],
+  "command": "${tool} playwright test ${filter}",
+  "tools": [
+    {
+      "file": "bun.lock",
+      "value": "bunx"
+    },
+    {
+      "file": "bun.lockb",
+      "value": "bunx"
+    },
+    {
+      "file": "pnpm-lock.yaml",
+      "value": "pnpm exec"
+    },
+    {
+      "file": "yarn.lock",
+      "value": "yarn"
+    },
+    {
+      "value": "npx"
+    }
+  ],
+  "select": {
+    "term": "${id}",
+    "join": "|",
+    "quote": "all",
+    "argument": "--grep ${terms}"
+  },
+  "qualify": false,
+  "junit": {
+    "args": "--reporter=list,junit",
+    "env": {
+      "PLAYWRIGHT_JUNIT_OUTPUT_FILE": "${junitFile}"
+    },
+    "file": "test-results/junit/playwright.xml"
+  }
+}

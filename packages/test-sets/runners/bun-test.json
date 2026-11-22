@@ -15,5 +15,9 @@
     "quote": "all",
     "argument": "-t ${terms}"
   },
-  "results": "qualify-evidence"
+  "qualify": true,
+  "junit": {
+    "args": "--reporter=junit --reporter-outfile=${junitFile}",
+    "file": "test-results/junit/bun-test.xml"
+  }
 }

@@ -1,12 +1,8 @@
-import Ajv2020 from "ajv/dist/2020";
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { PackageRoots } from "../../src/packages";
 import { CommandLines, RunnerDefinitions } from "../../src/runners";
 
-const DIR = join(import.meta.dir, "../../runners");
 const tests = [
   { className: "BankFileTest", id: "OQ-EXPORT-003", method: "keepsAmounts" },
   { id: "OQ-EXPORT-004" },
@@ -22,45 +18,6 @@ const filterOf = (id: string, platform = "linux"): string =>
     tests,
     platform,
   );
-
-describe("runner definitions", () => {
-  test("every file in runners/ follows the schema and is loaded", () => {
-    const schema = JSON.parse(
-      readFileSync(join(DIR, "runner.schema.json"), "utf8"),
-    );
-    const validate = new Ajv2020({ allErrors: true }).compile(schema);
-    const files = readdirSync(DIR).filter(
-      (f) => f.endsWith(".json") && f !== "runner.schema.json",
-    );
-    for (const file of files) {
-      const definition = JSON.parse(readFileSync(join(DIR, file), "utf8"));
-      expect({
-        file,
-        errors: validate(definition) ? null : validate.errors,
-      }).toEqual({ file, errors: null });
-      expect(RunnerDefinitions.byId(definition.id)).toBeDefined();
-    }
-    expect(RunnerDefinitions.ALL).toHaveLength(files.length);
-  });
-
-  test("picks Maven over Gradle by the package's build file", () => {
-    expect(RunnerDefinitions.forFramework("junit", ["pom.xml"]).id).toBe(
-      "maven",
-    );
-    expect(
-      RunnerDefinitions.forFramework("junit", ["build.gradle.kts"]).id,
-    ).toBe("gradle");
-    expect(RunnerDefinitions.forFramework("junit", []).id).toBe("gradle");
-    expect(
-      RunnerDefinitions.forFramework("cucumber", ["package.json"]).id,
-    ).toBe("cucumber-js");
-  });
-
-  test("lists the tool files and the source globs", () => {
-    expect(RunnerDefinitions.toolFiles()).toContain("gradlew");
-    expect(RunnerDefinitions.sourceGlobs()).toContain("**/*.feature");
-  });
-});
 
 describe("CommandLines.filter", () => {
   test("each runner selects by ID with its own filter", () => {

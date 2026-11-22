@@ -6,6 +6,8 @@
  */
 
 import { runTests } from "@vscode/test-electron";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
@@ -20,6 +22,9 @@ try {
     extensionTestsPath: join(root, "dist-test/suite.js"),
     launchArgs: [
       join(root, "test-host/fixture"),
+      // A short user data folder: VS Code opens a socket in it, and a socket
+      // path over about 100 characters fails to open.
+      `--user-data-dir=${mkdtempSync(join(tmpdir(), "qv-"))}`,
       "--disable-extensions",
       "--disable-workspace-trust",
       "--skip-welcome",

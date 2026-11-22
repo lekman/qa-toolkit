@@ -12,6 +12,7 @@ const outdir = join(root, "dist-test");
 await rm(outdir, { force: true, recursive: true });
 
 const result = await Bun.build({
+  conditions: ["bun"],
   entrypoints: [join(root, "test-host/suite.ts")],
   external: ["vscode"],
   format: "cjs",

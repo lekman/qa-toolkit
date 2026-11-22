@@ -1,8 +1,8 @@
+import type { Framework } from "@lekman/test-sets";
+
 import type { Level, QualificationLevel } from "../levels";
 
-/** The test framework a declaration belongs to, which picks its runner. */
-export type Framework =
-  "bun" | "cucumber" | "junit" | "node" | "pytest" | "vitest" | "xunit";
+export type { Framework } from "@lekman/test-sets";
 
 /** A source language that discovery reads. */
 export type Language = "dotnet" | "gherkin" | "jvm" | "python" | "typescript";
