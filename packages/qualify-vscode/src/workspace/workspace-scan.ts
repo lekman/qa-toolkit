@@ -59,7 +59,7 @@ export class WorkspaceScan {
     const [sources, indexed] = await Promise.all([
       files.find(
         folder.path,
-        RunnerDefinitions.sourceGlobs(),
+        RunnerDefinitions.sourceGlobs({ qualify: true }),
         settings.exclude,
       ),
       files.find(folder.path, WorkspaceScan.indexGlobs(), settings.exclude),

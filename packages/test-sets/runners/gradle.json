@@ -7,8 +7,13 @@
   "files": ["**/src/test/**/*.{java,kt}", "**/*{Test,Tests,IT}.{java,kt}"],
   "command": "${tool} test ${filter}",
   "tools": [
-    { "file": "gradlew", "value": "${dir}/gradlew" },
-    { "value": "gradle" }
+    {
+      "file": "gradlew",
+      "value": "${dir}/gradlew"
+    },
+    {
+      "value": "gradle"
+    }
   ],
   "select": {
     "term": "*${class}.${method}",
@@ -17,5 +22,8 @@
     "argument": "--tests ${term}",
     "repeat": true
   },
-  "results": "qualify-evidence"
+  "qualify": true,
+  "junit": {
+    "file": "build/test-results/test/TEST-*.xml"
+  }
 }

@@ -12,5 +12,10 @@
     "quote": "all",
     "argument": "--filter ${terms}"
   },
-  "results": "qualify-evidence"
+  "qualify": true,
+  "junit": {
+    "args": "--logger 'junit;LogFilePath=${junitFile}'",
+    "file": "test-results/junit/dotnet.xml",
+    "requires": "the JunitXml.TestLogger NuGet package in the test project, on the VSTest host"
+  }
 }

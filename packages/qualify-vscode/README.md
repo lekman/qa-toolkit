@@ -193,17 +193,16 @@ The extension follows the repository's
 [clean architecture rules](../../.claude/rules/clean-architecture.md). VS Code,
 the file system and processes are touched only in `src/extension/*.system.ts`.
 
-| Folder           | Holds                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| `runners/`       | One runner definition per file, as data, following [runner.schema.json](runners/runner.schema.json) |
-| `src/discovery/` | The parsers, one per language, and the declaration rules                                            |
-| `src/packages/`  | Which package a file belongs to                                                                     |
-| `src/runners/`   | The runner definitions and the command lines they make                                              |
-| `src/results/`   | The result-reader port and the qualify evidence reader                                              |
-| `src/runs/`      | The run plan and its execution, behind process and reporter ports                                   |
-| `src/tree/`      | The tree: product, package, level, test, and the tags                                               |
-| `src/extension/` | The VS Code adapters                                                                                |
-| `test-host/`     | The extension host test and its fixture workspace                                                   |
+| Folder           | Holds                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `src/discovery/` | The parsers, one per language, and the declaration rules                                                             |
+| `src/packages/`  | Which package a file belongs to                                                                                      |
+| `src/runners/`   | The command lines a runner definition makes. The definitions are data in [@lekman/test-sets](../test-sets/README.md) |
+| `src/results/`   | The result-reader port and the qualify evidence reader                                                               |
+| `src/runs/`      | The run plan and its execution, behind process and reporter ports                                                    |
+| `src/tree/`      | The tree: product, package, level, test, and the tags                                                                |
+| `src/extension/` | The VS Code adapters                                                                                                 |
+| `test-host/`     | The extension host test and its fixture workspace                                                                    |
 
 ```bash
 bun test                 # unit tests, with fakes for the ports
