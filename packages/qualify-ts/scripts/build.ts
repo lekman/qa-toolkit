@@ -1,10 +1,11 @@
 /**
- * Build the qualify library, the three adapters, their setup modules and the
+ * Build the qualify library, the four adapters, their setup modules and the
  * CLI with Bun, targeting Node.
  *
  * Every package import stays external: `ajv`, `yaml`, `pdf-lib` and
- * `@pdf-lib/fontkit` are runtime dependencies, and `vitest` is the consumer's
- * own copy, which the adapter must share. `bun:test` exists only under Bun.
+ * `@pdf-lib/fontkit` are runtime dependencies, and `vitest` and
+ * `@cucumber/cucumber` are the consumer's own copies, which the adapters must
+ * share. `bun:test` exists only under Bun.
  * Everything in `src/` is bundled, including the two schemas; the fonts stay
  * in `fonts/` and are read at runtime. Code shared by several entry points
  * goes into `dist/chunks/`.
@@ -27,6 +28,7 @@ const entries = [
   "src/adapters/node.ts",
   "src/adapters/node-setup.ts",
   "src/adapters/bun.ts",
+  "src/adapters/cucumber.ts",
 ];
 
 const result = await Bun.build({
