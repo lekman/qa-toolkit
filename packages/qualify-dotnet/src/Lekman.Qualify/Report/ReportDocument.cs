@@ -26,6 +26,28 @@ public sealed record FieldsBlock(IReadOnlyList<Field> Fields) : Block;
 /// <summary>A table with a header row and zebra body rows.</summary>
 public sealed record TableBlock(IReadOnlyList<Column> Columns, IReadOnlyList<IReadOnlyList<string>> Rows) : Block;
 
+/// <summary>
+/// An image attachment, drawn with <paramref name="Caption"/> below it, or
+/// replaced by the <paramref name="Unreadable"/> line when it cannot be read.
+/// </summary>
+/// <param name="Image">The index into <see cref="ReportDocument.Images"/>.</param>
+/// <param name="Caption">The line under the image.</param>
+/// <param name="Unreadable">The line drawn instead when the image cannot be read.</param>
+public sealed record ImageBlock(int Image, string Caption, string Unreadable) : Block;
+
+/// <summary>An image format the report draws.</summary>
+public enum ImageFormat
+{
+    /// <summary><c>image/png</c>.</summary>
+    Png,
+
+    /// <summary><c>image/jpeg</c>.</summary>
+    Jpeg,
+}
+
+/// <summary>The bytes of an image attachment, as the evidence holds them.</summary>
+public sealed record ImageSource(byte[] Bytes, ImageFormat Format);
+
 /// <summary>The signature block: one row per role.</summary>
 public sealed record SignaturesBlock(IReadOnlyList<string> Roles) : Block;
 
@@ -58,6 +80,9 @@ public sealed record ReportDocument
 
     /// <summary>The PDF's document information.</summary>
     public required ReportMetadata Metadata { get; init; }
+
+    /// <summary>The image attachments, in the order the image blocks refer to them.</summary>
+    public IReadOnlyList<ImageSource> Images { get; init; } = [];
 }
 
 /// <summary>What the caller asked for. A value left null comes from the theme.</summary>

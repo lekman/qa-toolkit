@@ -12,7 +12,7 @@ public sealed record PdfContent(IReadOnlyList<IReadOnlyList<string>> PageLines, 
 }
 
 /// <summary>
-/// Text extraction with PdfPig, for scenarios 21 and 22. Text on one baseline
+/// Text extraction with PdfPig, for scenarios 21, 22 and 23. Text on one baseline
 /// of a page becomes one line, left to right. Runs of whitespace collapse to
 /// one space and empty lines are dropped, as scenario 21 describes.
 /// </summary>
@@ -75,6 +75,19 @@ public static partial class PdfText
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The images each page places, as <c>WIDTHxHEIGHT</c> in pixels, for
+    /// scenario 23. PdfPig lists the image XObjects the page's content draws
+    /// from its resources. A transparency mask hangs off its image, not off
+    /// the page, so it is not listed.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<string>> PlacedImages(byte[] pdf)
+    {
+        using var document = PdfDocument.Open(pdf);
+        return [.. document.GetPages().Select(page => (IReadOnlyList<string>)[.. page.GetImages().Select(image =>
+            string.Create(CultureInfo.InvariantCulture, $"{image.WidthInSamples}x{image.HeightInSamples}"))])];
     }
 
     /// <summary>The lines of an outline file, whitespace collapsed, empty lines dropped.</summary>

@@ -33,9 +33,14 @@ public static class PdfReportRenderer
             logoSize = (height * logo.PixelWidth / logo.PixelHeight, height);
         }
 
+        var images = document.Images.Select(Decode).ToList();
         var cover = ReportLayout.CoverPage(document.Cover, logoSize, metrics, g);
         var pages = new List<List<DrawOp>> { cover };
-        pages.AddRange(ReportLayout.Paginate(document.Blocks, metrics, g));
+        pages.AddRange(ReportLayout.Paginate(
+            document.Blocks,
+            metrics,
+            g,
+            [.. images.Select(image => image is null ? null : ((double Width, double Height)?)(image.PixelWidth, image.PixelHeight))]));
         var total = pages.Count.ToString(CultureInfo.InvariantCulture);
         var palette = theme.Spec.Colours.ToDictionary(pair => pair.Key, pair => Colour(pair.Value));
 
@@ -59,7 +64,7 @@ public static class PdfReportRenderer
             using var graphics = XGraphics.FromPdfPage(page);
             foreach (var op in ReportLayout.DrawOrder(ops))
             {
-                Draw(graphics, op, g, palette, metrics, logo);
+                Draw(graphics, op, g, palette, metrics, op is ImageOp { Image: { } i } ? images[i] : logo);
             }
         }
 
@@ -74,10 +79,39 @@ public static class PdfReportRenderer
         using var output = new MemoryStream();
         pdf.Save(output, closeStream: false);
         logo?.Dispose();
+        foreach (var image in images)
+        {
+            image?.Dispose();
+        }
+
         return output.ToArray();
     }
 
-    private static void Draw(XGraphics graphics, DrawOp op, Geometry g, Dictionary<ColourName, XColor> palette, PdfMetrics metrics, XImage? logo)
+    /// <summary>
+    /// Read an image attachment with PDFsharp, or return null when its bytes do
+    /// not start with its format's signature or PDFsharp cannot read them.
+    /// </summary>
+    public static XImage? Decode(ImageSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!ReportImages.HasSignature(source.Bytes, source.Format))
+        {
+            return null;
+        }
+
+        try
+        {
+            return XImage.FromStream(new MemoryStream(source.Bytes));
+        }
+#pragma warning disable CA1031 // Any failure to read the bytes means the image is listed, not drawn.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return null;
+        }
+    }
+
+    private static void Draw(XGraphics graphics, DrawOp op, Geometry g, Dictionary<ColourName, XColor> palette, PdfMetrics metrics, XImage? picture)
     {
         switch (op)
         {
@@ -90,8 +124,8 @@ public static class PdfReportRenderer
             case FillOp fill:
                 graphics.DrawRectangle(new XSolidBrush(palette[fill.Colour]), fill.X, g.Height - fill.Y - fill.Height, fill.Width, fill.Height);
                 break;
-            case ImageOp image when logo is not null:
-                graphics.DrawImage(logo, image.X, g.Height - image.Y - image.Height, image.Width, image.Height);
+            case ImageOp image when picture is not null:
+                graphics.DrawImage(picture, image.X, g.Height - image.Y - image.Height, image.Width, image.Height);
                 break;
         }
     }
