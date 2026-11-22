@@ -7,7 +7,7 @@
 This is the Java implementation of the
 [qualify specification](../../spec/qualify/README.md). It writes the same
 evidence files as the TypeScript reference,
-[@lekman/qualify](../qualify/README.md), and passes the same conformance
+[@lekman/qualify](../qualify-ts/README.md), and passes the same conformance
 scenarios. It is not published yet.
 
 ## Why

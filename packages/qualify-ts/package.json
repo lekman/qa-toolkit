@@ -4,11 +4,11 @@
   "description": "Qualification tests (IQ, OQ, PQ, intended use) for vitest, node:test and bun that write redacted JSON evidence and a trace matrix.",
   "license": "MIT",
   "author": "Tobias Lekman",
-  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify",
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/qualify-ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lekman/qa-toolkit.git",
-    "directory": "packages/qualify"
+    "directory": "packages/qualify-ts"
   },
   "keywords": [
     "qualification",

@@ -10,7 +10,7 @@ the serialiser and misses outcome bugs.
 ## How a Scenario Runs
 
 1. The scenario's test files live in the implementation, for example
-   `packages/qualify/conformance/<scenario>.test.ts`,
+   `packages/qualify-ts/conformance/<scenario>.test.ts`,
    `packages/qualify-python/conformance/test_<scenario>.py`,
    `packages/qualify-jvm/src/conformance/.../<Scenario>Test.java` and
    `packages/qualify-dotnet/conformance/<Scenario>Tests.cs`. They declare

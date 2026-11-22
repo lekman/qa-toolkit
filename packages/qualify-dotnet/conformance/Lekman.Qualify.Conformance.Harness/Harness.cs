@@ -94,7 +94,7 @@ public static partial class Harness
     /// <summary>Run the TypeScript CLI's <c>trace</c>, which the .NET tool points to.</summary>
     public static Exec TypeScriptTrace(params string[] args)
     {
-        var cli = Path.Combine(Root, "packages", "qualify", "dist", "cli.js");
+        var cli = Path.Combine(Root, "packages", "qualify-ts", "dist", "cli.js");
         Assert.True(File.Exists(cli), $"{cli} is missing: run bun install and bun run build at the repository root first");
         return Run("node", [cli, "trace", .. args], Package, ScenarioEnvironment(string.Empty, null));
     }

@@ -5,7 +5,7 @@ import { Site } from "../../src/site";
 
 const stack = [
   "Error: x",
-  "    at Site.here (/repo/packages/qualify/src/site/site.ts:10:5)",
+  "    at Site.here (/repo/packages/qualify-ts/src/site/site.ts:10:5)",
   "    at new Promise (<anonymous>)",
   "    at node:internal/process/task_queues:95:5",
   "    at run (/repo/node_modules/vitest/dist/x.js:1:1)",
@@ -17,7 +17,7 @@ const stack = [
 describe("Site", () => {
   test("parses V8 and JavaScriptCore frames", () => {
     expect(Site.frames(stack)).toEqual([
-      { path: "/repo/packages/qualify/src/site/site.ts", line: 10 },
+      { path: "/repo/packages/qualify-ts/src/site/site.ts", line: 10 },
       { path: "/repo/node_modules/vitest/dist/x.js", line: 1 },
       { path: "/repo/tests/a.test.ts", line: 12 },
       { path: "/repo/tests/b.test.ts", line: 3 },
@@ -27,7 +27,7 @@ describe("Site", () => {
   });
 
   test("the caller skips qualify's own code and node_modules", () => {
-    expect(Site.caller(stack, ["/repo/packages/qualify/src"])).toEqual({
+    expect(Site.caller(stack, ["/repo/packages/qualify-ts/src"])).toEqual({
       path: "/repo/tests/a.test.ts",
       line: 12,
     });

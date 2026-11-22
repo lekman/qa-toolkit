@@ -2,7 +2,7 @@
 
 The reasoning behind qualify: the
 [specification](../../spec/qualify/README.md), the TypeScript package
-[@lekman/qualify](../../packages/qualify/README.md), the pytest plugin
+[@lekman/qualify](../../packages/qualify-ts/README.md), the pytest plugin
 [lekman-qualify](../../packages/qualify-python/README.md), the JUnit 5 extension
 [com.lekman:qualify](../../packages/qualify-jvm/README.md) and the C# package
 [Lekman.Qualify](../../packages/qualify-dotnet/README.md).
