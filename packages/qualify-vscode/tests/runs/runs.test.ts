@@ -17,7 +17,9 @@ const RUN = "01JZ0000000000000000000000";
 const context = (raw: Record<string, unknown> = {}): PlanContext => ({
   index: () => PackageRoots.index(["/ws/app/package.json", "/ws/bun.lock"]),
   platform: "linux",
+  resultsDir: "/storage",
   runId: RUN,
+  sets: () => undefined,
   settings: () => Settings.from(raw),
 });
 

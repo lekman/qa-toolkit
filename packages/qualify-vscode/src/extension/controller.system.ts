@@ -52,7 +52,8 @@ export class QualifyController implements vscode.Disposable {
   private pending: NodeJS.Timeout | undefined;
   private readonly scans = new Map<string, ScanResult>();
 
-  constructor() {
+  /** `resultsDir` is a folder of the extension's own for JUnit reports. */
+  constructor(private readonly resultsDir: string) {
     this.controller = vscode.tests.createTestController(
       "qualify",
       "Qualification",
@@ -111,10 +112,18 @@ export class QualifyController implements vscode.Disposable {
         );
       }),
     );
+    const problems = [...this.scans.entries()].flatMap(([folder, scan]) =>
+      scan.problems.map((p) => `${folder}/qa.yaml: ${p}`),
+    );
+    if (problems.length > 0) {
+      void vscode.window.showWarningMessage(
+        `qa.yaml cannot be used: ${problems.join("; ")}`,
+      );
+    }
     this.sync();
   }
 
-  /** Re-reads one changed file, or rescans when a build file changed. */
+  /** Re-reads one changed file, or rescans when a build file or qa.yaml changed. */
   private changed(uri: vscode.Uri): void {
     clearTimeout(this.pending);
     this.pending = setTimeout(() => void this.reread(uri), 300);
@@ -158,7 +167,11 @@ export class QualifyController implements vscode.Disposable {
   private async reread(uri: vscode.Uri): Promise<void> {
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     const scan = folder && this.scans.get(folder.uri.fsPath);
-    if (scan === undefined || Discovery.languageOf(uri.fsPath) === undefined) {
+    if (
+      scan === undefined ||
+      scan.sets !== undefined ||
+      Discovery.languageOf(uri.fsPath) === undefined
+    ) {
       await this.refresh();
       return;
     }
@@ -189,7 +202,9 @@ export class QualifyController implements vscode.Disposable {
     const plan = RunPlan.build([...selected.values()], {
       index: (folder) => scans.get(folder)?.index ?? new Map(),
       platform: process.platform,
+      resultsDir: this.resultsDir,
       runId,
+      sets: (folder) => scans.get(folder)?.sets,
       settings: settingsOf,
     });
     const abort = new AbortController();
@@ -217,7 +232,14 @@ export class QualifyController implements vscode.Disposable {
       const scan = this.scans.get(folder.path);
       return scan === undefined
         ? []
-        : [WorkspaceScan.resolve(folder, scan.declarations, scan.index)];
+        : [
+            WorkspaceScan.resolve(
+              folder,
+              scan.declarations,
+              scan.index,
+              scan.ordinary,
+            ),
+          ];
     });
     this.nodes.clear();
     this.items.clear();

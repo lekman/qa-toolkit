@@ -20,5 +20,7 @@ export interface IResultFiles {
    * `sinceMs`; none when `dir` does not exist.
    */
   list(dir: string, depth: number, sinceMs: number): Promise<string[]>;
+  /** Creates a folder and its parents, when they do not exist. */
+  mkdir(dir: string): Promise<void>;
   read(path: string): Promise<string | undefined>;
 }

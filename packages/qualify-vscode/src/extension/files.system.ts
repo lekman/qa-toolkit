@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import * as vscode from "vscode";
 
@@ -24,6 +24,11 @@ export class WorkspaceFiles implements IWorkspaceFiles {
       ),
     );
     return [...new Set(found.flat().map((uri) => uri.fsPath))];
+  }
+
+  /** Creates a folder and its parents. */
+  async mkdir(dir: string): Promise<void> {
+    await mkdir(dir, { recursive: true });
   }
 
   /** The text of a file, or `undefined` when it cannot be read. */
@@ -61,6 +66,11 @@ export class ResultFiles implements IResultFiles {
     };
     await walk(dir, depth);
     return out;
+  }
+
+  /** Creates a folder and its parents. */
+  async mkdir(dir: string): Promise<void> {
+    await mkdir(dir, { recursive: true });
   }
 
   /** The text of a file, or `undefined` when it cannot be read. */

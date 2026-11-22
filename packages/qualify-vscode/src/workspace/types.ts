@@ -1,3 +1,5 @@
+import type { TestSet, TestSetFile } from "@lekman/test-sets";
+
 import type { Declaration } from "../discovery";
 import type { FileIndex, PackageRoot } from "../packages";
 import type { RunnerDefinition } from "../runners";
@@ -21,6 +23,8 @@ export interface ResolvedTest {
   folder: ProductFolder;
   package: ProductPackage;
   runner: RunnerDefinition;
+  /** The `qa.yaml` set an ordinary test belongs to; qualification tests have none. */
+  set?: TestSet;
 }
 
 /** Every test of one product. */
@@ -35,4 +39,10 @@ export interface ScanResult {
   declarations: Map<string, Declaration[]>;
   /** Build files and tool files, by folder. */
   index: FileIndex;
+  /** The ordinary tests of the sets in `qa.yaml`. */
+  ordinary: ResolvedTest[];
+  /** What is wrong with `qa.yaml`, when it cannot be used. */
+  problems: string[];
+  /** The sets of `qa.yaml` at the product folder's root, when there is one. */
+  sets?: TestSetFile;
 }

@@ -13,7 +13,9 @@ export interface QualifyApi {
 
 /** Starts the extension: the test controller, its first scan and the commands. */
 export function activate(context: vscode.ExtensionContext): QualifyApi {
-  const qualify = new QualifyController();
+  const qualify = new QualifyController(
+    vscode.Uri.joinPath(context.globalStorageUri, "junit").fsPath,
+  );
   context.subscriptions.push(
     qualify,
     vscode.commands.registerCommand("qualify.refresh", () => qualify.refresh()),
