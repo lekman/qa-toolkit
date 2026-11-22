@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Protocol
 
+from qualify.report import images as pictures
 from qualify.report.content import (
     Block,
     Column,
@@ -21,6 +23,7 @@ from qualify.report.content import (
     Heading,
     Listing,
     Paragraph,
+    Picture,
     Signatures,
     Table,
 )
@@ -29,6 +32,7 @@ MM = 72 / 25.4
 SIZE_BODY = 9.0
 SIZE_MONO = 8.5  # mono runs wide; at 8.5 pt a SHA-256 digest fits the value column on A4
 SIZE_CHROME = 8.5
+SIZE_CAPTION = 8.5
 SIZE_HEADING = {1: 20.0, 2: 14.0, 3: 11.0}
 PAD_Y = 3.5
 PAD_X = 4.0
@@ -80,10 +84,13 @@ class Fill:
 
 @dataclass(frozen=True)
 class Image:
+    """An image: the theme's logo, or the document's image at ``image``."""
+
     x: float
     y: float
     width: float
     height: float
+    image: int | None = None
 
 
 Op = Text | Line | Fill | Image
@@ -162,6 +169,8 @@ def fit(text: str, width: float, size: float, slot: str, metrics: Metrics) -> st
 class _Cursor:
     metrics: Metrics
     g: Geometry
+    # The pixel size of each image, or None for one that cannot be read.
+    sizes: Sequence[tuple[float, float] | None] = ()
     pages: list[Page] = field(default_factory=lambda: [[]])
     y: float = 0.0
 
@@ -480,6 +489,41 @@ def _signatures(cursor: _Cursor, roles: Sequence[str]) -> None:
         cursor.y -= 12
 
 
+def _paragraph(cursor: _Cursor, text: str) -> None:
+    lines = wrap(cursor.clean(text, "body"), cursor.width, SIZE_BODY, "body", cursor.metrics)
+    cursor.lines(lines, SIZE_BODY, "body", "text")
+    cursor.y -= 4
+
+
+def _picture(cursor: _Cursor, block: Picture) -> None:
+    """An image attachment: scaled into the text width and half the text
+    height, framed in the rule colour, with its caption below, and both kept
+    on one page. An image that cannot be read becomes a line of text."""
+    pixels = cursor.sizes[block.image] if block.image < len(cursor.sizes) else None
+    if pixels is None:
+        _paragraph(cursor, block.unreadable)
+        return
+    width, height = pictures.fit(pixels, (cursor.width, (cursor.top - cursor.bottom) / 2))
+    caption = wrap(
+        cursor.clean(block.caption, "body"), cursor.width, SIZE_CAPTION, "body", cursor.metrics
+    )
+    before, gap = 6.0, 4.0
+    needed = before + height + gap + len(caption) * line_height(SIZE_CAPTION)
+    if cursor.room < needed:
+        cursor.new_page()
+    elif cursor.y < cursor.top:
+        cursor.y -= before
+    x, y = cursor.g.margin, cursor.y - height
+    right, top = x + width, y + height
+    cursor.page.append(Image(x, y, width, height, block.image))
+    corners = ((x, y), (right, y), (right, top), (x, top), (x, y))
+    for (x1, y1), (x2, y2) in pairwise(corners):
+        cursor.page.append(Line(x1, y1, x2, y2, 0.5, "rule"))
+    cursor.y = y - gap
+    cursor.lines(caption, SIZE_CAPTION, "body", "muted")
+    cursor.y -= 8
+
+
 def _heading(cursor: _Cursor, block: Heading, after_block: Block | None) -> None:
     size = SIZE_HEADING[block.level]
     lines = wrap(cursor.clean(block.text, "heading"), cursor.width, size, "heading", cursor.metrics)
@@ -509,19 +553,24 @@ def _heading(cursor: _Cursor, block: Heading, after_block: Block | None) -> None
     cursor.y -= after
 
 
-def paginate(blocks: Sequence[Block], metrics: Metrics, g: Geometry) -> list[Page]:
-    """Lay out the content blocks on the pages after the cover."""
-    cursor = _Cursor(metrics, g)
+def paginate(
+    blocks: Sequence[Block],
+    metrics: Metrics,
+    g: Geometry,
+    sizes: Sequence[tuple[float, float] | None] = (),
+) -> list[Page]:
+    """Lay out the content blocks on the pages after the cover. ``sizes`` holds
+    the pixel size of each image the picture blocks refer to, or ``None`` for
+    one the PDF library could not read."""
+    cursor = _Cursor(metrics, g, sizes)
     for index, block in enumerate(blocks):
         following = blocks[index + 1] if index + 1 < len(blocks) else None
         if isinstance(block, Heading):
             _heading(cursor, block, following)
         elif isinstance(block, Paragraph):
-            text = cursor.clean(block.text, "body")
-            cursor.lines(
-                wrap(text, cursor.width, SIZE_BODY, "body", metrics), SIZE_BODY, "body", "text"
-            )
-            cursor.y -= 4
+            _paragraph(cursor, block.text)
+        elif isinstance(block, Picture):
+            _picture(cursor, block)
         elif isinstance(block, Listing):
             bullet = "•" if metrics.can_draw(0x2022, "body") else "-"
             for item in block.items:

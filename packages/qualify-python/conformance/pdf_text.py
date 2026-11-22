@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from pypdf import PdfReader
+from pypdf.generic import DictionaryObject, IndirectObject, NumberObject
 
 
 @dataclass(frozen=True)
@@ -91,3 +92,25 @@ def outline(path: str | Path) -> list[str]:
     """An outline file's lines, whitespace collapsed, empty lines dropped."""
     text = Path(path).read_text("utf-8")
     return [line for line in (re.sub(r"\s+", " ", raw).strip() for raw in text.split("\n")) if line]
+
+
+def placed_images(path: str | Path) -> list[tuple[int, int]]:
+    """The pixel sizes of the image XObjects in the resources of the pages
+    after the cover, each image once, sorted. A transparency mask hangs off
+    its image, not off a page, so it is not listed."""
+    seen: dict[int, tuple[int, int]] = {}
+    for page in PdfReader(str(path)).pages[1:]:
+        resources = page.get("/Resources")
+        xobjects = resources.get_object().get("/XObject") if resources is not None else None
+        if xobjects is None:
+            continue
+        for key, reference in xobjects.get_object().items():
+            image = reference.get_object()
+            if not isinstance(image, DictionaryObject) or image.get("/Subtype") != "/Image":
+                continue
+            width, height = image["/Width"], image["/Height"]
+            assert isinstance(width, NumberObject)
+            assert isinstance(height, NumberObject)
+            ident = reference.idnum if isinstance(reference, IndirectObject) else hash(key)
+            seen[ident] = (int(width), int(height))
+    return sorted(seen.values())

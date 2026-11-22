@@ -198,8 +198,8 @@ qualify report qualification/evidence/test-evidence.json --pdf report.pdf \
 `report` renders a run file as a PDF a reviewer can read, sign and file
 without the code: a cover page with the verdict and the counts, the run
 details with the run file's SHA-256, the summary and trace table, one section
-per test with its narrative, checks and attachments, and blank signature
-lines. The layout is section 9 of the specification; how it looks comes from a
+per test with its narrative, checks and attachments, with PNG and JPEG
+attachments drawn as images, and blank signature lines. The layout is section 9 of the specification; how it looks comes from a
 theme. Two themes ship, byte for byte the ones in
 [spec/qualify/report/](../../spec/qualify/report/README.md): `lekman`, the
 default, and `plain`, with no logo and Noto Sans. `--theme` takes a name or the
@@ -223,6 +223,40 @@ The same run with `--theme plain` ([PDF](docs/sample-report-plain.pdf)):
 ![Run details, summary and trace table, plain theme](docs/report-plain-page-2.png)
 
 ![The first two test sections, plain theme](docs/report-plain-page-3.png)
+
+### Screenshots in the Report
+
+An attachment with content type `image/png` or `image/jpeg` is drawn below the
+test's attachments table, in the order attached, with a caption of its file
+name, size and the start of its SHA-256. It is scaled down to the text width
+and half the page's text height, never up, and kept on one page with its
+caption. An image that cannot be read is listed with a note instead; the report
+still succeeds. fpdf2 draws the image, and Pillow, which fpdf2 reads images
+with, decides whether it can be read.
+
+```python
+# An intended-use test with pytest-playwright's page fixture.
+@qualify.iu("IU-DASH-001", "the dashboard shows what needs attention", ...)
+def test_dashboard(ctx: qualify.Context, page: Page) -> None:
+    page.goto("http://localhost:3000/")
+    ctx.attach("IU-DASH-001-1.png", page.screenshot(type="png"), "image/png")
+```
+
+A viewport screenshot fits the 1 MiB attachment limit
+(`QUALIFY_ATTACHMENT_LIMIT`) with room to spare. Measured on a dashboard page:
+
+| Viewport                 | PNG     | JPEG, quality 80 |
+| ------------------------ | ------- | ---------------- |
+| 1280 x 720               | 138 KiB | 101 KiB          |
+| 1920 x 1080              | 199 KiB | 166 KiB          |
+| 1440 x 900 at 2x density | 339 KiB | 285 KiB          |
+
+- Use PNG of the viewport at device scale 1. Text stays sharp, and for a flat
+  user interface PNG is about as small as JPEG. On A4 the report draws a
+  1280-pixel-wide screenshot 160 to 170 mm wide, near 200 pixels per inch, so
+  a 2x screenshot adds bytes and no detail.
+- Use JPEG at quality 80 for photographs, maps or video frames, or for a
+  full-page screenshot that would pass the limit as PNG.
 
 ## What It Costs
 
@@ -287,7 +321,8 @@ src/qualify/
   cli.py          section 8: merge, validate and report
   trace.py        the trace rows the report shows, and protocol.yaml and trace.yaml
   theme.py        section 9.3: loading and checking themes, and their templates
-  report/         section 9: content.py what it says, layout.py where, pdf.py drawn with fpdf2
+  report/         section 9: content.py what it says, images.py which images and how large,
+                  layout.py where, pdf.py drawn with fpdf2
   themes/         the bundled themes, copies of spec/qualify/report/themes/
 tests/            unit tests, and the plugin through pytester
 conformance/      one test file per scenario, run.py (the harness), and pdf_text.py
@@ -307,9 +342,10 @@ The harness runs each scenario's test file through pytest in a fresh evidence
 directory, with every other `QUALIFY_*` and `PYTEST_*` variable removed, then
 runs this package's `qualify merge`, masks the run file and compares it byte
 for byte with `spec/qualify/conformance/expected/`. Scenarios 12, 19 and 20 run
-`node packages/qualify-ts/dist/cli.js trace` on the Python run file. Scenarios 21
-and 22 render reports, extract their text with `pypdf`, and find every line of
-the outline files in order. The harness never writes an expected file; they
+`node packages/qualify-ts/dist/cli.js trace` on the Python run file. Scenarios 21,
+22 and 23 render reports, extract their text with `pypdf`, and find every line
+of the outline files in order. Scenario 23 also reads the image objects each
+page places, with `pypdf`. The harness never writes an expected file; they
 belong to the TypeScript reference.
 
 Text extraction cannot see a glyph drawn wrong, so look at the pages too.
