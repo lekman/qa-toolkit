@@ -1,0 +1,55 @@
+{
+  "name": "@lekman/test-sets",
+  "version": "0.1.0",
+  "description": "Test sets for a repository: which runner runs which tests, at which level and in which folders, in one qa.yaml with a JSON Schema.",
+  "license": "MIT",
+  "author": "Tobias Lekman",
+  "homepage": "https://github.com/lekman/qa-toolkit/tree/main/packages/test-sets",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekman/qa-toolkit.git",
+    "directory": "packages/test-sets"
+  },
+  "keywords": [
+    "testing",
+    "test-sets",
+    "qualification",
+    "junit"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./schema/test-sets.schema.json": "./schema/test-sets.schema.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "schema",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run check"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.2.0",
+    "ajv": "^8.20.0",
+    "typescript": "^5.7.0",
+    "yaml": "^2.9.1"
+  }
+}

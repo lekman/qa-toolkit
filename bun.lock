@@ -70,6 +70,17 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/test-sets": {
+      "name": "@lekman/test-sets",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.3.14",
+        "@types/node": "^26.2.0",
+        "ajv": "^8.20.0",
+        "typescript": "^5.7.0",
+        "yaml": "^2.9.1",
+      },
+    },
   },
   "overrides": {
     "brace-expansion": "^5.0.13",
@@ -189,6 +200,8 @@
     "@lekman/data-sampler": ["@lekman/data-sampler@workspace:packages/data-sampler"],
 
     "@lekman/qualify": ["@lekman/qualify@workspace:packages/qualify-ts"],
+
+    "@lekman/test-sets": ["@lekman/test-sets@workspace:packages/test-sets"],
 
     "@napi-rs/canvas": ["@napi-rs/canvas@1.2.0", "", { "optionalDependencies": { "@napi-rs/canvas-android-arm64": "1.2.0", "@napi-rs/canvas-darwin-arm64": "1.2.0", "@napi-rs/canvas-darwin-x64": "1.2.0", "@napi-rs/canvas-linux-arm-gnueabihf": "1.2.0", "@napi-rs/canvas-linux-arm64-gnu": "1.2.0", "@napi-rs/canvas-linux-arm64-musl": "1.2.0", "@napi-rs/canvas-linux-riscv64-gnu": "1.2.0", "@napi-rs/canvas-linux-x64-gnu": "1.2.0", "@napi-rs/canvas-linux-x64-musl": "1.2.0", "@napi-rs/canvas-win32-arm64-msvc": "1.2.0", "@napi-rs/canvas-win32-x64-msvc": "1.2.0" } }, "sha512-6LpJr0U9BH/Iz5/z2EherYStmsjyRwmCp8wwYg0QfEnib/ip19fyJd1Y1OFbn8DbyIQKCCpSqgY1trXkIbLdEg=="],
 
