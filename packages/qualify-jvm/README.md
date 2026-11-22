@@ -186,8 +186,8 @@ java -jar qualify-0.1.0-cli.jar report qualification/evidence/test-evidence.json
 ## The Report
 
 `report` draws a run file as a PDF with Apache PDFBox: a cover, the run
-details, the summary and the trace table, one section per test, and a
-signature block. A theme decides the logo, fonts, colours and texts; both
+details, the summary and the trace table, one section per test with PNG and
+JPEG attachments drawn as images, and a signature block. A theme decides the logo, fonts, colours and texts; both
 themes of [spec/qualify/report/README.md](../../spec/qualify/report/README.md)
 ship in the jar, byte for byte, and `--theme path/to/theme.json` takes your
 own. The pages below are from the conformance run,
@@ -200,6 +200,37 @@ own renderer.
 | ![Cover](docs/report-lekman-page-1.png)       | ![Cover](docs/report-plain-page-1.png)       |
 | ![Run details](docs/report-lekman-page-2.png) | ![Run details](docs/report-plain-page-2.png) |
 | ![Tests](docs/report-lekman-page-3.png)       | ![Tests](docs/report-plain-page-3.png)       |
+
+### Screenshots in the Report
+
+An attachment with content type `image/png` or `image/jpeg` is drawn below the
+test's attachments table, in the order attached, with a caption of its file
+name, size and the start of its SHA-256. It is scaled down to the text width
+and half the page's text height, never up, and kept on one page with its
+caption. An image that cannot be read is listed with a note instead; the report
+still succeeds.
+
+```java
+// After a Playwright for Java screenshot.
+byte[] png = page.screenshot(new Page.ScreenshotOptions().setType(ScreenshotType.PNG));
+ctx.attach("IU-DASH-001-1.png", png, "image/png");
+```
+
+A viewport screenshot fits the 1 MiB attachment limit
+(`QUALIFY_ATTACHMENT_LIMIT`) with room to spare. Measured on a dashboard page:
+
+| Viewport                 | PNG     | JPEG, quality 80 |
+| ------------------------ | ------- | ---------------- |
+| 1280 x 720               | 138 KiB | 101 KiB          |
+| 1920 x 1080              | 199 KiB | 166 KiB          |
+| 1440 x 900 at 2x density | 339 KiB | 285 KiB          |
+
+- Use PNG of the viewport at device scale 1. Text stays sharp, and for a flat
+  user interface PNG is about as small as JPEG. On A4 the report draws a
+  1280-pixel-wide screenshot 160 to 170 mm wide, near 200 pixels per inch, so
+  a 2x screenshot adds bytes and no detail.
+- Use JPEG at quality 80 for photographs, maps or video frames, or for a
+  full-page screenshot that would pass the limit as PNG.
 
 ## What It Costs
 

@@ -9,6 +9,7 @@ public sealed interface Block
         Block.Bullets,
         Block.Fields,
         Block.Table,
+        Block.Image,
         Block.Signatures {
 
   /**
@@ -47,6 +48,16 @@ public sealed interface Block
    * @param rows the cells of each row
    */
   record Table(List<Column> columns, List<List<String>> rows) implements Block {}
+
+  /**
+   * An image attachment, drawn with its caption, or its {@code unreadable} line when the PDF
+   * library cannot read it.
+   *
+   * @param image index into the document's images
+   * @param caption the line under the image
+   * @param unreadable the line drawn instead when the image cannot be read
+   */
+  record Image(int image, String caption, String unreadable) implements Block {}
 
   /**
    * The signature block.

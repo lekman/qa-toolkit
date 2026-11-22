@@ -43,12 +43,21 @@ public sealed interface DrawOp permits DrawOp.Text, DrawOp.Line, DrawOp.Fill, Dr
   record Fill(double x, double y, double width, double height, String colour) implements DrawOp {}
 
   /**
-   * The theme's logo.
+   * An image: the theme's logo, or an image attachment.
    *
    * @param x left edge
    * @param y bottom edge
    * @param width width
    * @param height height
+   * @param image index into the document's images, or {@link #LOGO} for the theme's logo
    */
-  record Image(double x, double y, double width, double height) implements DrawOp {}
+  record Image(double x, double y, double width, double height, int image) implements DrawOp {
+    /** The {@code image} value of the theme's logo. */
+    public static final int LOGO = -1;
+
+    /** The theme's logo. */
+    public Image(double x, double y, double width, double height) {
+      this(x, y, width, height, LOGO);
+    }
+  }
 }

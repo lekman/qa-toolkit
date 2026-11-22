@@ -22,6 +22,9 @@ public final class Layout {
   /** Header and footer size in points. */
   public static final double CHROME = 8.5;
 
+  /** Image caption size in points. */
+  public static final double CAPTION = 8.5;
+
   private static final double H1 = 20;
   private static final double H2 = 14;
   private static final double H3 = 11;
@@ -248,9 +251,21 @@ public final class Layout {
     return keep == 0 ? "" : new String(codes, 0, keep).stripTrailing() + "…";
   }
 
-  /** Lay out the content blocks on the pages after the cover. */
+  /** Lay out the content blocks on the pages after the cover, with no images. */
   public static List<List<DrawOp>> paginate(List<Block> blocks, TextMetrics metrics, Geometry g) {
-    Cursor cursor = new Cursor(metrics, g);
+    return paginate(blocks, metrics, g, List.of());
+  }
+
+  /**
+   * Lay out the content blocks on the pages after the cover. {@code images} holds the pixel size of
+   * each image the blocks refer to, or {@code null} for one the PDF library could not read.
+   */
+  public static List<List<DrawOp>> paginate(
+      List<Block> blocks,
+      TextMetrics metrics,
+      Geometry g,
+      List<ReportImages.@Nullable Size> images) {
+    Cursor cursor = new Cursor(metrics, g, images);
     for (int i = 0; i < blocks.size(); i++) {
       block(cursor, blocks.get(i), i + 1 < blocks.size() ? blocks.get(i + 1) : null);
     }
@@ -373,6 +388,8 @@ public final class Layout {
     } else if (block instanceof Block.Table table) {
       table(cursor, table.columns(), table.rows());
       cursor.y -= 6;
+    } else if (block instanceof Block.Image image) {
+      image(cursor, image);
     } else if (block instanceof Block.Signatures signatures) {
       signatures(cursor, signatures.roles());
     }
@@ -456,6 +473,53 @@ public final class Layout {
       total += Math.max(label, value) * lineHeight(BODY) + 2;
     }
     return total;
+  }
+
+  /**
+   * An image attachment, section 9.2: scaled into the text width and half the text height, framed
+   * in the rule colour, with its caption below, and both kept on one page. An image that cannot be
+   * read becomes a line of text.
+   */
+  private static void image(Cursor cursor, Block.Image block) {
+    ReportImages.Size pixels =
+        block.image() >= 0 && block.image() < cursor.images.size()
+            ? cursor.images.get(block.image())
+            : null;
+    if (pixels == null) {
+      block(cursor, new Block.Paragraph(block.unreadable()), null);
+      return;
+    }
+    ReportImages.Size size =
+        ReportImages.fit(
+            pixels, new ReportImages.Size(cursor.width(), (cursor.top() - cursor.bottom()) / 2));
+    List<String> caption =
+        wrap(
+            clean(cursor.metrics, block.caption(), FontSlot.BODY),
+            cursor.width(),
+            CAPTION,
+            FontSlot.BODY,
+            cursor.metrics);
+    double before = 6;
+    double gap = 4;
+    double height = before + size.height() + gap + caption.size() * lineHeight(CAPTION);
+    if (cursor.room() < height) {
+      cursor.newPage();
+    } else if (cursor.y < cursor.top()) {
+      cursor.y -= before;
+    }
+    double x = cursor.g.margin();
+    double y = cursor.y - size.height();
+    double right = x + size.width();
+    double top = y + size.height();
+    List<DrawOp> page = cursor.page();
+    page.add(new DrawOp.Image(x, y, size.width(), size.height(), block.image()));
+    page.add(new DrawOp.Line(x, y, right, y, 0.5, "rule"));
+    page.add(new DrawOp.Line(right, y, right, top, 0.5, "rule"));
+    page.add(new DrawOp.Line(right, top, x, top, 0.5, "rule"));
+    page.add(new DrawOp.Line(x, top, x, y, 0.5, "rule"));
+    cursor.y = y - gap;
+    cursor.lines(caption, CAPTION, new Style(FontSlot.BODY, "muted"), x);
+    cursor.y -= 8;
   }
 
   /** The height of what a heading must keep with: the start of the next block. */
@@ -728,11 +792,13 @@ public final class Layout {
     final List<List<DrawOp>> pages = new ArrayList<>();
     final TextMetrics metrics;
     final Geometry g;
+    final List<ReportImages.@Nullable Size> images;
     double y;
 
-    Cursor(TextMetrics metrics, Geometry g) {
+    Cursor(TextMetrics metrics, Geometry g, List<ReportImages.@Nullable Size> images) {
       this.metrics = metrics;
       this.g = g;
+      this.images = images;
       this.pages.add(new ArrayList<>());
       this.y = top();
     }
