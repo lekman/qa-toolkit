@@ -147,6 +147,8 @@ gives no check has none.
 ### 9. `bad-id`
 
 - `OQ-conf-009` (lower case) and `IQ-CONF-010` declared with level OQ.
+- A runner that takes the level from the ID's prefix, such as cucumber-js,
+  cannot declare `IQ-CONF-010` with level OQ, and runs `OQ-conf-009` only.
 - Expect: two declaration errors, one for the pattern and one for the level
   mismatch; no files in `records/`.
 
