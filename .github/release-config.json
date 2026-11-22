@@ -4,54 +4,87 @@
   "include-v-in-tag": true,
   "tag-separator": "@",
   "separate-pull-requests": false,
+  "changelog-path": "CHANGELOG.md",
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance"
+    },
+    {
+      "type": "refactor",
+      "section": "Refactoring"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation"
+    },
+    {
+      "type": "build",
+      "section": "Build and tooling"
+    },
+    {
+      "type": "chore",
+      "section": "Chores",
+      "hidden": true
+    },
+    {
+      "type": "test",
+      "section": "Tests",
+      "hidden": true
+    },
+    {
+      "type": "style",
+      "section": "Style",
+      "hidden": true
+    }
+  ],
   "packages": {
     "packages/data-sampler": {
       "release-type": "node",
       "package-name": "@lekman/data-sampler",
       "component": "data-sampler",
+      "initial-version": "0.1.0"
+    },
+    "packages/qualify-ts": {
+      "release-type": "node",
+      "package-name": "@lekman/qualify",
+      "component": "qualify",
+      "initial-version": "0.1.0"
+    },
+    "packages/qualify-python": {
+      "release-type": "python",
+      "package-name": "lekman-qualify",
+      "component": "qualify-python",
       "initial-version": "0.1.0",
-      "changelog-path": "CHANGELOG.md",
-      "changelog-sections": [
+      "extra-files": [
         {
-          "type": "feat",
-          "section": "Features"
-        },
-        {
-          "type": "fix",
-          "section": "Fixes"
-        },
-        {
-          "type": "perf",
-          "section": "Performance"
-        },
-        {
-          "type": "refactor",
-          "section": "Refactoring"
-        },
-        {
-          "type": "docs",
-          "section": "Documentation"
-        },
-        {
-          "type": "build",
-          "section": "Build and tooling"
-        },
-        {
-          "type": "chore",
-          "section": "Chores",
-          "hidden": true
-        },
-        {
-          "type": "test",
-          "section": "Tests",
-          "hidden": true
-        },
-        {
-          "type": "style",
-          "section": "Style",
-          "hidden": true
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='lekman-qualify')].version"
         }
       ]
+    },
+    "packages/qualify-jvm": {
+      "release-type": "simple",
+      "package-name": "com.lekman:qualify",
+      "component": "qualify-jvm",
+      "initial-version": "0.1.0",
+      "extra-files": ["gradle.properties"]
+    },
+    "packages/qualify-dotnet": {
+      "release-type": "simple",
+      "package-name": "Lekman.Qualify",
+      "component": "qualify-dotnet",
+      "initial-version": "0.1.0",
+      "extra-files": ["Directory.Build.props"]
     }
   }
 }
