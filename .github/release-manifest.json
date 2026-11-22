@@ -4,5 +4,5 @@
   "packages/qualify-python": "0.2.0",
   "packages/qualify-jvm": "0.2.0",
   "packages/qualify-dotnet": "0.2.0",
-  "packages/qualify-vscode": "0.0.0"
+  "packages/qualify-vscode": "0.1.0"
 }
