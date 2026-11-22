@@ -8,7 +8,7 @@
  *   bun run conformance/run.ts --update write the expected files instead
  *   bun run conformance/run.ts --only crash,all-pass
  *
- * vitest and cucumber-js under Node run all 20 scenarios. node:test, bun and
+ * vitest and cucumber-js under Node run all 21 scenarios that write evidence. node:test, bun and
  * cucumber-js under Bun run scenarios 1, 2, 6 and 10, compared with the same
  * expected files. Needs Node 22.18 or later for the node:test and cucumber
  * files, which Node loads as TypeScript.
@@ -36,7 +36,7 @@ import { EVIDENCE_SHAPE } from "../src/evidence";
 import { Schema } from "../src/schema";
 import { TRACE_SHAPE } from "../src/trace";
 import { JsonText } from "../src/values";
-import { extractPdf, missingFromOutline } from "./pdf-text";
+import { extractImages, extractPdf, missingFromOutline } from "./pdf-text";
 
 const PKG = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED = resolve(PKG, "../../spec/qualify/conformance/expected");
@@ -682,6 +682,13 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: "report-images",
+    invocations: [{ files: ["report-images"], status: 0 }],
+    merge: 0,
+    expected: "report-images",
+    runners: ["cucumber"],
+  },
+  {
     name: "value-normalisation",
     invocations: [{ files: ["value-normalisation"], status: 0 }],
     merge: 0,
@@ -982,7 +989,7 @@ const runSharedRunId = (runner: Runner): void => {
 const sampleArg = process.argv.indexOf("--sample");
 const SAMPLE = sampleArg >= 0 ? process.argv[sampleArg + 1] : undefined;
 
-/** The run file of scenarios 1, 2 and 6, merged once for scenarios 21 and 22. */
+/** The run file of scenarios 1, 2 and 6, merged once for scenarios 21 and 22. Scenario 23 makes its own. */
 let reportRunDir: string | undefined;
 const reportRun = (): string => {
   if (reportRunDir !== undefined)
@@ -1190,6 +1197,74 @@ const runReportTheme = async (): Promise<void> => {
   }
 };
 
+/**
+ * Scenario 23: PNG and JPEG attachments drawn in the report. The run file is
+ * compared as a scenario above; this renders it with the plain theme and
+ * checks the outline and the images the pages place.
+ */
+const runReportImages = async (): Promise<void> => {
+  const dir = mkdtempSync(join(tmpdir(), "qualify-images-"));
+  try {
+    const result = runTests(
+      "vitest",
+      { files: ["report-images"], status: 0 },
+      dir,
+    );
+    assert(
+      result.status === 0,
+      `vitest exited ${result.status}\n${result.output.slice(-2000)}`,
+    );
+    const merge = cli(["merge", "--evidence-dir", dir]);
+    assert(merge.status === 0, `merge exited ${merge.status}, expected 0`);
+    const pdf = join(dir, "report-images.pdf");
+    const exec = cli(
+      [
+        "report",
+        join(dir, "test-evidence.json"),
+        "--pdf",
+        pdf,
+        "--theme",
+        "plain",
+        "--title",
+        "Conformance images",
+        "--document-id",
+        "CONF-IMG-001",
+      ],
+      { ...scenarioEnv(dir), QUALIFY_REPORT_TIME: REPORT_TIME },
+    );
+    assert(
+      exec.status === 0,
+      `report exited ${exec.status}, expected 0\n${exec.output}`,
+    );
+    const bytes = new Uint8Array(readFileSync(pdf));
+    const { lines } = await extractPdf(bytes);
+    const missing = missingFromOutline(
+      lines,
+      outline("report-images.outline.txt"),
+    );
+    assert(
+      missing === undefined,
+      `the report text does not hold "${missing}" in order`,
+    );
+    const placed = (await extractImages(bytes))
+      .slice(1)
+      .flat()
+      .map((i) => `${i.width}x${i.height}`)
+      .sort();
+    assert(
+      JSON.stringify(placed) ===
+        JSON.stringify(["200x600", "48x48", "960x540"]),
+      `the pages place the images ${placed.join(", ") || "none"}`,
+    );
+    if (SAMPLE !== undefined) {
+      mkdirSync(SAMPLE, { recursive: true });
+      writeFileSync(join(SAMPLE, "report-images.pdf"), bytes);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
 const results: Outcome[] = [];
 const attempt = async (
   scenario: string,
@@ -1236,6 +1311,7 @@ for (const scenario of SCENARIOS) {
 await attempt("parallel-determinism", "vitest", () => runParallel("vitest"));
 await attempt("report", "vitest", runReport);
 await attempt("report-theme", "vitest", runReportTheme);
+await attempt("report-images", "vitest", runReportImages);
 if (reportRunDir !== undefined)
   rmSync(reportRunDir, { recursive: true, force: true });
 if (!UPDATE) {

@@ -65,7 +65,7 @@ checks the runner's and the CLI's exit codes, validates every file, checks
 that every site points into the scenario's own test file, masks the run file,
 and compares it byte for byte with `spec/qualify/conformance/expected/`.
 
-vitest and cucumber-js under Node run all 20 scenarios; `node:test`, bun and
+vitest and cucumber-js under Node run all 21 scenarios that write evidence; `node:test`, bun and
 cucumber-js under Bun run 1, 2, 6 and 10 against the same expected files.
 cucumber-js runs the `bad-id` scenario with its lower-case ID only, because a
 feature file takes the level from the ID's prefix and cannot declare another.
