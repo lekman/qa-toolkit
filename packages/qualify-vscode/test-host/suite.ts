@@ -1,6 +1,8 @@
 /**
  * The extension host test: runs inside VS Code with test-host/fixture open,
- * activates the extension and checks the shape of the Testing view's tree.
+ * activates the extension and checks the shape of the Testing view's tree:
+ * the qualification tests of every language, and the ordinary tests of the
+ * sets in the fixture's qa.yaml.
  * Bundled to dist-test/suite.js by scripts/build-host-test.ts.
  */
 
@@ -26,10 +28,14 @@ const EXPECTED = [
   "  py-lib",
   "    PQ",
   "      PQ-EXPORT-001 A day of payments exports within a minute [level:pq req:EXPORT-010 risk:medium runner:pytest]",
+  "    unit",
+  "      test_adds [level:unit runner:pytest set:py-unit]",
   "  ts-app",
   "    OQ",
   "      OQ-EXPORT-003 The bank file never changes an amount [level:oq req:EXPORT-003 risk:high runner:vitest tag:export]",
   "      OQ-EXPORT-API-001 An ID that breaks the pattern [error level:oq runner:vitest] (error)",
+  "    unit",
+  "      adds two numbers [level:unit runner:bun-test set:ts-unit]",
   "  web",
   "    IU",
   "      IU-SUPPORT-001 Support lists every open request [level:iu req:REQ-SUPPORT-001 risk:high runner:cucumber-js tag:support]",

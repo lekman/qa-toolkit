@@ -1,8 +1,12 @@
+import { JunitXml } from "@lekman/test-sets";
+import { basename, dirname } from "node:path";
+
 import type { TestRecord } from "../results";
 import type { RunPorts } from "./interfaces";
 import type { RunGroup, RunPlanResult } from "./types";
 
 import { QualifyEvidence, TestResults } from "../results";
+import { JunitResults } from "../sets";
 
 /** How deep under the evidence folder records are looked for. */
 const DEPTH = 4;
@@ -64,6 +68,10 @@ export class RunExecution {
     signal: AbortSignal,
   ): Promise<void> {
     for (const test of group.tests) ports.reporter.started(test);
+    if (group.format === "junit-xml" && !group.results.includes("*")) {
+      // Some runners, such as bun test, do not create the report's folder.
+      await ports.files.mkdir(dirname(group.results));
+    }
     ports.reporter.output(`$ ${group.command}\n  in ${group.cwd}\n`);
     const started = ports.clock() - SKEW_MS;
     let exit: null | number;
@@ -78,13 +86,15 @@ export class RunExecution {
       exit = -1;
       ports.reporter.output(`The command did not start: ${String(error)}\n`);
     }
-    const records = await RunExecution.records(
-      group.evidenceDir,
-      started,
-      ports,
-    );
+    const records =
+      group.format === "junit-xml"
+        ? await RunExecution.junit(group, runId, started, ports)
+        : await RunExecution.records(group.evidenceDir, started, ports);
     const how = exit === null ? "was stopped" : `exited with code ${exit}`;
-    const reason = `The command ${how} and wrote no evidence record for this test under ${group.evidenceDir}.`;
+    const reason =
+      group.format === "junit-xml"
+        ? `The command ${how} and its JUnit XML at ${group.results} has no case for this test.`
+        : `The command ${how} and wrote no evidence record for this test under ${group.evidenceDir}.`;
     const window = { runId, since: new Date(started).toISOString() };
     for (const test of group.tests) {
       ports.reporter.result(
@@ -92,5 +102,42 @@ export class RunExecution {
         TestResults.forTest(test.declaration.id, records, window, reason),
       );
     }
+  }
+
+  /** The records of a group's ordinary tests, from the JUnit XML its command wrote. */
+  private static async junit(
+    group: RunGroup,
+    runId: string,
+    sinceMs: number,
+    ports: RunPorts,
+  ): Promise<TestRecord[]> {
+    const pattern = basename(group.results);
+    const glob = new RegExp(
+      `^${pattern
+        .split("*")
+        .map((p) => p.replace(/[.+?^$(){}|[\]\\]/g, "\\$&"))
+        .join(".*")}$`,
+    );
+    const files = group.results.includes("*")
+      ? (await ports.files.list(dirname(group.results), 0, sinceMs)).filter(
+          (f) => glob.test(basename(f)),
+        )
+      : [group.results];
+    const endedAt = new Date(ports.clock()).toISOString();
+    const records: TestRecord[] = [];
+    for (const file of files) {
+      const text = await ports.files.read(file);
+      if (text === undefined) continue;
+      records.push(
+        ...JunitResults.records(
+          JunitXml.cases(text),
+          group.tests,
+          runId,
+          file,
+          endedAt,
+        ),
+      );
+    }
+    return records;
   }
 }

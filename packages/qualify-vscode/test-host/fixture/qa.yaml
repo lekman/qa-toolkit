@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../test-sets/schema/test-sets.schema.json
+version: 1
+sets:
+  - name: ts-unit
+    level: unit
+    runner: bun-test
+    paths: [ts-app]
+  - name: py-unit
+    level: unit
+    runner: pytest
+    paths: [py-lib]

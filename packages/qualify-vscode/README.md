@@ -151,6 +151,31 @@ To run a package's tests through a task runner, with its own evidence folder:
 }
 ```
 
+## Test Sets from qa.yaml
+
+When a workspace folder has a [`qa.yaml`](../test-sets/README.md) at its
+root, the extension reads it too:
+
+- **Ordinary sets** (`unit`, `story`, `integration`) add their tests to the
+  tree, under the set's package folders and its level, labelled with the
+  test's name and its file. Names are read without running anything: `test`
+  and `it` in JavaScript, `test_` functions in Python, stories, scenarios,
+  and JUnit and xUnit test methods. A file with no name found is one item.
+  A test that is also a qualification test is listed once, at its
+  qualification level.
+- **Running an ordinary test** runs its whole set in its package, the way
+  `qa run` does, with the runner's JUnit flags or the set's own `command`.
+  Each test's result comes from the JUnit XML: by its name, and by its file
+  when the report names one. A test the report does not name is shown as
+  not run.
+- **Qualification sets** (IQ, OQ, PQ, IU) lend their `command`, `results`
+  folder and `env` to the qualification tests of their package and runner,
+  unless `qualify.packages` sets them for that package.
+
+Each ordinary test also carries the tag `set:<name>`, so
+`@qualify:set:unit` filters by set. A `qa.yaml` that is not valid is shown
+as a warning, and its sets are left out.
+
 ## Filtering
 
 Each test carries Testing view tags. Type them in the Testing view's filter
@@ -164,6 +189,7 @@ box:
 | `@qualify:tag:export`          | Tests with a free tag                |
 | `@qualify:runner:pytest`       | Tests one runner runs                |
 | `@qualify:error`               | Declarations that break a rule       |
+| `@qualify:set:unit`            | The tests of one `qa.yaml` set       |
 | `!@qualify:risk:low`           | Everything except low-risk tests     |
 
 ## Trace Matrix
@@ -184,6 +210,12 @@ box:
 - **No debugging.** There is a Run profile only.
 - **A large selection is one long command line.** Running a package with
   hundreds of tests passes every ID to the runner.
+- **An ordinary test runs with its whole set.** Selecting one unit test
+  runs every test of its set in that package; only the selected ones show a
+  result.
+- **JUnit names are matched, not known.** A runner that names a case
+  differently from the source, such as a parametrised test, leaves the
+  test as not run.
 - **Evidence is read only after a run.** Records from an earlier run, or from
   CI, are not shown when VS Code starts.
 
@@ -198,6 +230,7 @@ the file system and processes are touched only in `src/extension/*.system.ts`.
 | `src/discovery/` | The parsers, one per language, and the declaration rules                                                             |
 | `src/packages/`  | Which package a file belongs to                                                                                      |
 | `src/runners/`   | The command lines a runner definition makes. The definitions are data in [@lekman/test-sets](../test-sets/README.md) |
+| `src/sets/`      | Ordinary tests of the sets in `qa.yaml`, and their JUnit results                                                     |
 | `src/results/`   | The result-reader port and the qualify evidence reader                                                               |
 | `src/runs/`      | The run plan and its execution, behind process and reporter ports                                                    |
 | `src/tree/`      | The tree: product, package, level, test, and the tags                                                                |

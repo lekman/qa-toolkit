@@ -8,6 +8,7 @@ coveragePathIgnorePatterns = [
   "**/*.system.ts",  # VS Code, file system and process adapters, no logic
   "**/index.ts",     # Barrel re-exports, no logic
   "scripts/**",
+  "../test-sets/**", # Covered by its own tests
   "test-host/**",
   "tests/**",
   "**/*.test.ts",

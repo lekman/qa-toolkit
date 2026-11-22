@@ -92,6 +92,10 @@ export class ResultFilesMock implements IResultFiles {
       .map(([path]) => path);
   }
 
+  /** Files under the folder changed at or after the time. */
+  /** Folders are implicit in memory. */
+  async mkdir(): Promise<void> {}
+
   /** The text of a file. */
   async read(path: string): Promise<string | undefined> {
     return this.files[path]?.text;

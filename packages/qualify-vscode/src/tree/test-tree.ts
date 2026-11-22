@@ -46,15 +46,16 @@ export class TestTree {
       .sort(bySort);
   }
 
-  /** The description of a test: requirements, then risk. */
+  /** The description of a test: requirements, then risk; for an ordinary test, its file. */
   static describe(d: Declaration): string {
+    if (!Levels.isQualification(d.level)) return d.id.split("#")[0] ?? "";
     const parts: string[] = [];
     if (d.requirements.length > 0) parts.push(d.requirements.join(", "));
     if (d.risk !== undefined) parts.push(`risk ${d.risk}`);
     return parts.join(" · ");
   }
 
-  /** The Testing view tags of a test: `level:`, `risk:`, `req:`, `tag:` and `runner:`. */
+  /** The Testing view tags of a test: `level:`, `risk:`, `req:`, `tag:`, `runner:` and `set:`. */
   static tags(test: ResolvedTest): string[] {
     const d = test.declaration;
     const tags = [
@@ -65,6 +66,7 @@ export class TestTree {
     ];
     if (d.risk !== undefined) tags.push(`risk:${d.risk}`);
     if (d.problems.length > 0) tags.push("error");
+    if (test.set !== undefined) tags.push(`set:${test.set.name}`);
     return [...new Set(tags)].sort();
   }
 
@@ -130,7 +132,11 @@ export class TestTree {
               ? `${parent}:${d.id}`
               : `${parent}:${d.id}@${d.file}:${d.line}`,
           kind: "test",
-          label: d.title.length > 0 ? `${d.id} ${d.title}` : d.id,
+          label: Levels.isQualification(d.level)
+            ? d.title.length > 0
+              ? `${d.id} ${d.title}`
+              : d.id
+            : d.title,
           line: d.line,
           sortText: `${d.id}\u0000${d.file}:${String(d.line).padStart(8, "0")}`,
           tags: TestTree.tags(test),
