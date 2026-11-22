@@ -1,12 +1,14 @@
 import type { ColourName, FontSlot } from "../theme";
 import type { ITextMetrics } from "./interfaces";
-import type { Block, Column, Field, Geometry, Page } from "./types";
+import type { Block, Column, Field, Geometry, ImageSize, Page } from "./types";
 
+import { ReportImages } from "./report-images";
 import { ReportText } from "./report-text";
 
 /** Font sizes in points, section 9.2. */
 export const SIZE = {
   body: 9,
+  caption: 8.5,
   /** Mono runs wide; at 8.5 pt a SHA-256 digest fits the value column on A4. */
   mono: 8.5,
   chrome: 8.5,
@@ -59,6 +61,8 @@ class Cursor {
   constructor(
     readonly metrics: ITextMetrics,
     readonly g: Geometry,
+    /** The pixel size of each image, or `null` for one that cannot be read. */
+    readonly images: readonly (ImageSize | null)[] = [],
   ) {
     this.y = g.height - g.margin;
   }
@@ -415,13 +419,18 @@ export class Layout {
     return chars.length === 0 ? "" : `${chars.join("").trimEnd()}…`;
   }
 
-  /** Lay out the content blocks on pages after the cover. */
+  /**
+   * Lay out the content blocks on pages after the cover. `images` holds the
+   * pixel size of each image the blocks refer to, or `null` for one the PDF
+   * library could not read.
+   */
   static paginate(
     blocks: readonly Block[],
     metrics: ITextMetrics,
     g: Geometry,
+    images: readonly (ImageSize | null)[] = [],
   ): Page[] {
-    const cursor = new Cursor(metrics, g);
+    const cursor = new Cursor(metrics, g, images);
     blocks.forEach((block, i) => Layout.block(cursor, block, blocks[i + 1]));
     return cursor.pages;
   }
@@ -516,6 +525,9 @@ export class Layout {
         cursor.y -= after;
         return;
       }
+      case "image":
+        Layout.image(cursor, block);
+        return;
       case "paragraph":
         cursor.lines(
           Layout.wrap(
@@ -640,6 +652,63 @@ export class Layout {
         total + Math.max(label.length, value.length) * lineHeight(SIZE.body) + 2
       );
     }, 0);
+  }
+
+  /**
+   * An image attachment, section 9.2: scaled into the text width and half the
+   * text height, framed in the rule colour, with its caption below, and both
+   * kept on one page. An image that cannot be read becomes a line of text.
+   */
+  private static image(
+    cursor: Cursor,
+    block: Extract<Block, { kind: "image" }>,
+  ): void {
+    const { metrics } = cursor;
+    const pixels = cursor.images[block.image] ?? null;
+    if (pixels === null) {
+      Layout.block(cursor, { kind: "paragraph", text: block.unreadable });
+      return;
+    }
+    const size = ReportImages.fit(pixels, {
+      width: cursor.width,
+      height: (cursor.top - cursor.bottom) / 2,
+    });
+    const caption = Layout.wrap(
+      clean(metrics, block.caption, "body"),
+      cursor.width,
+      SIZE.caption,
+      "body",
+      metrics,
+    );
+    const before = 6;
+    const gap = 4;
+    const height =
+      before + size.height + gap + caption.length * lineHeight(SIZE.caption);
+    if (cursor.room < height) cursor.newPage();
+    else if (cursor.y < cursor.top) cursor.y -= before;
+    const x = cursor.g.margin;
+    const y = cursor.y - size.height;
+    cursor.page.push({ kind: "image", image: block.image, x, y, ...size });
+    const frame = (x1: number, y1: number, x2: number, y2: number): void => {
+      cursor.page.push({
+        kind: "line",
+        x1,
+        y1,
+        x2,
+        y2,
+        thickness: 0.5,
+        colour: "rule",
+      });
+    };
+    const right = x + size.width;
+    const top = y + size.height;
+    frame(x, y, right, y);
+    frame(right, y, right, top);
+    frame(right, top, x, top);
+    frame(x, top, x, y);
+    cursor.y = y - gap;
+    cursor.lines(caption, SIZE.caption, { font: "body", colour: "muted" });
+    cursor.y -= 8;
   }
 
   /** The height of what a heading must keep with: the start of the next block. */

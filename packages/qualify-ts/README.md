@@ -319,8 +319,8 @@ npx qualify report qualification/evidence/test-evidence.json --pdf report.pdf \
 `report` renders a run file as a PDF a reviewer can read, sign and file without
 the code: a cover page with the title, the verdict and the document details;
 the run details with the run file's SHA-256; the summary and trace table; one
-section per test with its narrative, checks and attachments; and blank
-signature lines. Every page after the cover has a header with the title and
+section per test with its narrative, checks and attachments, with PNG and JPEG
+attachments drawn as images; and blank signature lines. Every page after the cover has a header with the title and
 classification, and a footer with the document ID, the page number and the
 start of the digest. Set `QUALIFY_REPORT_TIME` to an ISO 8601 UTC instant to
 reproduce a report with a fixed generation time.
@@ -333,6 +333,37 @@ reproduce a report with a fixed generation time.
 | `--classification`       | Shown on the cover and in every header; empty leaves it out  |
 | `--signatures ROLE;ROLE` | Signature roles; `--no-signatures` leaves the block out      |
 | `--protocol`, `--map`    | The same files as `trace`, for the trace table               |
+
+### Screenshots in the Report
+
+An attachment with content type `image/png` or `image/jpeg` is drawn below the
+test's attachments table, in the order attached, with a caption of its file
+name, size and the start of its SHA-256. It is scaled down to the text width
+and half the page's text height, never up, and kept on one page with its
+caption. An image that cannot be read is listed with a note instead; the report
+still succeeds.
+
+```ts
+// A cucumber step, after a Playwright screenshot.
+const bytes = await page.screenshot({ type: "png" });
+ctx(this).attach("IU-DASH-001-1.png", bytes, "image/png");
+```
+
+A viewport screenshot fits the 1 MiB attachment limit
+(`QUALIFY_ATTACHMENT_LIMIT`) with room to spare. Measured on a dashboard page:
+
+| Viewport                 | PNG     | JPEG, quality 80 |
+| ------------------------ | ------- | ---------------- |
+| 1280 x 720               | 138 KiB | 101 KiB          |
+| 1920 x 1080              | 199 KiB | 166 KiB          |
+| 1440 x 900 at 2x density | 339 KiB | 285 KiB          |
+
+- Use PNG of the viewport at device scale 1. Text stays sharp, and for a flat
+  user interface PNG is about as small as JPEG. On A4 the report draws a
+  1280-pixel-wide screenshot 160 to 170 mm wide, near 200 pixels per inch, so
+  a 2x screenshot adds bytes and no detail.
+- Use JPEG at quality 80 for photographs, maps or video frames, or for a
+  full-page screenshot that would pass the limit as PNG.
 
 `QUALIFY_REPORT_THEME` picks the theme too; `--theme` wins. A theme that fails
 its schema, names a missing file or uses an unknown token exits 2 and writes

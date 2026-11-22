@@ -3,6 +3,9 @@ import type { QualifyContext } from "@lekman/qualify/cucumber";
 import { Given, Then, When } from "@cucumber/cucumber";
 import { ctx } from "@lekman/qualify/cucumber";
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * The steps every conformance scenario shares. Every scenario has the same
@@ -22,6 +25,13 @@ const pem =
   " KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----";
 const jwt = "eyJhbGciOiJIUzI1NiJ9" + ".eyJzdWIiOiIxIn0.c2lnbmF0dXJl";
 const accessKey = "AK" + "IA" + "ABCDEFGHIJKLMNOP";
+
+const IMAGES = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../spec/qualify/conformance/fixtures/images",
+);
+const image = (name: string): Uint8Array =>
+  new Uint8Array(readFileSync(resolve(IMAGES, name)));
 
 const onePasses = (c: QualifyContext): void => {
   c.check("fixture", "one equals one").that(1).equals(1);
@@ -109,6 +119,18 @@ const BODIES: Record<string, (c: QualifyContext) => void> = {
     // SIGKILL ends the cucumber-js process at once, after the marker is
     // written, so the test never writes its record.
     process.kill(process.pid, "SIGKILL");
+  },
+  "OQ-CONF-024": (c) => {
+    c.attach("screen.png", image("screen.png"), "image/png");
+    c.attach("tall.jpg", image("tall.jpg"), "image/jpeg");
+    c.attach(
+      "broken.png",
+      new TextEncoder().encode("not an image"),
+      "image/png",
+    );
+    c.attach("icon.png", image("icon.png"), "image/png");
+    c.attach("note.txt", "hello\n", "text/plain");
+    onePasses(c);
   },
 };
 

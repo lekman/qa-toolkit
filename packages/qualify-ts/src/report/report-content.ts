@@ -2,9 +2,16 @@ import type { Level } from "../declaration";
 import type { RunFile, RunSummary, TestRecord } from "../evidence";
 import type { CoverField, TokenValues } from "../theme";
 import type { TraceFile } from "../trace";
-import type { Block, Field, ReportDocument, ReportInput } from "./types";
+import type {
+  Block,
+  Field,
+  ImageSource,
+  ReportDocument,
+  ReportInput,
+} from "./types";
 
 import { Template } from "../theme";
+import { ReportImages } from "./report-images";
 import { ReportText } from "./report-text";
 
 const LEVELS: readonly Level[] = ["IQ", "OQ", "PQ", "IU"];
@@ -32,11 +39,12 @@ export class ReportContent {
         ? theme.signatures
         : (options.signatures ?? []);
 
+    const images: ImageSource[] = [];
     const blocks: Block[] = [
       { kind: "heading", level: 1, text: tokens.title },
       ...ReportContent.details(input),
       ...ReportContent.summary(run, input.trace),
-      ...run.tests.flatMap((test) => ReportContent.test(test)),
+      ...run.tests.flatMap((test) => ReportContent.test(test, images)),
     ];
     if (roles.length > 0) {
       blocks.push(
@@ -55,6 +63,7 @@ export class ReportContent {
       },
       header: theme.texts.header,
       footer: theme.texts.footer,
+      images,
       tokens,
       metadata: {
         title: tokens.title,
@@ -174,6 +183,29 @@ export class ReportContent {
     ];
   }
 
+  /**
+   * The PNG and JPEG attachments of a test as image blocks, in the order
+   * attached. Their bytes are added to `images`, which the blocks index.
+   */
+  private static images(test: TestRecord, images: ImageSource[]): Block[] {
+    return test.attachments.flatMap((attachment): Block[] => {
+      const format = ReportImages.format(attachment.contentType);
+      if (format === null) return [];
+      images.push({
+        format,
+        bytes: new Uint8Array(Buffer.from(attachment.content, "base64")),
+      });
+      return [
+        {
+          kind: "image",
+          image: images.length - 1,
+          caption: ReportImages.caption(attachment),
+          unreadable: ReportImages.unreadable(attachment),
+        },
+      ];
+    });
+  }
+
   private static list(items: readonly string[]): Block {
     return items.length === 0
       ? { kind: "paragraph", text: "None" }
@@ -246,7 +278,7 @@ export class ReportContent {
     ];
   }
 
-  private static test(test: TestRecord): Block[] {
+  private static test(test: TestRecord, images: ImageSource[]): Block[] {
     const fields: Field[] = [
       { label: "Level", value: test.level },
       { label: "Outcome", value: test.outcome },
@@ -325,6 +357,7 @@ export class ReportContent {
               a.sha256,
             ]),
           },
+      ...ReportContent.images(test, images),
     ];
   }
 }

@@ -7,6 +7,7 @@
  * 21 describes.
  */
 
+import { PDFDict, PDFDocument, PDFName, PDFNumber } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 /** The extracted text and document information of a PDF. */
@@ -84,4 +85,29 @@ export function missingFromOutline(
     if (!found) return wanted;
   }
   return undefined;
+}
+
+/**
+ * The images each page places: the image XObjects in its resources, with
+ * their pixel sizes, for scenario 23. A transparency mask hangs off its image,
+ * not off the page, so it is not listed.
+ */
+export async function extractImages(
+  bytes: Uint8Array,
+): Promise<{ height: number; width: number }[][]> {
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
+  const number = (dict: PDFDict, key: string): number =>
+    (dict.lookup(PDFName.of(key), PDFNumber) as PDFNumber).asNumber();
+  return pdf.getPages().map((page) => {
+    const xobjects = page.node
+      .Resources()
+      ?.lookupMaybe(PDFName.of("XObject"), PDFDict);
+    if (xobjects === undefined) return [];
+    return xobjects.keys().flatMap((key) => {
+      const stream = xobjects.lookup(key) as { dict?: PDFDict };
+      const dict = stream.dict;
+      if (dict?.get(PDFName.of("Subtype")) !== PDFName.of("Image")) return [];
+      return [{ width: number(dict, "Width"), height: number(dict, "Height") }];
+    });
+  });
 }

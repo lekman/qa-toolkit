@@ -4,10 +4,17 @@ import { PDFDocument, rgb } from "pdf-lib";
 
 import type { ColourName, FontSlot, Theme } from "../theme";
 import type { ITextMetrics } from "./interfaces";
-import type { Geometry, Page, ReportDocument } from "./types";
+import type {
+  Geometry,
+  ImageSize,
+  ImageSource,
+  Page,
+  ReportDocument,
+} from "./types";
 
 import { Template } from "../theme";
 import { Layout } from "./layout";
+import { ReportImages } from "./report-images";
 import { SubsetFix } from "./subset-fix";
 
 const MM = 72 / 25.4;
@@ -23,6 +30,24 @@ const colour = (hex: string): ReturnType<typeof rgb> =>
 
 /** Renders a report document with a theme to PDF bytes, with pdf-lib, in memory. */
 export class PdfRenderer {
+  /**
+   * Embed an image attachment, or return `null` when its bytes do not start
+   * with its format's signature or pdf-lib cannot read them.
+   */
+  static async embedImage(
+    pdf: PDFDocument,
+    source: ImageSource,
+  ): Promise<null | PDFImage> {
+    if (!ReportImages.signed(source.bytes, source.format)) return null;
+    try {
+      return source.format === "png"
+        ? await pdf.embedPng(source.bytes)
+        : await pdf.embedJpg(source.bytes);
+    } catch {
+      return null;
+    }
+  }
+
   /** The page size and margin a theme asks for, in points. */
   static geometry(theme: Theme): Geometry {
     const [width, height] = SIZES[theme.spec.page.size];
@@ -83,7 +108,17 @@ export class PdfRenderer {
       metrics,
       g,
     );
-    const content = Layout.paginate(document.blocks, metrics, g);
+    const images: (null | PDFImage)[] = [];
+    for (const source of document.images)
+      images.push(await PdfRenderer.embedImage(pdf, source));
+    const content = Layout.paginate(
+      document.blocks,
+      metrics,
+      g,
+      images.map((image): ImageSize | null =>
+        image === null ? null : { width: image.width, height: image.height },
+      ),
+    );
     const pages = [cover, ...content];
     const total = String(pages.length);
 
@@ -142,15 +177,18 @@ export class PdfRenderer {
               color: palette[op.colour],
             });
             break;
-          case "image":
-            if (logo !== null)
-              page.drawImage(logo, {
+          case "image": {
+            const image =
+              op.image === undefined ? logo : (images[op.image] ?? null);
+            if (image !== null)
+              page.drawImage(image, {
                 x: op.x,
                 y: op.y,
                 width: op.width,
                 height: op.height,
               });
             break;
+          }
         }
       }
     });

@@ -23,10 +23,34 @@ export interface Field {
 export type Block =
   | { columns: Column[]; kind: "table"; rows: string[][] }
   | { fields: Field[]; kind: "fields" }
+  | {
+      /** The line under the image. */
+      caption: string;
+      /** Index into the document's images. */
+      image: number;
+      kind: "image";
+      /** The line drawn instead when the image cannot be read. */
+      unreadable: string;
+    }
   | { items: string[]; kind: "list" }
   | { kind: "heading"; level: 1 | 2 | 3; text: string }
   | { kind: "paragraph"; text: string }
   | { kind: "signatures"; roles: string[] };
+
+/** An image format the report draws. */
+export type ImageFormat = "jpeg" | "png";
+
+/** A width and a height: pixels for an image file, points on a page. */
+export interface ImageSize {
+  height: number;
+  width: number;
+}
+
+/** The bytes of an image attachment, as the evidence holds them. */
+export interface ImageSource {
+  bytes: Uint8Array;
+  format: ImageFormat;
+}
 
 /** What the cover page shows, section 9.1. */
 export interface Cover {
@@ -55,6 +79,8 @@ export interface ReportDocument {
   footer: string;
   /** The header template; `{page}` and `{pages}` are filled per page. */
   header: string;
+  /** The image attachments, in the order the image blocks refer to them. */
+  images: ImageSource[];
   metadata: ReportMetadata;
   /** Token values for the header and footer templates. */
   tokens: TokenValues;
@@ -121,7 +147,15 @@ export type DrawOp =
       x: number;
       y: number;
     }
-  | { height: number; kind: "image"; width: number; x: number; y: number };
+  | {
+      height: number;
+      /** Index into the document's images; absent for the theme's logo. */
+      image?: number;
+      kind: "image";
+      width: number;
+      x: number;
+      y: number;
+    };
 
 /** One laid-out page. */
 export type Page = DrawOp[];
