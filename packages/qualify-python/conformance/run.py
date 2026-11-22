@@ -41,7 +41,7 @@ REPO = PKG.parent.parent
 EXPECTED = REPO / "spec/qualify/conformance/expected"
 FIXTURES = HERE / "fixtures"
 SPEC_FIXTURES = REPO / "spec/qualify/conformance/fixtures"
-TS_CLI = REPO / "packages/qualify/dist/cli.js"
+TS_CLI = REPO / "packages/qualify-ts/dist/cli.js"
 RUN_ID = "01HQA1ZQJ0C0NF0RMANCE00000"
 # Built from two parts, like the scenario's other secret-shaped values.
 SECRET = "s3cr3t-" + "value-123"

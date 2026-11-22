@@ -6,7 +6,7 @@
 This is the Python implementation of the
 [qualify specification](../../spec/qualify/README.md), as a pytest plugin. It
 writes the same evidence files as the TypeScript reference
-[@lekman/qualify](../qualify/README.md) and passes the same conformance
+[@lekman/qualify](../qualify-ts/README.md) and passes the same conformance
 scenarios. It is not published yet.
 
 ## Why
@@ -307,7 +307,7 @@ The harness runs each scenario's test file through pytest in a fresh evidence
 directory, with every other `QUALIFY_*` and `PYTEST_*` variable removed, then
 runs this package's `qualify merge`, masks the run file and compares it byte
 for byte with `spec/qualify/conformance/expected/`. Scenarios 12, 19 and 20 run
-`node packages/qualify/dist/cli.js trace` on the Python run file. Scenarios 21
+`node packages/qualify-ts/dist/cli.js trace` on the Python run file. Scenarios 21
 and 22 render reports, extract their text with `pypdf`, and find every line of
 the outline files in order. The harness never writes an expected file; they
 belong to the TypeScript reference.

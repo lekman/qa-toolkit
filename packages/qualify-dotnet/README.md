@@ -6,7 +6,7 @@
 
 This is the C# implementation of the
 [qualify specification](../../spec/qualify/README.md). It writes the same
-evidence files as the TypeScript reference, [@lekman/qualify](../qualify/README.md),
+evidence files as the TypeScript reference, [@lekman/qualify](../qualify-ts/README.md),
 byte for byte, and passes the same 22 conformance scenarios. It is not
 published yet.
 

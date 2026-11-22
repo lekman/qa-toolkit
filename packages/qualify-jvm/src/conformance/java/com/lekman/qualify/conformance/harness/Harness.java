@@ -33,7 +33,7 @@ import java.util.stream.Stream;
  * Conformance harness: runs every scenario of spec/qualify/conformance/README.md through the JUnit
  * Platform launcher in a fresh JVM, then {@code merge} and {@code validate} from the CLI jar, masks
  * the run file and compares it byte for byte with the shared expected file. {@code trace} comes
- * from the TypeScript CLI ({@code packages/qualify/dist/cli.js}), the only implementation of it.
+ * from the TypeScript CLI ({@code packages/qualify-ts/dist/cli.js}), the only implementation of it.
  *
  * <p>It never writes an expected file. Run it with {@code ./gradlew conformance}, or {@code
  * ./gradlew conformance -Ponly=crash,all-pass}.
@@ -103,8 +103,8 @@ public final class Harness {
     cliJar = Path.of(System.getProperty("qualify.conformance.cliJar"));
     classpath = System.getProperty("qualify.conformance.classpath");
     java = System.getProperty("qualify.conformance.java");
-    tsCli = repo.resolve("packages/qualify/dist/cli.js");
-    tsFixtures = repo.resolve("packages/qualify/conformance/fixtures");
+    tsCli = repo.resolve("packages/qualify-ts/dist/cli.js");
+    tsFixtures = repo.resolve("packages/qualify-ts/conformance/fixtures");
     fixtures = repo.resolve("spec/qualify/conformance/fixtures");
   }
 
