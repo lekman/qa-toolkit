@@ -36,8 +36,8 @@
   "junit": {
     "args": "--junit",
     "env": {
-      "JEST_JUNIT_OUTPUT_DIR": "test-results/junit",
-      "JEST_JUNIT_OUTPUT_NAME": "storybook.xml"
+      "JEST_JUNIT_OUTPUT_DIR": "${junitDir}",
+      "JEST_JUNIT_OUTPUT_NAME": "${junitName}"
     },
     "file": "test-results/junit/storybook.xml"
   }

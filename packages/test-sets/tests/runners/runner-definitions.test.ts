@@ -48,9 +48,13 @@ describe("runner definitions", () => {
       const named = `${d.junit.args ?? ""} ${Object.values(d.junit.env ?? {}).join(" ")}`;
       const fixed =
         d.junit.file.includes("*") || Object.keys(d.junit.env ?? {}).length > 0;
-      expect({ id: d.id, ok: named.includes("${junitFile}") || fixed }).toEqual(
-        { id: d.id, ok: true },
-      );
+      expect({
+        id: d.id,
+        ok:
+          named.includes("${junitFile}") ||
+          named.includes("${junitDir}") ||
+          fixed,
+      }).toEqual({ id: d.id, ok: true });
     }
   });
 
