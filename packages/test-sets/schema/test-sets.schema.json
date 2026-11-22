@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lekman/qa-toolkit/packages/test-sets/schema/test-sets.schema.json",
+  "title": "Test sets",
+  "description": "The test sets of a repository, in qa.yaml at its root: which runner runs which tests, at which level, in which folders, and with which command.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "sets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "description": "The version of this file's format.",
+      "const": 1
+    },
+    "sets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/set" }
+    }
+  },
+  "$defs": {
+    "set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "level", "runner", "paths"],
+      "properties": {
+        "name": {
+          "description": "Unique in the file. The CLI and the editor select a set by it.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "level": {
+          "description": "unit, story or integration for ordinary tests; IQ, OQ, PQ or IU for qualification tests, whose results come from qualify evidence.",
+          "enum": ["unit", "story", "integration", "IQ", "OQ", "PQ", "IU"]
+        },
+        "runner": {
+          "description": "The ID of a runner definition, such as vitest or cucumber-js.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "paths": {
+          "description": "The package folders the set covers, relative to the repository root. A glob such as packages/* covers every folder it matches.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "files": {
+          "description": "Globs of the test files inside each package folder. The runner definition's globs when left out.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "command": {
+          "description": "The command that runs the set in a package folder, such as `task test:intended-use -- ${ids}`. The runner definition's command when left out. Placeholders: ${filter}, ${id}, ${ids}, ${package}, ${results}.",
+          "type": "string",
+          "minLength": 1
+        },
+        "results": {
+          "description": "Where the set's results land, relative to the package folder. Qualify evidence for a qualification level, JUnit XML otherwise.",
+          "type": "string",
+          "minLength": 1
+        },
+        "env": {
+          "description": "Environment variables for the command.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}
