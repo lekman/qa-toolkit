@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+#
+# Developer commands for qa-toolkit. Run `task` (or `task help`) to list them.
+# The TypeScript tasks call the root package.json scripts; the Python, JVM and
+# .NET tasks run each package's own tool, at the versions its mise.toml pins.
+version: "3"
+
+silent: true
+
+includes:
+  # Shared tasks from devops-toolkit, such as `task package:register`, which
+  # checks and sets up publishing to npm, PyPI, Maven Central and NuGet. The
+  # include is optional until the package is installed; `bun install` adds it.
+  package:
+    taskfile: ./node_modules/@lekman/devops-toolkit-tasks/tasks/package.yml
+    dir: .
+    optional: true
+    aliases: [pkg]
+
+tasks:
+  default:
+    desc: Show the available tasks
+    aliases: [help, h]
+    cmds:
+      - task --list
+
+  setup:
+    desc: Install the pinned tools and the dependencies
+    cmds:
+      - mise trust --quiet && mise install
+      - bun install --frozen-lockfile
+
+  build:
+    desc: Build every TypeScript package
+    cmds:
+      - bun run build
+
+  lint:
+    desc: Lint the repository
+    cmds:
+      - bun run lint
+
+  typecheck:
+    desc: Type check every TypeScript package
+    cmds:
+      - bun run typecheck
+
+  test:
+    desc: Run the TypeScript tests
+    cmds:
+      - bun run test
+
+  test:python:
+    desc: Run the Python package's tests
+    dir: packages/qualify-python
+    cmds:
+      - mise exec -- uv run pytest
+
+  test:jvm:
+    desc: Build and test the Java and Kotlin package
+    dir: packages/qualify-jvm
+    cmds:
+      - mise exec -- ./gradlew build
+
+  test:dotnet:
+    desc: Build and test the .NET packages, with the conformance scenarios, as CI does
+    dir: packages/qualify-dotnet
+    cmds:
+      - mise exec -- dotnet build Lekman.Qualify.slnx --configuration Release -warnaserror
+      - mise exec -- dotnet test --project tests/Lekman.Qualify.Tests --no-build --configuration Release
+      # The harness runs the scenario projects it finds in the Release build.
+      - mise exec -- dotnet test --project conformance/Lekman.Qualify.Conformance.Harness --no-build --configuration Release
+
+  test:all:
+    desc: Run the tests of every language
+    cmds:
+      - task: test
+      - task: test:python
+      - task: test:jvm
+      - task: test:dotnet
+
+  conformance:
+    desc: Run the shared qualify conformance scenarios
+    cmds:
+      - bun run conformance
+
+  check:
+    desc: Lint, hooks and every package's check, as CI runs them
+    cmds:
+      - bun run check
+
+  release:
+    desc: Publish TypeScript packages ahead of npm by hand (opens a browser to sign in)
+    cmds:
+      - bun run release {{.CLI_ARGS}}
