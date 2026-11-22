@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/lekman/qa-toolkit/compare/qualify-vscode@v0.1.0...qualify-vscode@v0.1.1) (2026-11-22)
+
+
+### Fixes
+
+* **qualify-vscode:** skip toolkit fixtures, build a missing trace matrix, end runs on exit ([#36](https://github.com/lekman/qa-toolkit/issues/36)) ([3a0f616](https://github.com/lekman/qa-toolkit/commit/3a0f616a70f8a74efd04436477bdd134653d45c5))
+
 ## 0.1.0 (2026-11-22)
 
 
