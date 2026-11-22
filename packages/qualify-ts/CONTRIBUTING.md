@@ -21,19 +21,23 @@ One folder per domain, following
 | `src/envelope`    | `Envelope`: source, actor and target. `envelope.system.ts` runs git.                         |
 | `src/evidence`    | File names, key order, types. `evidence.system.ts` writes files atomically.                  |
 | `src/execution`   | `Execution`, the one test lifecycle every adapter shares, and `Runtime`, per process.        |
+| `src/scenario`    | `Scenarios`: a Gherkin scenario to a declaration, and cucumber's result to an outcome.       |
 | `src/merge`       | `Merge.build`: records and markers to a run file, section 6.5.                               |
 | `src/trace`       | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                                 |
 | `src/report`      | The PDF report: `ReportContent` (pure), `Layout` (pure, over `ITextMetrics`), `PdfRenderer`. |
 | `src/theme`       | `ThemeLoader` and `Template`: report themes and their tokens, section 9.3.                   |
 | `src/schema`      | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                         |
 | `src/cli`         | `Commands` (covered) and `cli.ts` (wiring only, not covered).                                |
-| `src/adapters`    | vitest, `node:test` and bun glue, and their setup modules. Covered by conformance runs.      |
+| `src/adapters`    | vitest, `node:test`, bun and cucumber-js glue, and setup modules. Covered by conformance.    |
 | `conformance/`    | The scenario test files per runner, fixtures, and the harness `run.ts`.                      |
 | `tests/`          | Unit tests, mirroring `src/`, with in-memory mocks in `tests/mocks/`.                        |
 
 An adapter only registers the test under `[<ID>] <title>` and maps the result
 back to its runner. Everything else, from the started marker to the redacted
-record, happens in `Execution.run`, so the three runners cannot drift apart.
+record, happens in `Execution.run`, so the runners cannot drift apart. The
+cucumber-js adapter has no single body to wrap: its Before hook calls
+`Execution.start`, the steps record on the context, and its After hook calls
+`Execution.end`, the two halves of `Execution.run`.
 
 ## Tests
 
@@ -61,11 +65,17 @@ checks the runner's and the CLI's exit codes, validates every file, checks
 that every site points into the scenario's own test file, masks the run file,
 and compares it byte for byte with `spec/qualify/conformance/expected/`.
 
-vitest runs all 20 scenarios; `node:test` and bun run 1, 2, 6 and 10 against
-the same expected files. The parallel scenario runs vitest's thread pool with
-two workers and fails unless a worker log shows at least two. A last check
-runs each runner without `QUALIFY_RUN_ID` and fails unless every file shares
-the run ID the runner's setup created.
+vitest and cucumber-js under Node run all 20 scenarios; `node:test`, bun and
+cucumber-js under Bun run 1, 2, 6 and 10 against the same expected files.
+cucumber-js runs the `bad-id` scenario with its lower-case ID only, because a
+feature file takes the level from the ID's prefix and cannot declare another.
+The cucumber scenarios share one narrative, so the Then step in
+`conformance/cucumber/steps/` runs the checks of the test by its ID. The parallel scenario runs vitest's thread pool with
+two workers and fails unless a worker log shows at least two; cucumber-js
+runs it again with `--parallel 2` and compares with the same expected file. A
+last check runs each runner without `QUALIFY_RUN_ID` (cucumber-js with
+`--parallel 2`) and fails unless every file shares the run ID the runner's
+setup created.
 
 ```bash
 bun run conformance/run.ts --only crash,all-pass   # some scenarios

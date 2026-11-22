@@ -8,9 +8,10 @@
  *   bun run conformance/run.ts --update write the expected files instead
  *   bun run conformance/run.ts --only crash,all-pass
  *
- * vitest runs all 20 scenarios. node:test and bun run scenarios 1, 2, 6 and
- * 10, compared with the same expected files. Needs Node 22.18 or later for
- * the node:test files, which Node loads as TypeScript.
+ * vitest and cucumber-js under Node run all 20 scenarios. node:test, bun and
+ * cucumber-js under Bun run scenarios 1, 2, 6 and 10, compared with the same
+ * expected files. Needs Node 22.18 or later for the node:test and cucumber
+ * files, which Node loads as TypeScript.
  */
 
 import { spawnSync } from "node:child_process";
@@ -42,10 +43,11 @@ const EXPECTED = resolve(PKG, "../../spec/qualify/conformance/expected");
 const FIXTURES = resolve(PKG, "../../spec/qualify/conformance/fixtures");
 const CLI = join(PKG, "dist/cli.js");
 const VITEST = join(PKG, "node_modules/vitest/vitest.mjs");
+const CUCUMBER = join(PKG, "node_modules/@cucumber/cucumber/bin/cucumber.js");
 const RUN_ID = "01HQA1ZQJ0C0NF0RMANCE00000";
 const SECRET = "s3cr3t-value-123";
 
-type Runner = "bun" | "node:test" | "vitest";
+type Runner = "bun" | "cucumber" | "cucumber (bun)" | "node:test" | "vitest";
 
 interface Exec {
   output: string;
@@ -57,6 +59,8 @@ interface Invocation {
   env?: Record<string, string>;
   /** Scenario test files, without folder or extension. */
   files: string[];
+  /** The one test ID to select with the runner's own name filter. */
+  select?: string;
   /** The runner's expected exit code; `"nonzero"` for a crashed worker. */
   status: "nonzero" | number;
 }
@@ -124,6 +128,19 @@ const scenarioEnv = (
   };
 };
 
+/** cucumber-js arguments: the support and step files, then the feature files. */
+const cucumberArgs = (invocation: Invocation): string[] => [
+  "--import",
+  "conformance/cucumber/support/*.ts",
+  "--import",
+  "conformance/cucumber/steps/*.ts",
+  ...(invocation.select === undefined
+    ? []
+    : ["--name", `^${invocation.select} `]),
+  ...(invocation.args ?? []),
+  ...invocation.files.map((f) => `conformance/cucumber/features/${f}.feature`),
+];
+
 const runTests = (
   runner: Runner,
   invocation: Invocation,
@@ -141,6 +158,7 @@ const runTests = (
           "run",
           "--config",
           "conformance/vitest.config.ts",
+          ...(invocation.select === undefined ? [] : ["-t", invocation.select]),
           ...(invocation.args ?? []),
           ...invocation.files.map((f) => `conformance/vitest/${f}.qualify.ts`),
         ],
@@ -169,6 +187,15 @@ const runTests = (
         join(PKG, "conformance/bun"),
         env,
       );
+    case "cucumber":
+      return exec("node", [CUCUMBER, ...cucumberArgs(invocation)], PKG, env);
+    case "cucumber (bun)":
+      return exec(
+        "bun",
+        ["--bun", CUCUMBER, ...cucumberArgs(invocation)],
+        PKG,
+        env,
+      );
   }
 };
 
@@ -192,7 +219,8 @@ const filesBelow = (dir: string): string[] =>
       )
     : [];
 
-const SITE_FILE = /^(?:.*\/)?([^/]+?)(?:\.qualify|\.test)?\.ts:\d+$/;
+const SITE_FILE =
+  /^(?:.*\/)?([^/]+?)(?:(?:\.qualify|\.test)?\.ts|\.feature):\d+$/;
 
 /** Every site must point into one of the scenario's own test files. */
 const checkSites = (file: RunFile, allowed: readonly string[]): void => {
@@ -366,7 +394,7 @@ const SCENARIOS: Scenario[] = [
     merge: 0,
     trace: 0,
     expected: "all-pass",
-    runners: ["node:test", "bun"],
+    runners: ["node:test", "bun", "cucumber", "cucumber (bun)"],
   },
   {
     name: "failing-check-stops",
@@ -374,14 +402,14 @@ const SCENARIOS: Scenario[] = [
     merge: 1,
     trace: 1,
     expected: "failing-check-stops",
-    runners: ["node:test", "bun"],
+    runners: ["node:test", "bun", "cucumber", "cucumber (bun)"],
   },
   {
     name: "soft-check",
     invocations: [{ files: ["soft-check"], status: 1 }],
     merge: 1,
     expected: "soft-check",
-    runners: [],
+    runners: ["cucumber"],
   },
   {
     name: "thrown-error",
@@ -389,7 +417,7 @@ const SCENARIOS: Scenario[] = [
     merge: 1,
     expected: "thrown-error",
     errorType: "<runtime error>",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ merged }) =>
       assert(
         testById(merged, "OQ-CONF-004").error?.type === "Error",
@@ -402,7 +430,7 @@ const SCENARIOS: Scenario[] = [
     merge: 1,
     expected: "plain-assertion",
     errorType: "<assertion error>",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ merged }) =>
       assert(
         testById(merged, "OQ-CONF-005").error?.type === "AssertionError",
@@ -415,7 +443,7 @@ const SCENARIOS: Scenario[] = [
     merge: 0,
     trace: 0,
     expected: "runtime-skip",
-    runners: ["node:test", "bun"],
+    runners: ["node:test", "bun", "cucumber", "cucumber (bun)"],
     check: ({ output, runner }) => {
       if (runner === "vitest")
         assert(
@@ -426,6 +454,12 @@ const SCENARIOS: Scenario[] = [
         assert(
           /skipped 1/.test(output),
           "node:test did not report the test as skipped",
+        );
+      if (runner.startsWith("cucumber"))
+        assert(
+          // Under Bun, cucumber colours its summary: \S* skips the colour code.
+          /1 scenario \(\S*1 skipped/.test(output),
+          "cucumber did not report the scenario as skipped",
         );
     },
   },
@@ -441,7 +475,7 @@ const SCENARIOS: Scenario[] = [
     merge: 0,
     expected: "policy-skip.a",
     sites: ["policy-skip"],
-    runners: [],
+    runners: ["cucumber"],
   },
   {
     name: "policy-skip.b",
@@ -458,24 +492,31 @@ const SCENARIOS: Scenario[] = [
     merge: 0,
     expected: "policy-skip.b",
     sites: ["policy-skip"],
-    runners: [],
+    runners: ["cucumber"],
   },
   {
     name: "missing-scope",
     invocations: [{ files: ["missing-scope"], status: 1 }],
     merge: -1,
-    runners: [],
+    runners: ["cucumber"],
     check: declarationError([["OQ-CONF-008", "scope"]]),
   },
   {
     name: "bad-id",
     invocations: [{ files: ["bad-id"], status: 1 }],
     merge: -1,
-    runners: [],
-    check: declarationError([
-      ["OQ-conf-009", "pattern"],
-      ["IQ-CONF-010", "level"],
-    ]),
+    runners: ["cucumber"],
+    // In a feature file the level is the ID's prefix, so cucumber cannot
+    // declare IQ-CONF-010 with level OQ and runs the pattern case only.
+    check: (ctx) =>
+      declarationError(
+        ctx.runner === "cucumber"
+          ? [["OQ-conf-009", "pattern"]]
+          : [
+              ["OQ-conf-009", "pattern"],
+              ["IQ-CONF-010", "level"],
+            ],
+      )(ctx),
   },
   {
     name: "secret-redaction",
@@ -489,7 +530,7 @@ const SCENARIOS: Scenario[] = [
     merge: 1,
     expected: "secret-redaction",
     errorType: "<runtime error>",
-    runners: ["node:test", "bun"],
+    runners: ["node:test", "bun", "cucumber", "cucumber (bun)"],
     check: ({ dir, merged }) => {
       for (const path of filesBelow(dir)) {
         assert(
@@ -534,7 +575,7 @@ const SCENARIOS: Scenario[] = [
     invocations: [{ files: ["pattern-redaction"], status: 0 }],
     merge: 0,
     expected: "pattern-redaction",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ dir }) => {
       const shapes = [
         "AK" + "IA" + "ABCDEFGHIJKLMNOP",
@@ -556,7 +597,7 @@ const SCENARIOS: Scenario[] = [
     invocations: [{ files: ["several-requirements"], status: 0 }],
     merge: 0,
     expected: "several-requirements",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ dir, merged }) => {
       const test = testById(merged, "OQ-CONF-013");
       assert(
@@ -589,7 +630,7 @@ const SCENARIOS: Scenario[] = [
     invocations: [{ files: ["narrative"], status: 0 }],
     merge: 0,
     expected: "narrative",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ merged }) => {
       const test = testById(merged, "PQ-CONF-014");
       assert(test.given === "données d’entrée — 入力", "given changed");
@@ -605,17 +646,17 @@ const SCENARIOS: Scenario[] = [
   {
     name: "attachments",
     invocations: [
-      { files: ["attachments"], status: 0, args: ["-t", "OQ-CONF-015"] },
+      { files: ["attachments"], status: 0, select: "OQ-CONF-015" },
       {
         files: ["attachments"],
         status: 1,
-        args: ["-t", "OQ-CONF-016"],
+        select: "OQ-CONF-016",
         env: { QUALIFY_ATTACHMENT_LIMIT: "16" },
       },
     ],
     merge: 1,
     expected: "attachments",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ merged }) => {
       const passed = testById(merged, "OQ-CONF-015");
       const blob = Uint8Array.from({ length: 256 }, (_, i) => i);
@@ -645,13 +686,13 @@ const SCENARIOS: Scenario[] = [
     invocations: [{ files: ["value-normalisation"], status: 0 }],
     merge: 0,
     expected: "value-normalisation",
-    runners: [],
+    runners: ["cucumber"],
   },
   {
     name: "duplicate-id",
     invocations: [{ files: ["duplicate-id-a", "duplicate-id-b"], status: 0 }],
     merge: 2,
-    runners: [],
+    runners: ["cucumber"],
     sites: ["duplicate-id-a", "duplicate-id-b"],
     check: ({ dir, output }) => {
       assert(output.includes("OQ-CONF-018"), "merge did not name OQ-CONF-018");
@@ -667,7 +708,7 @@ const SCENARIOS: Scenario[] = [
     merge: 1,
     trace: 1,
     expected: "crash",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ merged }) => {
       const test = testById(merged, "OQ-CONF-019");
       assert(
@@ -678,12 +719,10 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: "deselected",
-    invocations: [
-      { files: ["deselected"], status: 0, args: ["-t", "OQ-CONF-020"] },
-    ],
+    invocations: [{ files: ["deselected"], status: 0, select: "OQ-CONF-020" }],
     merge: 0,
     expected: "deselected",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ dir, merged }) => {
       assert(merged?.tests.length === 1, "more than one record");
       const { status, trace } = traceWith(
@@ -712,7 +751,7 @@ const SCENARIOS: Scenario[] = [
     invocations: [{ files: ["control-pair"], status: 0 }],
     merge: 0,
     expected: "control-pair",
-    runners: [],
+    runners: ["cucumber"],
     check: ({ dir, merged }) => {
       assert(
         testById(merged, "OQ-CONF-023").controls === "OQ-CONF-022",
@@ -811,26 +850,29 @@ const runScenario = (scenario: Scenario, runner: Runner): void => {
   }
 };
 
-/** Scenario 16: scenarios 1, 2 and 13 together, twice, on at least two worker threads. */
-const runParallel = (): void => {
+/** Scenario 16: scenarios 1, 2 and 13 together, twice, on at least two workers. */
+const runParallel = (runner: "cucumber" | "vitest"): void => {
   const documents: string[] = [];
   for (let round = 0; round < 2; round++) {
     const dir = mkdtempSync(join(tmpdir(), "qualify-parallel-"));
     const log = join(dir, "workers.log");
     try {
       const result = runTests(
-        "vitest",
+        runner,
         {
           files: ["all-pass", "failing-check-stops", "narrative"],
           status: 1,
-          args: ["--pool=threads", "--maxWorkers=2"],
+          args:
+            runner === "vitest"
+              ? ["--pool=threads", "--maxWorkers=2"]
+              : ["--parallel", "2"],
         },
         dir,
         log,
       );
       assert(
         result.status === 1,
-        `vitest exited ${result.status}, expected 1\n${result.output.slice(-2000)}`,
+        `${runner} exited ${result.status}, expected 1\n${result.output.slice(-2000)}`,
       );
       const workers = new Set(readFileSync(log, "utf8").trim().split("\n"));
       assert(
@@ -848,7 +890,15 @@ const runParallel = (): void => {
     }
   }
   assert(documents[0] === documents[1], "the two parallel runs differ");
-  compare("parallel-determinism.json", documents[0] as string);
+  if (runner === "vitest") {
+    compare("parallel-determinism.json", documents[0] as string);
+    return;
+  }
+  assert(
+    documents[0] ===
+      readFileSync(join(EXPECTED, "parallel-determinism.json"), "utf8"),
+    `the ${runner} run differs from parallel-determinism.json`,
+  );
 };
 
 /**
@@ -865,8 +915,21 @@ const runSharedRunId = (runner: Runner): void => {
         : ["--experimental-test-isolation=none"];
     const env = scenarioEnv(dir);
     delete env.QUALIFY_RUN_ID;
-    const result =
-      runner === "vitest"
+    const result = runner.startsWith("cucumber")
+      ? exec(
+          "node",
+          [
+            CUCUMBER,
+            ...cucumberArgs({
+              files: ["all-pass", "runtime-skip"],
+              status: 0,
+              args: ["--parallel", "2"],
+            }),
+          ],
+          PKG,
+          env,
+        )
+      : runner === "vitest"
         ? exec(
             "node",
             [
@@ -1170,15 +1233,18 @@ if ((major ?? 0) < 22 || (major === 22 && (minor ?? 0) < 18)) {
 for (const scenario of SCENARIOS) {
   await attempt(scenario.name, "vitest", () => runScenario(scenario, "vitest"));
 }
-await attempt("parallel-determinism", "vitest", runParallel);
+await attempt("parallel-determinism", "vitest", () => runParallel("vitest"));
 await attempt("report", "vitest", runReport);
 await attempt("report-theme", "vitest", runReportTheme);
 if (reportRunDir !== undefined)
   rmSync(reportRunDir, { recursive: true, force: true });
 if (!UPDATE) {
-  for (const runner of ["vitest", "node:test", "bun"] as const) {
+  for (const runner of ["vitest", "node:test", "bun", "cucumber"] as const) {
     await attempt("shared-run-id", runner, () => runSharedRunId(runner));
   }
+  await attempt("parallel-determinism", "cucumber", () =>
+    runParallel("cucumber"),
+  );
   for (const scenario of SCENARIOS) {
     for (const runner of scenario.runners) {
       await attempt(scenario.name, runner, () => runScenario(scenario, runner));

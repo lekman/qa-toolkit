@@ -1,8 +1,8 @@
 # @lekman/qualify
 
-> Qualification tests (IQ, OQ, PQ, intended use) for vitest, `node:test` and
-> bun that leave redacted JSON evidence and a trace matrix from requirements to
-> results.
+> Qualification tests (IQ, OQ, PQ, intended use) for vitest, `node:test`, bun
+> and cucumber-js that leave redacted JSON evidence and a trace matrix from
+> requirements to results.
 
 This is the TypeScript reference implementation of the
 [qualify specification](../../spec/qualify/README.md). It is not published
@@ -28,8 +28,8 @@ with the runner's own filters (`vitest -t OQ-EXPORT-003`).
 npm install --save-dev @lekman/qualify
 ```
 
-Node 20 or later. vitest is an optional peer dependency; `node:test` and bun
-need nothing else.
+Node 20 or later. vitest and `@cucumber/cucumber` are optional peer
+dependencies; `node:test` and bun need nothing else.
 
 ## vitest
 
@@ -144,6 +144,104 @@ oq(
 
 `bun test` runs every file in one process, which creates the run ID when
 `QUALIFY_RUN_ID` is not set.
+
+## cucumber-js
+
+The Gherkin is the narrative. A scenario's name is `<ID> <title>`, its steps
+are given, when and then, and its tags carry the rest of the declaration.
+
+```gherkin
+# features/export.feature
+@export
+Feature: Bank file export
+
+  @REQ-EXPORT-003 @risk-high @scope-read
+  Scenario: OQ-EXPORT-003 The bank file never changes an amount
+    Given a day of payments in three currencies
+    When the export writes the bank file
+    Then every amount in the file equals the amount in the ledger
+    And the file names the ledger it came from
+```
+
+```ts
+// features/support/qualify.ts: load it before the other support files
+import { install } from "@lekman/qualify/cucumber";
+
+install();
+```
+
+```ts
+// features/steps/export.steps.ts
+import { Then } from "@cucumber/cucumber";
+import { ctx } from "@lekman/qualify/cucumber";
+
+Then(
+  "every amount in the file equals the amount in the ledger",
+  function (this: ExportWorld) {
+    ctx(this)
+      .check("bank file", "EUR keeps two decimals")
+      .that(this.file.amount("EUR"))
+      .equals("100.50");
+  },
+);
+```
+
+`ctx(this)` returns the same context as the other adapters, for the scenario
+running in that world, so a step must be a `function`, not an arrow function.
+
+| Gherkin                            | Becomes                                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Scenario: <ID> <title>`           | The ID and title. The level is the ID's prefix, so `OQ-EXPORT-003` is an OQ test.               |
+| Given steps                        | `given`, joined with `and` when there are several. Background steps come first.                 |
+| When steps                         | `when`, joined the same way.                                                                    |
+| The first Then step                | `then`                                                                                          |
+| Every later step                   | One `and` clause each. A later Given or When step keeps its keyword: `When it is undone`.       |
+| `@REQ-<ID>`                        | The requirement `REQ-<ID>`, one tag per requirement.                                            |
+| `@risk-high`, `-medium`, `-low`    | `risk`                                                                                          |
+| `@scope-read`, `@scope-read-write` | `scope`: required for OQ and PQ, refused for IQ and IU, as in section 2.1 of the specification. |
+| `@controls-<ID>`                   | `controls`: the ID of the negative test this scenario is the control for.                       |
+| Any other tag                      | A tag, without the `@`. Tags of the feature and rule count too.                                 |
+
+A scenario that breaks a rule fails before its steps run, with a
+`DeclarationError` that names every problem, and writes no evidence: a name
+without an ID, steps that are not Given steps then When steps then a Then
+step, a second risk, scope or control tag, or a field rule from the
+specification. A Scenario Outline is refused, because one ID must map to one
+record; write a Scenario for each ID. Step text is recorded without its data
+table or doc string.
+
+Each check's site is the line of the step that made it in the feature file,
+and the test's site is the line of the scenario. Select scenarios with
+cucumber's own filters: `--name "^OQ-EXPORT-003 "` or `--tags @export`.
+
+```bash
+npx cucumber-js                     # Node, with the support files in .js or .mjs
+bun --bun cucumber-js               # Bun, which loads .ts support files itself
+npx qualify merge
+```
+
+`install({ tags: "@qualification" })` makes only the scenarios that tag
+expression selects qualification tests; the default is every scenario.
+`install()` also:
+
+- adds its Before hook to start the record and its After hook to write it.
+  Load the support file that calls it first, so its Before hook runs before
+  yours and its After hook after yours: a failure in your hooks then lands in
+  the record.
+- sets `QUALIFY_RUN_ID` in the main process when it is not set, before
+  cucumber-js starts its `--parallel` workers, so every worker shares the run.
+- sets cucumber's definition function wrapper. The wrapper keeps the first
+  error for the record, redacts registered secrets in it before cucumber
+  prints it, and turns `ctx.skip(reason)` into a skipped step. A project that
+  sets a wrapper of its own calls ours from it:
+  `setDefinitionFunctionWrapper((fn, options) => wrap(yours(fn, options)))`,
+  with `wrap` from `@lekman/qualify/cucumber`. Without it, a skip still
+  records `skip`, and cucumber shows the step as failed.
+
+A failed soft check, or delegated work that fails after its step returned,
+fails the scenario in qualify's After hook. cucumber-js 13 needs Node 22 or
+later. The adapter runs on cucumber-js 13 in this package's conformance runs,
+under Node and under Bun; 12.9 also worked when tried by hand.
 
 ## The Context
 
@@ -311,6 +409,7 @@ your reports.
   | vitest      | skipped, with the reason as the note                   |
   | `node:test` | skipped, with the reason                               |
   | bun         | **passed**: bun has no skip from inside a running test |
+  | cucumber-js | skipped, as a skipped step                             |
 
 - **Assertion errors.** A runner assertion inside `delegate` or the body is
   `fail` when it is an `AssertionError` (vitest, chai, `node:assert`). Bun's

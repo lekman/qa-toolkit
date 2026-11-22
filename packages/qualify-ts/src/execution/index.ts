@@ -9,5 +9,7 @@ export type {
   Registration,
   RunResult,
   SiteContext,
+  SiteOverrides,
+  StartedTest,
   TestBody,
 } from "./types";
