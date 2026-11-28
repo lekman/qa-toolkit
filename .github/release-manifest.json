@@ -1,8 +1,8 @@
 {
   "packages/data-sampler": "0.1.0",
-  "packages/qualify-ts": "0.2.0",
-  "packages/qualify-python": "0.2.0",
-  "packages/qualify-jvm": "0.2.0",
-  "packages/qualify-dotnet": "0.2.0",
+  "packages/qualify-ts": "0.3.0",
+  "packages/qualify-python": "0.3.0",
+  "packages/qualify-jvm": "0.3.0",
+  "packages/qualify-dotnet": "0.3.0",
   "packages/qualify-vscode": "0.1.1"
 }
