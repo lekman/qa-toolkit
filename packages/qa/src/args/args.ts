@@ -12,6 +12,15 @@ const LEVELS: readonly string[] = [
   "IU",
 ];
 
+/**
+ * The qualify release `qa` runs by default. Pinned, so a new qualify release
+ * cannot change what an existing `qa` does; `--qualify` picks another.
+ */
+const QUALIFY_VERSION = "0.2.0";
+
+/** The default command for the qualify CLI. */
+const QUALIFY = `npx --yes @lekman/qualify@${QUALIFY_VERSION}`;
+
 /** The usage text. */
 const USAGE = `qa: run the test sets in qa.yaml
 
@@ -27,12 +36,15 @@ const USAGE = `qa: run the test sets in qa.yaml
   --report           draw a PDF with \`qualify report\` for each qualification set
   --dry-run          print the commands, run nothing
   --out DIR          merged results and reports (default qa-results)
-  --qualify COMMAND  how to run the qualify CLI (default npx --yes @lekman/qualify)
+  --qualify COMMAND  how to run the qualify CLI (default ${QUALIFY})
 
 Exit codes: 0 every set passed, 1 a set failed, 2 qa.yaml is invalid, 64 usage.`;
 
 /** Reads the command line of `qa`. */
 export class Args {
+  /** The default command for the qualify CLI, with its pinned version. */
+  static readonly QUALIFY = QUALIFY;
+
   /** The usage text, for `qa help` and usage errors. */
   static readonly USAGE = USAGE;
 
@@ -76,7 +88,7 @@ export class Args {
       levels: [],
       names: [],
       out: "qa-results",
-      qualify: "npx --yes @lekman/qualify",
+      qualify: QUALIFY,
       report: false,
     };
     const takes = new Set([
