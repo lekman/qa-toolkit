@@ -328,6 +328,149 @@
       }
     },
 
+    "caseLevel": {
+      "description": "Level of an imported test case. UT is the unit level. An imported suite of another level names it with --level.",
+      "enum": ["IQ", "OQ", "PQ", "IU", "UT"]
+    },
+
+    "caseFailure": {
+      "description": "The first failure or error element of an imported test case, redacted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message"],
+      "properties": {
+        "type": {
+          "description": "The element's type attribute, or its name (failure or error) when it has none.",
+          "type": "string",
+          "minLength": 1
+        },
+        "message": { "type": "string" },
+        "detail": {
+          "description": "The element's text, trimmed, such as a stack trace. Absent when empty.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+
+    "testCase": {
+      "description": "One test case imported from JUnit XML by qualify import junit. It has no narrative, checks or attachments.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "suite",
+        "classname",
+        "name",
+        "file",
+        "outcome",
+        "durationMs"
+      ],
+      "properties": {
+        "level": { "$ref": "#/$defs/caseLevel" },
+        "id": {
+          "description": "The first qualify test ID in the name, when there is one. It links the case to the trace matrix.",
+          "$ref": "#/$defs/testId"
+        },
+        "suite": {
+          "description": "The names of the enclosing testsuite elements, outermost first, joined by \" > \". Empty when there is none.",
+          "type": "string"
+        },
+        "classname": { "type": ["string", "null"] },
+        "name": { "type": "string", "minLength": 1 },
+        "file": { "type": ["string", "null"] },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "skipReason": { "type": "string", "minLength": 1 },
+        "error": { "$ref": "#/$defs/caseFailure" },
+        "durationMs": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "const": "skip" } } },
+          "then": { "required": ["skipReason"] },
+          "else": { "not": { "required": ["skipReason"] } }
+        },
+        {
+          "if": { "properties": { "outcome": { "enum": ["fail", "error"] } } },
+          "then": { "required": ["error"] },
+          "else": { "not": { "required": ["error"] } }
+        }
+      ]
+    },
+
+    "coverageCounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["found", "hit", "percent"],
+      "properties": {
+        "found": { "type": "integer", "minimum": 0 },
+        "hit": { "type": "integer", "minimum": 0 },
+        "percent": {
+          "description": "hit / found * 100, rounded to two decimals. null when found is 0.",
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+
+    "coverageFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "lines", "functions", "branches"],
+      "properties": {
+        "path": {
+          "description": "The source file as the tracefile names it, relative to the working directory when it is inside it, with / as the separator.",
+          "type": "string",
+          "minLength": 1
+        },
+        "lines": { "$ref": "#/$defs/coverageCounter" },
+        "functions": { "$ref": "#/$defs/coverageCounter" },
+        "branches": { "$ref": "#/$defs/coverageCounter" }
+      }
+    },
+
+    "coverage": {
+      "description": "Code coverage imported from LCOV tracefiles with qualify import junit --coverage.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totals", "files"],
+      "properties": {
+        "totals": {
+          "description": "The sums over every file.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lines", "functions", "branches"],
+          "properties": {
+            "lines": { "$ref": "#/$defs/coverageCounter" },
+            "functions": { "$ref": "#/$defs/coverageCounter" },
+            "branches": { "$ref": "#/$defs/coverageCounter" }
+          }
+        },
+        "files": {
+          "description": "Sorted by path.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverageFile" }
+        }
+      }
+    },
+
+    "importedFile": {
+      "description": "A file qualify import junit read, in argument order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "sha256"],
+      "properties": {
+        "kind": { "enum": ["junit", "lcov"] },
+        "path": {
+          "description": "The path as given on the command line.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+
     "testRecord": {
       "allOf": [
         { "$ref": "#/$defs/declaration" },
@@ -428,7 +571,7 @@
     },
 
     "runFile": {
-      "description": "Built by qualify merge at <evidenceDir>/test-evidence.json, with a .sha256 sidecar.",
+      "description": "Built by qualify merge at <evidenceDir>/test-evidence.json, or by qualify import junit, with a .sha256 sidecar.",
       "type": "object",
       "additionalProperties": false,
       "required": ["schemaVersion", "kind", "run", "summary", "tests"],
@@ -472,16 +615,27 @@
             "error": { "type": "integer", "minimum": 0 },
             "skip": { "type": "integer", "minimum": 0 },
             "verdict": {
-              "description": "fail if any fail or error; incomplete if there are no records; otherwise pass.",
+              "description": "fail if any fail or error; incomplete if there are no records; otherwise pass. Counts the test cases in a run file written by qualify import junit.",
               "enum": ["pass", "fail", "incomplete"]
             }
           }
         },
         "tests": {
-          "description": "Sorted by id.",
+          "description": "Sorted by id. Empty in a run file written by qualify import junit.",
           "type": "array",
           "items": { "$ref": "#/$defs/testRecord" }
-        }
+        },
+        "imported": {
+          "description": "The files qualify import junit read. Absent in a run file written by qualify merge.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/importedFile" }
+        },
+        "cases": {
+          "description": "Test cases imported from JUnit XML, in the order of the files and of the elements in each file.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/testCase" }
+        },
+        "coverage": { "$ref": "#/$defs/coverage" }
       }
     }
   }

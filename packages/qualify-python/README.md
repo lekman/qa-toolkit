@@ -7,7 +7,7 @@ This is the Python implementation of the
 [qualify specification](../../spec/qualify/README.md), as a pytest plugin. It
 writes the same evidence files as the TypeScript reference
 [@lekman/qualify](../qualify-ts/README.md) and passes the same conformance
-scenarios. It is not published yet.
+scenarios. Version 0.2.0 is on PyPI.
 
 ## Why
 
@@ -187,6 +187,16 @@ where to find it and exits 64:
 npx @lekman/qualify trace qualification/evidence/test-evidence.json \
   --protocol protocol.yaml --md trace.md --json trace.json
 ```
+
+### Unit Tests
+
+`import junit`, which turns JUnit XML and LCOV coverage from unit tests into a
+run file, is in the TypeScript package only for now:
+`npx @lekman/qualify import junit junit.xml --coverage lcov.info`. This
+package's `validate` accepts the run file it writes, and `report` draws its
+cover, with the test counts, and its run details. The summary table counts no
+test cases, and the coverage and the test cases are left out; draw the full
+report with `npx @lekman/qualify report`.
 
 ## The PDF Report
 
