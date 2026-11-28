@@ -1,4 +1,5 @@
-import type { TestRecord } from "../evidence";
+import type { Level } from "../declaration";
+import type { Outcome, TestCase, TestRecord } from "../evidence";
 import type {
   LinkSource,
   ProtocolEntry,
@@ -11,6 +12,25 @@ import type {
 import { Values } from "../values";
 
 const SOURCE_ORDER: readonly LinkSource[] = ["code", "protocol", "map"];
+
+/** What a row of the matrix reads from a test record or an imported case. */
+type Traced = Pick<TestRecord, "controls" | "id" | "risk" | "title"> & {
+  level: Level;
+  outcome: Outcome;
+  requirements: readonly string[];
+};
+
+/**
+ * An imported case with an ID, as the matrix sees it: the ID's prefix as its
+ * level, its name as its title, and no links of its own (section 8).
+ */
+const fromCase = (c: TestCase & { id: string }): Traced => ({
+  id: c.id,
+  level: c.id.slice(0, 2) as Level,
+  title: c.name,
+  outcome: c.outcome,
+  requirements: [],
+});
 
 const compareNullable = (a: null | string, b: null | string): number => {
   if (a === b) return 0;
@@ -27,9 +47,14 @@ export class Trace {
       (request.protocol?.content ?? []).map((entry) => [entry.id, entry]),
     );
     const map = request.map?.content ?? new Map<string, string[]>();
-    const records: { run: string; environment: string; test: TestRecord }[] =
+    const records: { environment: string; run: string; test: Traced }[] =
       request.evidence.flatMap((source) =>
-        source.content.tests.map((test) => ({
+        [
+          ...source.content.tests,
+          ...(source.content.cases ?? [])
+            .filter((c): c is TestCase & { id: string } => c.id !== undefined)
+            .map(fromCase),
+        ].map((test) => ({
           run: source.content.run.id,
           environment: source.content.run.environment,
           test,
@@ -94,7 +119,7 @@ export class Trace {
         !sorted.some((r) => r.requirement === req && r.outcome === "pass"),
     );
 
-    const count = (outcome: TestRecord["outcome"]): number =>
+    const count = (outcome: Outcome): number =>
       records.filter((r) => r.test.outcome === outcome).length;
     const failed = count("fail") + count("error") > 0;
     const required = (id: string): boolean =>

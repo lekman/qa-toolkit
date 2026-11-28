@@ -5,9 +5,10 @@
 > requirements to results.
 
 This is the TypeScript reference implementation of the
-[qualify specification](../../spec/qualify/README.md). It is not published
-yet; the Python and Java packages that follow the same specification are in
-progress.
+[qualify specification](../../spec/qualify/README.md). Version 0.2.0 is on
+npm. The [Python](../qualify-python/README.md),
+[Java and Kotlin](../qualify-jvm/README.md) and [C#](../qualify-dotnet/README.md)
+packages follow the same specification and are released with it.
 
 ## Why
 
@@ -288,6 +289,8 @@ secret source (`secretSource`), and add "not applicable" rules
 ```text
 qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
 qualify validate FILE...
+qualify import junit JUNIT.xml... [--coverage lcov.info]... [--level UT]
+                 [--out test-evidence.json]
 qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                  [--md trace.md] [--json trace.json] [--fail-on-skip]
 qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
@@ -307,6 +310,45 @@ written), 3 incomplete (no records, or a protocol ID with no record), 64 usage
 error. `report` exits 0 whenever it writes the PDF, because a failed run needs
 its report too. `protocol.yaml` and `trace.yaml` are described in section 8 of the
 specification. `trace` without `--md` or `--json` prints the Markdown.
+
+### Unit Tests and Coverage
+
+Unit tests do not need qualify to reach the report. `import junit` reads the
+JUnit XML a runner already writes, and the LCOV coverage beside it, and writes
+a run file that `validate`, `trace` and `report` accept:
+
+```bash
+bun test --reporter=junit --reporter-outfile=junit.xml \
+  --coverage --coverage-reporter=lcov
+npx qualify import junit junit.xml --coverage coverage/lcov.info
+npx qualify report test-evidence.json --pdf unit-tests.pdf
+```
+
+- One record per test case: suite, class, name, file, outcome, duration, and
+  for a failure its type, message and stack trace, with the pattern redaction
+  rules applied. Reports from bun, vitest, pytest, JUnit 5 on Gradle or Maven,
+  and xUnit read the same way; the samples are in
+  [spec/qualify/conformance/fixtures/junit/](../../spec/qualify/conformance/fixtures/junit/README.md).
+- `--level` sets the level of every case, `UT` by default. A case whose name
+  holds a qualify test ID, such as `[OQ-EXPORT-003] keeps amounts`, is a row
+  of the trace matrix, so `trace.yaml` can link it to a requirement. Other
+  cases are not in the matrix.
+- `--coverage` can be given more than once. The run file holds the totals for
+  lines, functions and branches, and the same per file.
+- The envelope is the one `merge` writes: commit, branch, CI actor,
+  `QUALIFY_TARGET_*` values and `QUALIFY_ENVIRONMENT`. The output defaults to
+  `test-evidence.json` in the working directory, so it does not overwrite the
+  qualification run file `merge` writes.
+- Exit codes are those of `merge`: 1 when a case failed, 3 when there were
+  none.
+
+The report of such a run has the usual cover and summary, then the coverage
+totals, a table of files sorted by lowest line coverage, each failed test case
+in full with its stack trace, and one table of every test case. Section 6.6 of
+the specification has the rules. The Python, Java and C# packages do not have
+`import junit` yet. They validate its run file, and their report draws its
+cover, with the test counts, and its run details, but not its coverage or its
+test cases.
 
 ## The PDF Report
 

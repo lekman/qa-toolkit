@@ -1,5 +1,4 @@
-import type { Level } from "../declaration";
-import type { RunFile, RunSummary, TestRecord } from "../evidence";
+import type { CaseLevel, RunFile, RunSummary, TestRecord } from "../evidence";
 import type { CoverField, TokenValues } from "../theme";
 import type { TraceFile } from "../trace";
 import type {
@@ -11,10 +10,19 @@ import type {
 } from "./types";
 
 import { Template } from "../theme";
+import { ReportCases } from "./report-cases";
 import { ReportImages } from "./report-images";
 import { ReportText } from "./report-text";
 
-const LEVELS: readonly Level[] = ["IQ", "OQ", "PQ", "IU"];
+const LEVELS: readonly CaseLevel[] = ["IQ", "OQ", "PQ", "IU", "UT"];
+
+/** What the level counts read: test records and imported cases alike. */
+type Counted = { level: CaseLevel; outcome: string };
+
+const counted = (run: RunFile): Counted[] => [
+  ...run.tests,
+  ...(run.cases ?? []),
+];
 const OUTCOMES = ["pass", "fail", "error", "skip"] as const;
 
 const m = (value: null | string | undefined): string =>
@@ -44,6 +52,8 @@ export class ReportContent {
       { kind: "heading", level: 1, text: tokens.title },
       ...ReportContent.details(input),
       ...ReportContent.summary(run, input.trace),
+      ...ReportCases.coverage(run),
+      ...ReportCases.cases(run),
       ...run.tests.flatMap((test) => ReportContent.test(test, images)),
     ];
     if (roles.length > 0) {
@@ -87,8 +97,8 @@ export class ReportContent {
     return `QR-${run.run.environment}-${run.run.startedAt.slice(0, 10).replace(/-/g, "")}`;
   }
 
-  /** The levels present, in IQ, OQ, PQ, IU order: `IQ`, `IQ and OQ`, `IQ, OQ and PQ`. */
-  static levels(tests: readonly TestRecord[]): string {
+  /** The levels present, in IQ, OQ, PQ, IU, UT order: `IQ`, `IQ and OQ`, `IQ, OQ and PQ`. */
+  static levels(tests: readonly { level: CaseLevel }[]): string {
     const present = LEVELS.filter((level) =>
       tests.some((t) => t.level === level),
     );
@@ -109,7 +119,7 @@ export class ReportContent {
       classification: "",
       documentId: options.documentId ?? ReportContent.documentId(run),
       environment: run.run.environment,
-      levels: ReportContent.levels(run.tests),
+      levels: ReportContent.levels(counted(run)),
       date: options.generatedAt.toISOString().slice(0, 10),
       version: m(run.run.target.version),
       verdict: ReportText.verdict(run.summary.verdict),
@@ -178,6 +188,18 @@ export class ReportContent {
               info.policy.overrides.map((o) => `${o.id}: ${o.reason}`),
             ),
           },
+          ...(input.run.imported === undefined
+            ? []
+            : [
+                {
+                  label: "Imported",
+                  value: ReportText.list(
+                    input.run.imported.map(
+                      (f) => `${f.path} (${f.kind}, ${f.sha256.slice(0, 12)})`,
+                    ),
+                  ),
+                },
+              ]),
         ],
       },
     ];
@@ -213,7 +235,11 @@ export class ReportContent {
   }
 
   private static summary(run: RunFile, trace: TraceFile): Block[] {
-    const row = (label: string, tests: readonly TestRecord[]): string[] => [
+    const all = counted(run);
+    const levels = LEVELS.filter(
+      (level) => level !== "UT" || all.some((t) => t.level === "UT"),
+    );
+    const row = (label: string, tests: readonly Counted[]): string[] => [
       label,
       String(tests.length),
       ...OUTCOMES.map((o) =>
@@ -234,13 +260,13 @@ export class ReportContent {
           { header: "Skip", width: 0.16 },
         ],
         rows: [
-          ...LEVELS.map((level) =>
+          ...levels.map((level) =>
             row(
               level,
-              run.tests.filter((t) => t.level === level),
+              all.filter((t) => t.level === level),
             ),
           ),
-          row("All", run.tests),
+          row("All", all),
         ],
       },
       { kind: "heading", level: 2, text: "Traceability" },
