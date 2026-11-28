@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="4" assertions="2" failures="1" skipped="1" time="0.006612">
+  <testsuite name="tests/amounts.test.ts" file="tests/amounts.test.ts" tests="4" assertions="2" failures="1" skipped="1" time="0" hostname="runner">
+    <testsuite name="amounts" file="tests/amounts.test.ts" line="4" tests="4" assertions="2" failures="1" skipped="1" time="0" hostname="runner">
+      <testcase name="[OQ-AMOUNTS-001] parses an empty line as no amount" classname="amounts" time="0.000054" file="tests/amounts.test.ts" line="5" assertions="1" />
+      <testcase name="rounds to two decimals" classname="amounts" time="0.000057" file="tests/amounts.test.ts" line="8" assertions="1" />
+      <testcase name="rejects a negative amount" classname="amounts" time="0.00009" file="tests/amounts.test.ts" line="11" assertions="0">
+        <failure type="AssertionError" />
+      </testcase>
+      <testcase name="reads the exchange rate" classname="amounts" time="0" file="tests/amounts.test.ts" line="14" assertions="0">
+        <skipped />
+      </testcase>
+    </testsuite>
+  </testsuite>
+</testsuites>

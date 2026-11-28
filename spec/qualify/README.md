@@ -1,6 +1,6 @@
 # qualify: Specification
 
-> **Status:** Draft v1 | **Schema:** [evidence.schema.json](evidence.schema.json)
+> **Status:** Draft v2 | **Schema:** [evidence.schema.json](evidence.schema.json)
 > (`schemaVersion` 1) | **Scenarios:**
 > [conformance/README.md](conformance/README.md)
 
@@ -10,6 +10,10 @@ Use (IU). A qualification test is an ordinary test with an ID, a narrative and
 recorded checks. When it runs, it leaves an evidence record that a reviewer can
 read without the code, and a trace matrix links each record to the requirements
 it covers.
+
+Unit tests (UT) run without qualify. `qualify import junit` turns their JUnit
+XML and LCOV coverage into a run file, so they reach the same report
+([section 6.6](#66-imported-unit-tests-and-coverage)).
 
 This document is the contract for every implementation. The TypeScript package
 is the reference and carries the full CLI. The Python, Java and C# packages
@@ -453,7 +457,8 @@ Three kinds, all defined in [evidence.schema.json](evidence.schema.json):
   declaration.
 - **Record**, `<runId>__<testId>__<key>.json`, `kind: "record"`, written when the
   test ends, already redacted. The marker stays in place; `merge` pairs them.
-- **Run file**, `kind: "run"`, written by `merge`.
+- **Run file**, `kind: "run"`, written by `merge`, or by `import junit` from
+  JUnit XML (section 6.6).
 
 `<key>` is the first 8 lowercase hex digits of the SHA-256 of the declaration's
 `site` (UTF-8). Without it, two declarations of one ID in one run would write
@@ -506,6 +511,66 @@ dot (the temporary files of an interrupted atomic write), and:
 are no records, and `pass` otherwise. With no records at all, `merge` still
 writes a run file, with the envelope of the process that runs `merge` and
 `startedAt` and `endedAt` set to the current time.
+
+### 6.6 Imported Unit Tests and Coverage
+
+`qualify import junit` (section 8) writes a run file from JUnit XML, for tests
+that run without qualify, such as unit tests. Its records are test cases, not
+qualification records: they have no narrative, checks or attachments.
+Samples from bun, vitest, pytest, JUnit 5 on Gradle and xUnit are in
+[conformance/fixtures/junit/](conformance/fixtures/junit/README.md).
+
+- **Envelope.** Built as `merge` builds it when there are no records: from the
+  process that runs `import`, with `source`, `actor`, `target`, `environment`
+  and `policy` as section 6.4 describes. `run.startedAt` is the earliest
+  `timestamp` of a `testsuite` element, and `run.endedAt` the latest
+  `timestamp` plus that suite's `time`. A timestamp without a zone is read as
+  UTC. Without any timestamp, both are the time of the import.
+- **Tests and cases.** `tests` is empty. `cases` holds one entry per
+  `testcase` element, in the order of the files and of the elements in each
+  file. The root element is `testsuites` or `testsuite`; suites may nest.
+
+  | Field        | From                                                                                                                                                                        |
+  | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `level`      | `--level`, `UT` by default.                                                                                                                                                 |
+  | `id`         | The first qualify test ID (section 4) in the name, not touching another letter, digit or hyphen. Absent when there is none.                                                 |
+  | `suite`      | The `name` of each enclosing `testsuite`, outermost first, joined by `" > "`. Empty when there is none.                                                                     |
+  | `classname`  | The `classname` attribute, or `null`.                                                                                                                                       |
+  | `name`       | The `name` attribute.                                                                                                                                                       |
+  | `file`       | The `file` attribute of the test case, else of the nearest enclosing suite that has one, else `null`.                                                                       |
+  | `outcome`    | `fail` for a `failure` child, `error` for an `error` child, `skip` for a `skipped` child, `pass` otherwise. The first of these children wins.                               |
+  | `skipReason` | The `skipped` element's `message` attribute, else its text, else `no reason given`.                                                                                         |
+  | `error`      | `type`: the element's `type` attribute, else its name. `message`: its `message` attribute, else the first line of its text, else empty. `detail`: its text, when not empty. |
+  | `durationMs` | The `time` attribute in seconds, times 1000, rounded. 0 when it is missing or not a number.                                                                                 |
+
+  Text is trimmed. Every string is redacted by the pattern rules of section 7.2
+  before it is written.
+
+- **Links.** A case carries no requirement links of its own. A case with an
+  `id` is a row of the trace matrix (section 8), so the protocol and the map
+  can link it.
+- **Summary.** `summary` counts the cases, and its verdict follows section 6.5.
+- **Imported files.** `imported` lists each input in argument order: `kind`
+  (`junit` or `lcov`), the path as given, and the SHA-256 of its bytes.
+- **Coverage.** With `--coverage`, `coverage` holds the totals for lines,
+  functions and branches, and the same per source file, read from LCOV
+  tracefiles. Each count is `found`, `hit` and `percent`, which is `hit`
+  divided by `found` times 100, rounded to two decimals, or `null` when
+  `found` is 0.
+  - Lines come from `DA` records: each distinct line is found, and hit when its
+    count is above 0. Functions come from `FN` and `FNDA` records by function
+    name, and branches from `BRDA` records by line, block and branch; a taken
+    count of `-` is 0. A file with no such records for a measure uses its
+    `LF`/`LH`, `FNF`/`FNH` or `BRF`/`BRH` totals instead.
+  - A file named by several records, in one tracefile or several, is
+    combined: the counts of each line, function and branch are added, and
+    totals-only measures take the larger `found` and the larger `hit`.
+  - The path (`SF`) is made relative to the working directory when it is an
+    absolute path inside it, with `/` as the separator. `files` is sorted by
+    path. `totals` add up every file.
+- **Input errors.** Input that is not well-formed XML, a document type
+  declaration, another root element, a test case without a `name`, and an LCOV
+  record before an `SF` line are input errors: exit 2, no run file.
 
 ## 7. Values and Redaction
 
@@ -581,11 +646,16 @@ keeps its bytes, redacted as bytes.
 The full CLI ships in the TypeScript package (`npx @lekman/qualify`). The Python,
 Java and C# packages ship `merge`, `validate` and `report` with the same flags and
 exit codes, so a project can produce its evidence and its PDF report without
-Node.
+Node. `import junit` ships in the TypeScript package only, for now. The other
+packages validate the run file it writes, and their `report` draws its cover,
+with the test counts, and its run details, but not its coverage or its test
+cases.
 
 ```text
 qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
 qualify validate FILE...
+qualify import junit JUNIT.xml... [--coverage lcov.info]... [--level UT]
+                 [--out test-evidence.json]
 qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                  [--md trace.md] [--json trace.json] [--fail-on-skip]
 qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml]
@@ -615,6 +685,10 @@ qualify report   RUNFILE --pdf FILE [--protocol protocol.yaml] [--map trace.yaml
 
 - Requirement links are the union of the map, the protocol and the code
   declarations. The matrix shows where each link came from.
+- An imported test case with an `id` (section 6.6) gives rows like a record:
+  its level is the prefix of the ID, its title is its name, and its links
+  come from the protocol and the map only. A case without an `id` is not in
+  the matrix.
 - `trace.md` has a header (environments, run IDs, commits, and the SHA-256 of
   each input), a summary line, a table of requirement, test ID, level, title,
   risk, outcome and run, a list of protocol IDs with no record, and a list of
@@ -635,7 +709,8 @@ missing record. A skipped test does not stop exit 0 unless `--fail-on-skip` is
 given; then a skip of a protocol ID, or of any test when there is no protocol,
 exits 3. `merge` exits with the code of its verdict: 0 for `pass`, 1 for
 `fail`, 3 for `incomplete`, and 2 for invalid input, when it writes no run
-file. `validate` exits 0 when every file is valid and 2 otherwise. `report`
+file. `import junit` exits the same way; its output defaults to
+`test-evidence.json` in the working directory. `validate` exits 0 when every file is valid and 2 otherwise. `report`
 exits 0 when the PDF is written, whatever the run's outcome, because a failed
 run needs its report too. It exits 2 for invalid input.
 
@@ -696,7 +771,11 @@ In this order:
    (`run.tool`), the generation time, the SHA-256 of the run file exactly as
    read, merged run IDs, and production write overrides. Merged runs and
    overrides are listed here, early, because a reviewer must see them first.
-3. **Summary and traceability.** Counts per level and outcome. The trace table:
+   When the run file has `imported`, an `Imported` row follows, listing each
+   file as `<path> (<kind>, <sha12>)`.
+3. **Summary and traceability.** Counts per level and outcome, test records
+   and test cases together, with a `UT` row after `IU` when any has level
+   `UT`. The trace table:
    requirement, test ID, level, title, risk and outcome, with the same rows and
    link sources as `trace`. A requirement cell holds the requirement and its
    sources, for example `EXPORT-003 (code, map)`, and an outcome is the JSON
@@ -704,7 +783,22 @@ In this order:
    headings `Not run` (protocol IDs with no record, each with its title) and
    `Requirements without a passing test`, each holding the line `None` when
    empty.
-4. **One section per test,** sorted by ID: the heading `<ID> <title>`; level,
+4. **Coverage,** when the run file has `coverage`: under the level 2 heading
+   `Coverage`, a table of measure (`Lines`, `Functions`, `Branches`), found,
+   hit and percent. Then, under the level 3 heading `Coverage by file`, one
+   row per file: the path, then lines, functions and branches, each as
+   `<percent>% (<hit>/<found>)`, or `-` when found is 0. Percentages have two
+   decimals. Rows are sorted by line percent, lowest first, with files that
+   have no lines last, then by path.
+5. **Test cases,** when the run file has `cases`. Under the level 2 heading
+   `Failed test cases`, one part per case with outcome `fail` or `error`, in
+   file order: the level 3 heading `<name>`; suite, class, test ID, level,
+   outcome, file, duration, error type and error message; and the error
+   detail in the mono font. The line `None` when no case failed. Then, under
+   the level 2 heading `Test cases`, one table of every case: class (the
+   `classname`, or the suite when it is `null`), name, outcome and duration.
+   A skipped case's outcome reads `skip: <reason>`.
+6. **One section per test,** sorted by ID: the heading `<ID> <title>`; level,
    outcome (the JSON value), risk, scope, requirements, tags and `controls`;
    the skip reason, or the error type and message; the narrative (`Given`,
    `When`, `Then`, and each `And`); a checks table with number (`seq` plus 1),
@@ -713,7 +807,7 @@ In this order:
    name, content type, size and SHA-256; each PNG and JPEG attachment drawn as
    an image below that table (section 9.2, **Images**); and the names in
    `secretsUsed`. The content of any other attachment is not rendered.
-5. **Signature block,** when the theme or `--signatures` names any roles,
+7. **Signature block,** when the theme or `--signatures` names any roles,
    under the level 2 heading `Signatures`. One row per role, each with blank
    lines for name, signature and date.
 
@@ -731,10 +825,11 @@ In this order:
   A header or footer text too long for its space is cut and ends with `…`.
 - **Headings:** the level 1 heading in the heading font at 20 pt in the
   `title` colour, with a rule in the `accent` colour across the text width
-  below it; level 2 headings (`Run details`, `Summary`, `Traceability`, the
-  test headings) at 14 pt in the `heading` colour; level 3 headings (`Not run`,
-  `Requirements without a passing test`, `Checks`, `Attachments`) at 11 pt in
-  the `heading` colour.
+  below it; level 2 headings (`Run details`, `Summary`, `Traceability`,
+  `Coverage`, `Failed test cases`, `Test cases`, the test headings) at 14 pt in
+  the `heading` colour; level 3 headings (`Not run`,
+  `Requirements without a passing test`, `Coverage by file`, each failed
+  case's name, `Checks`, `Attachments`) at 11 pt in the `heading` colour.
 - **Tables:** a header row filled with `tableHeader`, its text in the bold body
   font in `tableHeaderText`; body rows in the body font at 9 pt in the `text`
   colour; every second body row filled with `tableStripe`; a hairline in the
@@ -810,19 +905,19 @@ violation, a missing file, an unknown token) is an input error: exit 2, no PDF.
 The `texts` are templates. They may use these tokens, and nothing else in
 braces; `{{` and `}}` print a literal brace:
 
-| Token               | Value                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `{title}`           | the resolved title                                                                                                                    |
-| `{documentId}`      | the resolved document ID                                                                                                              |
-| `{classification}`  | the resolved classification                                                                                                           |
-| `{environment}`     | `run.environment`                                                                                                                     |
-| `{levels}`          | the levels present in the run, in the order IQ, OQ, PQ, IU, joined as `IQ`, `IQ and OQ`, `IQ, OQ and PQ`; `-` for a run with no tests |
-| `{date}`            | the generation date, `YYYY-MM-DD`                                                                                                     |
-| `{version}`         | `run.target.version`, or `-`                                                                                                          |
-| `{verdict}`         | `Passed`, `Failed` or `Incomplete`                                                                                                    |
-| `{runId}`           | `run.id`                                                                                                                              |
-| `{sha12}`           | the first 12 characters of the run file's SHA-256                                                                                     |
-| `{page}`, `{pages}` | the page number and the page count (header and footer only)                                                                           |
+| Token               | Value                                                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{title}`           | the resolved title                                                                                                                                         |
+| `{documentId}`      | the resolved document ID                                                                                                                                   |
+| `{classification}`  | the resolved classification                                                                                                                                |
+| `{environment}`     | `run.environment`                                                                                                                                          |
+| `{levels}`          | the levels present in the run's tests and cases, in the order IQ, OQ, PQ, IU, UT, joined as `IQ`, `IQ and OQ`, `IQ, OQ and PQ`; `-` for a run with neither |
+| `{date}`            | the generation date, `YYYY-MM-DD`                                                                                                                          |
+| `{version}`         | `run.target.version`, or `-`                                                                                                                               |
+| `{verdict}`         | `Passed`, `Failed` or `Incomplete`                                                                                                                         |
+| `{runId}`           | `run.id`                                                                                                                                                   |
+| `{sha12}`           | the first 12 characters of the run file's SHA-256                                                                                                          |
+| `{page}`, `{pages}` | the page number and the page count (header and footer only)                                                                                                |
 
 `texts.title` and `texts.classification` are resolved first, so they may not
 use `{title}` or `{classification}`; the other texts may. Using a token where it
@@ -843,6 +938,10 @@ document ID defaults to `QR-<environment>-<run start date as YYYYMMDD>`.
   integration in CI.
 - A breaking schema change bumps `schemaVersion`. `validate` accepts the current
   and the previous version for one minor release after a change.
+- A change that only adds to the contract, so that every file valid before
+  stays valid, keeps `schemaVersion` and raises the draft number in this
+  document's status line. Draft v2 added imported test cases and coverage
+  (section 6.6).
 
 ## 11. Out of Scope
 

@@ -1,0 +1,37 @@
+SF:amounts/__init__.py
+DA:1,1
+DA:2,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,0
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,0
+DA:19,1
+LF:15
+LH:13
+FN:1,2,round_amount
+FNDA:1,round_amount
+FN:5,11,parse
+FNDA:1,parse
+FN:14,19,currency
+FNDA:1,currency
+FNF:3
+FNH:3
+BRDA:6,0,jump to line 7,1
+BRDA:6,0,jump to line 8,1
+BRDA:9,0,jump to line 10,1
+BRDA:9,0,jump to line 11,0
+BRDA:15,0,jump to line 16,1
+BRDA:15,0,jump to line 17,1
+BRDA:17,0,jump to line 18,0
+BRDA:17,0,jump to line 19,1
+BRF:8
+BRH:6
+end_of_record

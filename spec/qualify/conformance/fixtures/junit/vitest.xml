@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="5" failures="2" errors="0" time="0.004538459">
+    <testsuite name="tests/amounts.test.ts" timestamp="2026-11-28T04:32:12.058Z" hostname="runner" tests="5" failures="2" errors="0" skipped="1" time="0.004538459">
+        <testcase classname="tests/amounts.test.ts" name="amounts &gt; [OQ-AMOUNTS-001] parses an empty line as no amount" time="0.000581291">
+        </testcase>
+        <testcase classname="tests/amounts.test.ts" name="amounts &gt; rounds to two decimals" time="0.000104375">
+        </testcase>
+        <testcase classname="tests/amounts.test.ts" name="amounts &gt; rejects a negative amount" time="0.002272458">
+            <failure message="expected [Function] to not throw an error but &apos;Error: negative amount&apos; was thrown" type="AssertionError">
+AssertionError: expected [Function] to not throw an error but &apos;Error: negative amount&apos; was thrown
+
+- Expected:
+undefined
+
++ Received:
+&quot;Error: negative amount&quot;
+
+ ❯ tests/amounts.test.ts:12:35
+            </failure>
+        </testcase>
+        <testcase classname="tests/amounts.test.ts" name="amounts &gt; reads the exchange rate" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/amounts.test.ts" name="amounts &gt; currency &gt; names the euro" time="0.001000291">
+            <failure message="expected &apos;euro&apos; to be &apos;dollar&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;euro&apos; to be &apos;dollar&apos; // Object.is equality
+
+Expected: &quot;dollar&quot;
+Received: &quot;euro&quot;
+
+ ❯ tests/amounts.test.ts:17:31
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>
