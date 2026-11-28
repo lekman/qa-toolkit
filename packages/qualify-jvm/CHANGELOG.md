@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/lekman/qa-toolkit/compare/qualify-jvm@v0.2.0...qualify-jvm@v0.3.0) (2026-11-28)
+
+
+### Features
+
+* **qualify:** import JUnit XML and LCOV as a unit-level run, with coverage in the report ([#41](https://github.com/lekman/qa-toolkit/issues/41)) ([5e0b716](https://github.com/lekman/qa-toolkit/commit/5e0b71672e1b09f123b4204e3c1480f7b9ae8beb))
+
 ## [0.2.0](https://github.com/lekman/qa-toolkit/compare/qualify-jvm@v0.1.0...qualify-jvm@v0.2.0) (2026-11-22)
 
 
