@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="1" tests="7" time="0.029" timestamp="2026-11-28T05:27:22.592777+01:00" hostname="runner"><testcase classname="tests.test_amounts" name="test_ut_amounts_001_parses_an_empty_line" time="0.000" /><testcase classname="tests.test_amounts" name="test_rounds_to_two_decimals" time="0.000" /><testcase classname="tests.test_amounts" name="test_rejects_a_negative_amount" time="0.000"><failure message="ValueError: negative amount">def test_rejects_a_negative_amount():
+&gt;       assert parse("-1") == -1
+               ^^^^^^^^^^^
+
+tests/test_amounts.py:16: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+line = '-1'
+
+    def parse(line):
+        if line.strip() == "":
+            return None
+        value = float(line)
+        if value &lt; 0:
+&gt;           raise ValueError("negative amount")
+E           ValueError: negative amount
+
+amounts/__init__.py:10: ValueError</failure></testcase><testcase classname="tests.test_amounts" name="test_names_the_euro" time="0.000" /><testcase classname="tests.test_amounts" name="test_reads_the_exchange_rate" time="0.000"><skipped type="pytest.skip" message="needs the rate service">/home/runner/work/sample/tests/test_amounts.py:23: needs the rate service</skipped></testcase><testcase classname="tests.test_amounts.TestCurrency" name="test_unknown_code" time="0.000" /><testcase classname="tests.test_amounts.TestCurrency" name="test_dollar_lookup_raises" time="0.000"><failure message="RuntimeError: rate table missing">self = &lt;test_amounts.TestCurrency object at 0x10765ead0&gt;
+
+    def test_dollar_lookup_raises(self):
+&gt;       raise RuntimeError("rate table missing")
+E       RuntimeError: rate table missing
+
+tests/test_amounts.py:33: RuntimeError</failure></testcase></testsuite></testsuites>

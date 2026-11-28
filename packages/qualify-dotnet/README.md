@@ -7,8 +7,8 @@
 This is the C# implementation of the
 [qualify specification](../../spec/qualify/README.md). It writes the same
 evidence files as the TypeScript reference, [@lekman/qualify](../qualify-ts/README.md),
-byte for byte, and passes the same 22 conformance scenarios. It is not
-published yet.
+byte for byte, and passes the same 22 conformance scenarios. Version 0.2.0 of
+`Lekman.Qualify` and `Lekman.Qualify.Tool` is on nuget.org.
 
 ## Why
 
@@ -172,6 +172,16 @@ this tool writes.
 | 2         | Invalid input: schema violation, duplicate ID, bad theme  |
 | 3         | `merge`: no records                                       |
 | 64        | Usage error                                               |
+
+### Unit Tests
+
+`import junit`, which turns JUnit XML and LCOV coverage from unit tests into a
+run file, is in the TypeScript package only for now:
+`npx @lekman/qualify import junit junit.xml --coverage lcov.info`. This
+package's `validate` accepts the run file it writes, and `report` draws its
+cover, with the test counts, and its run details. The summary table counts no
+test cases, and the coverage and the test cases are left out; draw the full
+report with `npx @lekman/qualify report`.
 
 ## The Qualification Report
 

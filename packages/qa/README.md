@@ -52,17 +52,17 @@ pass  web-oq  apps/web   1 tests  0 failed  0 errors  0 skipped  0.1 s
 
 ## Options
 
-| Option              | Default                     | What it does                                                          |
-| ------------------- | --------------------------- | --------------------------------------------------------------------- |
-| `SET...`            | every set                   | Run only the named sets                                               |
-| `--level LEVEL`     | every level                 | Only sets of a level; repeat for several                              |
-| `--changed`         | off                         | Only folders with a change since `--base`, or not yet committed       |
-| `--base REF`        | `origin/main`               | What `--changed` compares with                                        |
-| `--report`          | off                         | A PDF per qualification set, with `qualify report`                    |
-| `--dry-run`         | off                         | Print the commands and their variables, run nothing                   |
-| `--out DIR`         | `qa-results`                | Where the merged results and reports go, relative to `qa.yaml`        |
-| `--qualify COMMAND` | `npx --yes @lekman/qualify` | How to run the qualify CLI, such as `uv run qualify` in a Python repo |
-| `--config FILE`     | the nearest `qa.yaml`       | Which file to read                                                    |
+| Option              | Default                           | What it does                                                          |
+| ------------------- | --------------------------------- | --------------------------------------------------------------------- |
+| `SET...`            | every set                         | Run only the named sets                                               |
+| `--level LEVEL`     | every level                       | Only sets of a level; repeat for several                              |
+| `--changed`         | off                               | Only folders with a change since `--base`, or not yet committed       |
+| `--base REF`        | `origin/main`                     | What `--changed` compares with                                        |
+| `--report`          | off                               | A PDF per qualification set, with `qualify report`                    |
+| `--dry-run`         | off                               | Print the commands and their variables, run nothing                   |
+| `--out DIR`         | `qa-results`                      | Where the merged results and reports go, relative to `qa.yaml`        |
+| `--qualify COMMAND` | `npx --yes @lekman/qualify@0.2.0` | How to run the qualify CLI, such as `uv run qualify` in a Python repo |
+| `--config FILE`     | the nearest `qa.yaml`             | Which file to read                                                    |
 
 | Exit code | Meaning                                                   |
 | --------- | --------------------------------------------------------- |
@@ -73,6 +73,10 @@ pass  web-oq  apps/web   1 tests  0 failed  0 errors  0 skipped  0.1 s
 
 ## What It Costs and What It Does Not Do
 
+- **qualify is pinned.** `qa` runs qualify 0.2.0 through `npx` unless
+  `--qualify` names another command, so a new qualify release does not change
+  what an installed `qa` does. To use a newer qualify before `qa` moves its
+  pin, pass `--qualify "npx --yes @lekman/qualify@<version>"`.
 - **Sets run one after another.** A repository with many slow sets waits for
   each. Parallel runs are not built.
 - **`--changed` is by folder.** A change anywhere in a package folder runs

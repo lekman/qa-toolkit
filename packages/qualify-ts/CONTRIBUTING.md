@@ -10,27 +10,28 @@ rules in [docs/CONTRIBUTING.md](../../docs/CONTRIBUTING.md).
 One folder per domain, following
 [.claude/rules/clean-architecture.md](../../.claude/rules/clean-architecture.md).
 
-| Folder            | Holds                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `src/declaration` | `Declarations.validate`: fields, IDs and levels, sections 2.1 and 4.                         |
-| `src/checks`      | `TestContext`, the matchers, `CheckFailed`, `SkipSignal` and the other errors.               |
-| `src/outcome`     | `Outcomes.classify`: pass, fail, error or skip, section 3.3.                                 |
-| `src/values`      | Normalisation (7.1) and `JsonText`, the writer every evidence file goes through.             |
-| `src/redaction`   | Registered values, pattern rules, JSON keys and bytes, section 7.2.                          |
-| `src/settings`    | `SettingsResolver` (variables and options) and `Policy` (write protection, rules).           |
-| `src/envelope`    | `Envelope`: source, actor and target. `envelope.system.ts` runs git.                         |
-| `src/evidence`    | File names, key order, types. `evidence.system.ts` writes files atomically.                  |
-| `src/execution`   | `Execution`, the one test lifecycle every adapter shares, and `Runtime`, per process.        |
-| `src/scenario`    | `Scenarios`: a Gherkin scenario to a declaration, and cucumber's result to an outcome.       |
-| `src/merge`       | `Merge.build`: records and markers to a run file, section 6.5.                               |
-| `src/trace`       | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                                 |
-| `src/report`      | The PDF report: `ReportContent` (pure), `Layout` (pure, over `ITextMetrics`), `PdfRenderer`. |
-| `src/theme`       | `ThemeLoader` and `Template`: report themes and their tokens, section 9.3.                   |
-| `src/schema`      | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                         |
-| `src/cli`         | `Commands` (covered) and `cli.ts` (wiring only, not covered).                                |
-| `src/adapters`    | vitest, `node:test`, bun and cucumber-js glue, and setup modules. Covered by conformance.    |
-| `conformance/`    | The scenario test files per runner, fixtures, and the harness `run.ts`.                      |
-| `tests/`          | Unit tests, mirroring `src/`, with in-memory mocks in `tests/mocks/`.                        |
+| Folder             | Holds                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `src/declaration`  | `Declarations.validate`: fields, IDs and levels, sections 2.1 and 4.                                           |
+| `src/checks`       | `TestContext`, the matchers, `CheckFailed`, `SkipSignal` and the other errors.                                 |
+| `src/outcome`      | `Outcomes.classify`: pass, fail, error or skip, section 3.3.                                                   |
+| `src/values`       | Normalisation (7.1) and `JsonText`, the writer every evidence file goes through.                               |
+| `src/redaction`    | Registered values, pattern rules, JSON keys and bytes, section 7.2.                                            |
+| `src/settings`     | `SettingsResolver` (variables and options) and `Policy` (write protection, rules).                             |
+| `src/envelope`     | `Envelope`: source, actor and target. `envelope.system.ts` runs git.                                           |
+| `src/evidence`     | File names, key order, types. `evidence.system.ts` writes files atomically.                                    |
+| `src/execution`    | `Execution`, the one test lifecycle every adapter shares, and `Runtime`, per process.                          |
+| `src/scenario`     | `Scenarios`: a Gherkin scenario to a declaration, and cucumber's result to an outcome.                         |
+| `src/merge`        | `Merge.build`: records and markers to a run file, section 6.5.                                                 |
+| `src/trace`        | `TraceInputs`, `Trace.build` and `TraceMarkdown`, section 8.                                                   |
+| `src/junit-import` | `JUnitImport.build`: JUnit XML (`Xml`, `JUnit`) and LCOV (`Lcov`) to a run file, section 6.6.                  |
+| `src/report`       | The PDF report: `ReportContent` and `ReportCases` (pure), `Layout` (pure, over `ITextMetrics`), `PdfRenderer`. |
+| `src/theme`        | `ThemeLoader` and `Template`: report themes and their tokens, section 9.3.                                     |
+| `src/schema`       | Copies of the two schemas in `spec/qualify/`, and the ajv validator.                                           |
+| `src/cli`          | `Commands` (covered) and `cli.ts` (wiring only, not covered).                                                  |
+| `src/adapters`     | vitest, `node:test`, bun and cucumber-js glue, and setup modules. Covered by conformance.                      |
+| `conformance/`     | The scenario test files per runner, fixtures, and the harness `run.ts`.                                        |
+| `tests/`           | Unit tests, mirroring `src/`, with in-memory mocks in `tests/mocks/`.                                          |
 
 An adapter only registers the test under `[<ID>] <title>` and maps the result
 back to its runner. Everything else, from the started marker to the redacted

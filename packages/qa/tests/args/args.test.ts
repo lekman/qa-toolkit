@@ -65,7 +65,7 @@ describe("Args", () => {
       changed: false,
       names: [],
       out: "qa-results",
-      qualify: "npx --yes @lekman/qualify",
+      qualify: "npx --yes @lekman/qualify@0.2.0",
     });
   });
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type {
   AttachmentRecord,
+  Outcome,
   RecordFile,
   RunFile,
   RunFileInfo,
@@ -122,8 +123,8 @@ export class Merge {
   }
 
   /** Counts and verdict: fail on any fail or error, incomplete with no tests. */
-  static summary(tests: readonly TestRecord[]): RunSummary {
-    const count = (outcome: TestRecord["outcome"]): number =>
+  static summary(tests: readonly { outcome: Outcome }[]): RunSummary {
+    const count = (outcome: Outcome): number =>
       tests.filter((t) => t.outcome === outcome).length;
     const fail = count("fail");
     const error = count("error");

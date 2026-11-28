@@ -157,8 +157,74 @@ export interface RunSummary {
   verdict: "fail" | "incomplete" | "pass";
 }
 
-/** `test-evidence.json`, written by merge. */
+/** Level of an imported test case: a qualification level, or UT for unit tests. */
+export type CaseLevel = "IQ" | "IU" | "OQ" | "PQ" | "UT";
+
+/** The first failure or error element of an imported test case, redacted. */
+export interface CaseFailure {
+  /** The element's text, such as a stack trace. Absent when empty. */
+  detail?: string;
+  message: string;
+  type: string;
+}
+
+/** One test case imported from JUnit XML, section 6.6. */
+export interface TestCase {
+  classname: null | string;
+  durationMs: number;
+  error?: CaseFailure;
+  file: null | string;
+  /** The first qualify test ID in the name, when there is one. */
+  id?: string;
+  level: CaseLevel;
+  name: string;
+  outcome: Outcome;
+  skipReason?: string;
+  /** Enclosing suite names, outermost first, joined by `" > "`. */
+  suite: string;
+}
+
+/** Found, hit and percent for one coverage measure. */
+export interface CoverageCounter {
+  found: number;
+  hit: number;
+  /** `hit / found * 100` with two decimals, `null` when nothing was found. */
+  percent: null | number;
+}
+
+/** Lines, functions and branches. */
+export interface CoverageCounts {
+  branches: CoverageCounter;
+  functions: CoverageCounter;
+  lines: CoverageCounter;
+}
+
+/** The coverage of one source file. */
+export interface CoverageFile extends CoverageCounts {
+  path: string;
+}
+
+/** Coverage imported from LCOV, with totals and one entry per file. */
+export interface Coverage {
+  /** Sorted by path. */
+  files: CoverageFile[];
+  totals: CoverageCounts;
+}
+
+/** A file `import junit` read. */
+export interface ImportedFile {
+  kind: "junit" | "lcov";
+  path: string;
+  sha256: string;
+}
+
+/** `test-evidence.json`, written by merge or by import junit. */
 export interface RunFile {
+  /** Test cases imported from JUnit XML. */
+  cases?: TestCase[];
+  coverage?: Coverage;
+  /** The files import junit read. */
+  imported?: ImportedFile[];
   kind: "run";
   run: RunFileInfo;
   schemaVersion: 1;

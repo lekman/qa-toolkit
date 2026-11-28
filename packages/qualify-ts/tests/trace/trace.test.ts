@@ -307,3 +307,69 @@ describe("TraceMarkdown", () => {
     );
   });
 });
+
+describe("Trace: imported test cases", () => {
+  test("a case with an ID is a row with the ID's level and its name; one without is not", () => {
+    const file: RunFile = {
+      ...runFile([]),
+      cases: [
+        {
+          level: "UT",
+          id: "OQ-A1-001",
+          suite: "s",
+          classname: null,
+          name: "[OQ-A1-001] keeps amounts",
+          file: null,
+          outcome: "pass",
+          durationMs: 1,
+        },
+        {
+          level: "UT",
+          suite: "s",
+          classname: null,
+          name: "rounds",
+          file: null,
+          outcome: "fail",
+          error: { type: "failure", message: "m" },
+          durationMs: 1,
+        },
+      ],
+    };
+    const { trace, exitCode } = Trace.build({
+      evidence: [{ path: "ev.json", sha256: "a".repeat(64), content: file }],
+      failOnSkip: false,
+      map: {
+        path: "trace.yaml",
+        sha256: "b".repeat(64),
+        content: new Map([["OQ-A1-001", ["R1"]]]),
+      },
+      protocol: {
+        path: "protocol.yaml",
+        sha256: "c".repeat(64),
+        content: [
+          {
+            id: "OQ-A1-001",
+            level: "OQ",
+            title: "Keeps",
+            requirements: ["R2"],
+          },
+        ],
+      },
+    });
+    expect(exitCode).toBe(0);
+    expect(trace.notRun).toEqual([]);
+    expect(
+      trace.rows.map((r) => [
+        r.requirement,
+        r.sources,
+        r.testId,
+        r.level,
+        r.title,
+      ]),
+    ).toEqual([
+      ["R1", ["map"], "OQ-A1-001", "OQ", "[OQ-A1-001] keeps amounts"],
+      ["R2", ["protocol"], "OQ-A1-001", "OQ", "[OQ-A1-001] keeps amounts"],
+    ]);
+    expect(Schema.trace(trace)).toEqual([]);
+  });
+});

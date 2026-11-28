@@ -1,0 +1,3 @@
+# Runner output kept byte for byte: pytest writes lines that end in a space,
+# and git's whitespace check would otherwise refuse them.
+spec/qualify/conformance/fixtures/junit/*.xml -whitespace

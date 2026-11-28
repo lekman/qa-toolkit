@@ -34,7 +34,12 @@ export type Block =
     }
   | { items: string[]; kind: "list" }
   | { kind: "heading"; level: 1 | 2 | 3; text: string }
-  | { kind: "paragraph"; text: string }
+  | {
+      kind: "paragraph";
+      /** Draw the text in the mono font, as for a stack trace. */
+      mono?: boolean;
+      text: string;
+    }
   | { kind: "signatures"; roles: string[] };
 
 /** An image format the report draws. */

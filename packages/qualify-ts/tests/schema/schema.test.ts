@@ -79,6 +79,31 @@ describe("Key order follows the schema", () => {
     );
   });
 
+  test("imported files, test cases and coverage", () => {
+    const item = (name: string): ShapeNode =>
+      (shape.fields[name] as ShapeNode).items as ShapeNode;
+    expect(item("imported").order).toEqual(props(defs.importedFile));
+    expect(item("cases").order).toEqual(props(defs.testCase));
+    expect((item("cases").fields.error as ShapeNode).order).toEqual(
+      props(defs.caseFailure),
+    );
+    const coverage = shape.fields.coverage as ShapeNode;
+    expect(coverage.order).toEqual(props(defs.coverage));
+    const totals = coverage.fields.totals as ShapeNode;
+    expect(totals.order).toEqual(props(defs.coverage?.properties?.totals));
+    const file = (coverage.fields.files as ShapeNode).items as ShapeNode;
+    expect(file.order).toEqual(props(defs.coverageFile));
+    for (const measure of ["lines", "functions", "branches"]) {
+      expect((totals.fields[measure] as ShapeNode).order).toEqual(
+        props(defs.coverageCounter),
+      );
+      expect((file.fields[measure] as ShapeNode).order).toEqual(
+        props(defs.coverageCounter),
+      );
+    }
+    expect(shape.order).toEqual([...props(defs.runFile), "test"]);
+  });
+
   test("trace.json", () => {
     const trace = JSON.parse(
       readFileSync(join(SPEC, "trace.schema.json"), "utf8"),

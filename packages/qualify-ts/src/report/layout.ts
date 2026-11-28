@@ -528,20 +528,23 @@ export class Layout {
       case "image":
         Layout.image(cursor, block);
         return;
-      case "paragraph":
+      case "paragraph": {
+        const font: FontSlot = block.mono === true ? "mono" : "body";
+        const size = sizeOf(font);
         cursor.lines(
           Layout.wrap(
-            clean(metrics, block.text, "body"),
+            clean(metrics, block.text, font),
             cursor.width,
-            SIZE.body,
-            "body",
+            size,
+            font,
             metrics,
           ),
-          SIZE.body,
-          body,
+          size,
+          { font, colour: "text" },
         );
         cursor.y -= 4;
         return;
+      }
       case "list": {
         const bullet = metrics.canDraw(0x2022, "body") ? "•" : "-";
         for (const item of block.items) {

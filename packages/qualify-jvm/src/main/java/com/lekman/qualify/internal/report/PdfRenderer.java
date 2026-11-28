@@ -52,7 +52,9 @@ public final class PdfRenderer {
         byte[] bytes = Objects.requireNonNull(theme.fonts().get(slot));
         TrueTypeFont ttf = parsed.get(bytes);
         if (ttf == null) {
-          ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
+          ttf =
+              new TTFParser()
+                  .parse(new RandomAccessReadBuffer(FontTables.withoutGlyphSubstitution(bytes)));
           opened.add(ttf);
           parsed.put(bytes, ttf);
           embedded.put(bytes, PDType0Font.load(pdf, ttf, true));

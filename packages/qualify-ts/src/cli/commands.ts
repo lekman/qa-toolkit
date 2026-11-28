@@ -4,13 +4,14 @@ import { createHash } from "node:crypto";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import type { RunFile } from "../evidence";
+import type { CaseLevel, RunFile } from "../evidence";
 import type { ProtocolEntry, TraceSource } from "../trace";
 import type { ICliIO } from "./interfaces";
 
 import { Envelope } from "../envelope";
 import { EVIDENCE_SHAPE, EvidenceFiles } from "../evidence";
 import { Runtime } from "../execution";
+import { ImportError, JUnitImport } from "../junit-import";
 import { Merge } from "../merge";
 import { PdfRenderer, ReportContent } from "../report";
 import { Schema } from "../schema";
@@ -39,6 +40,8 @@ export const EXIT = {
 export const USAGE = `Usage:
   qualify merge    [--evidence-dir DIR] [--allow-runs ID,ID] [--out FILE]
   qualify validate FILE...
+  qualify import junit JUNIT.xml... [--coverage lcov.info]... [--level UT]
+                   [--out test-evidence.json]
   qualify trace    EVIDENCE... [--protocol protocol.yaml] [--map trace.yaml]
                    [--md trace.md] [--json trace.json] [--fail-on-skip]
   qualify report   RUNFILE --pdf FILE [--theme NAME|PATH] [--protocol protocol.yaml]
@@ -49,6 +52,9 @@ export const USAGE = `Usage:
 
 Exit codes: 0 pass, 1 fail or error, 2 invalid input, 3 incomplete, 64 usage.
 `;
+
+/** The levels `import junit --level` accepts. */
+const CASE_LEVELS: readonly CaseLevel[] = ["IQ", "OQ", "PQ", "IU", "UT"];
 
 /** A problem with how the command was called. Exit 64. */
 class UsageError extends Error {}
@@ -101,6 +107,8 @@ export class Commands {
         case "-v":
           io.stdout(`${Runtime.TOOL_VERSION}\n`);
           return EXIT.ok;
+        case "import":
+          return await Commands.import(rest, io);
         case "merge":
           return await Commands.merge(rest, io);
         case "report":
@@ -123,6 +131,7 @@ export class Commands {
       }
       if (
         error instanceof InputError ||
+        error instanceof ImportError ||
         error instanceof TraceInputError ||
         error instanceof ThemeError ||
         error instanceof ConfigurationError
@@ -135,7 +144,10 @@ export class Commands {
   }
 
   /** The envelope of a run with no records, from this process's environment. */
-  private static emptyEnvelope(io: ICliIO): ReturnType<typeof Envelope.build> {
+  private static emptyEnvelope(
+    io: ICliIO,
+    command = "qualify merge",
+  ): ReturnType<typeof Envelope.build> {
     const settings = SettingsResolver.resolve(io.env);
     const runId = io.env.QUALIFY_RUN_ID;
     return Envelope.build({
@@ -151,9 +163,74 @@ export class Commands {
         name: Runtime.TOOL_NAME,
         version: Runtime.TOOL_VERSION,
         language: "typescript",
-        runtime: `${io.runtime()}; qualify merge`,
+        runtime: `${io.runtime()}; ${command}`,
       },
     });
+  }
+
+  /** `qualify import junit`: a run file from JUnit XML and LCOV. */
+  private static async import(args: string[], io: ICliIO): Promise<number> {
+    const [kind, ...rest] = args;
+    if (kind !== "junit") {
+      throw new UsageError(
+        kind === undefined
+          ? "import needs a format: import junit"
+          : `cannot import ${kind}; the format is junit`,
+      );
+    }
+    const { values, positionals } = parse(rest, {
+      coverage: { type: "string", multiple: true },
+      level: { type: "string" },
+      out: { type: "string" },
+    });
+    if (positionals.length === 0)
+      throw new UsageError("import junit needs at least one JUnit XML file");
+    const level = ((values.level as string | undefined) ?? "UT").toUpperCase();
+    if (!(CASE_LEVELS as readonly string[]).includes(level)) {
+      throw new UsageError(
+        `--level must be one of ${CASE_LEVELS.join(", ")}, got ${values.level as string}`,
+      );
+    }
+    const source = async (path: string) => {
+      const bytes = await Commands.read(io, path);
+      return { path, sha256: sha256(bytes), text: text(bytes) };
+    };
+    const junit = [];
+    for (const path of positionals) junit.push(await source(path));
+    const coverage = [];
+    const lcov = (values.coverage ?? []) as unknown as string[];
+    for (const path of lcov) coverage.push(await source(path));
+
+    const result = JUnitImport.build({
+      junit,
+      coverage,
+      level: level as CaseLevel,
+      cwd: io.cwd(),
+      envelope: Commands.emptyEnvelope(io, "qualify import junit"),
+      now: io.now(),
+    });
+    const problems = Schema.evidence(result.file);
+    if (problems.length > 0) {
+      throw new InputError(
+        `the imported run file is not valid: ${problems.join("; ")}`,
+      );
+    }
+    const out = Commands.path(
+      io,
+      (values.out as string | undefined) ?? EvidenceFiles.RUN_FILE,
+    );
+    const document = JsonText.document(result.file, EVIDENCE_SHAPE);
+    await io.writer.write(out, document);
+    await io.writer.write(
+      `${out}.sha256`,
+      EvidenceFiles.sidecar(document, basename(out)),
+    );
+    const s = result.file.summary;
+    const lines = result.file.coverage?.totals.lines.percent;
+    io.stdout(
+      `qualify import junit: ${s.total} tests, ${s.pass} pass, ${s.fail} fail, ${s.error} error, ${s.skip} skip${lines === undefined ? "" : `; line coverage ${lines === null ? "-" : `${lines.toFixed(2)}%`}`}; verdict ${s.verdict}; wrote ${out}\n`,
+    );
+    return result.exitCode;
   }
 
   /** Read and validate a protocol and a map file, when given. */

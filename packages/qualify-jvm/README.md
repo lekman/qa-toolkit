@@ -8,7 +8,7 @@ This is the Java implementation of the
 [qualify specification](../../spec/qualify/README.md). It writes the same
 evidence files as the TypeScript reference,
 [@lekman/qualify](../qualify-ts/README.md), and passes the same conformance
-scenarios. It is not published yet.
+scenarios. Version 0.2.0 is on Maven Central.
 
 ## Why
 
@@ -29,7 +29,7 @@ Gradle (Kotlin DSL):
 
 ```kotlin
 dependencies {
-    testImplementation("com.lekman:qualify:0.1.0")
+    testImplementation("com.lekman:qualify:0.2.0")
 }
 
 tasks.test {
@@ -43,7 +43,7 @@ Maven:
 <dependency>
   <groupId>com.lekman</groupId>
   <artifactId>qualify</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -170,18 +170,28 @@ in the job, which every test JVM inherits, or merge the forks' runs with
 
 ## The CLI
 
-`qualify-0.1.0-cli.jar` holds `merge`, `validate` and `report` with the flags
-and exit codes of section 8 of the specification:
+`qualify-0.2.0-cli.jar` holds `merge`, `validate` and `report` with the flags
+and exit codes of section 8 of the specification. Maven Central has the
+library only, so build the CLI jar from this folder with `./gradlew cliJar`;
+it is written to `build/libs/`.
 
 ```bash
-java -jar qualify-0.1.0-cli.jar merge --evidence-dir qualification/evidence
-java -jar qualify-0.1.0-cli.jar validate qualification/evidence/test-evidence.json
-java -jar qualify-0.1.0-cli.jar report qualification/evidence/test-evidence.json \
+java -jar qualify-0.2.0-cli.jar merge --evidence-dir qualification/evidence
+java -jar qualify-0.2.0-cli.jar validate qualification/evidence/test-evidence.json
+java -jar qualify-0.2.0-cli.jar report qualification/evidence/test-evidence.json \
   --pdf report.pdf --protocol protocol.yaml --theme plain
 ```
 
 `trace`, the Markdown and JSON trace matrix, is in the TypeScript package:
 `npx @lekman/qualify trace ...`. The Java CLI prints that pointer and exits 64.
+
+`import junit`, which turns JUnit XML and LCOV coverage from unit tests into a
+run file, is in the TypeScript package only for now:
+`npx @lekman/qualify import junit junit.xml --coverage lcov.info`. This
+package's `validate` accepts the run file it writes, and `report` draws its
+cover, with the test counts, and its run details. The summary table counts no
+test cases, and the coverage and the test cases are left out; draw the full
+report with `npx @lekman/qualify report`.
 
 ## The Report
 

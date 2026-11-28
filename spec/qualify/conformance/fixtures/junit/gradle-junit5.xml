@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="example.AmountsTest" tests="5" skipped="1" failures="2" errors="0" timestamp="2026-11-28T04:32:14.920Z" hostname="runner" time="0.014">
+  <properties/>
+  <testcase name="roundsToTwoDecimals()" classname="example.AmountsTest" time="0.005"/>
+  <testcase name="rejectsNegativeAmount()" classname="example.AmountsTest" time="0.002">
+    <failure message="java.lang.IllegalArgumentException: negative amount" type="java.lang.IllegalArgumentException">java.lang.IllegalArgumentException: negative amount
+	at example.Amounts.parse(Amounts.java:13)
+	at example.AmountsTest.rejectsNegativeAmount(AmountsTest.java:24)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+</failure>
+  </testcase>
+  <testcase name="readsExchangeRate()" classname="example.AmountsTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <testcase name="comparesRounding()" classname="example.AmountsTest" time="0.001">
+    <failure message="org.opentest4j.AssertionFailedError: rounding goes up ==&gt; expected: &lt;1.24&gt; but was: &lt;1.23&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: rounding goes up ==&gt; expected: &lt;1.24&gt; but was: &lt;1.23&gt;
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:70)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:929)
+	at example.AmountsTest.comparesRounding(AmountsTest.java:29)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+</failure>
+  </testcase>
+  <testcase name="[OQ-AMOUNTS-001] parses an empty line as no amount" classname="example.AmountsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

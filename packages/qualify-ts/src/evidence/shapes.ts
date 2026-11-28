@@ -89,17 +89,57 @@ const TEST = object(
   },
 );
 
+const COUNTER = object(["found", "hit", "percent"]);
+
+const COUNTS = { lines: COUNTER, functions: COUNTER, branches: COUNTER };
+
+const CASE = object(
+  [
+    "level",
+    "id",
+    "suite",
+    "classname",
+    "name",
+    "file",
+    "outcome",
+    "skipReason",
+    "error",
+    "durationMs",
+  ],
+  { error: object(["type", "message", "detail"]) },
+);
+
+const COVERAGE = object(["totals", "files"], {
+  totals: object(["lines", "functions", "branches"], COUNTS),
+  files: {
+    items: object(["path", "lines", "functions", "branches"], COUNTS),
+  },
+});
+
 /**
  * Key order of every evidence file: the order properties appear in
  * `evidence.schema.json`. Values inside `expected`, `actual` and `target`
  * have no shape, so their keys are sorted.
  */
 export const EVIDENCE_SHAPE: JsonShape = object(
-  ["schemaVersion", "kind", "run", "summary", "tests", "test"],
+  [
+    "schemaVersion",
+    "kind",
+    "run",
+    "summary",
+    "tests",
+    "imported",
+    "cases",
+    "coverage",
+    "test",
+  ],
   {
     run: RUN,
     summary: object(["total", "pass", "fail", "error", "skip", "verdict"]),
     tests: { items: TEST },
+    imported: { items: object(["kind", "path", "sha256"]) },
+    cases: { items: CASE },
+    coverage: COVERAGE,
     test: TEST,
   },
 );
